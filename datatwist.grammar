@@ -4,7 +4,7 @@
 
 (* ============= TOP LEVEL STRUCTURE ============= *)
 
-program = statement (newline+ statement)* | #''
+program = (expr newline indented-pipeline-body) (newline+ statement)* | statement (newline+ statement)* | #''
 non-indented-start = #'(?:(?![ \t]{2,}).)' / indented-pipeline-op
 
 (* Terminals *)
@@ -23,7 +23,7 @@ regular-char = #'[^\"]'
 
 (* ============= STATEMENTS ============= *)
 
-<statement> = indented-pipeline | function-call | assignment | function-def | try-catch | expr
+<statement> = indented-pipeline | assignment | function-def | try-catch | function-call | expr
 indented-pipeline = expr newline indented-pipeline-body
 indented-pipeline-body = indented-pipeline-ops pipeline-ending?
 indented-pipeline-ops = indented-pipeline-op (newline indented-pipeline-op)*
@@ -51,7 +51,7 @@ expr = logical-expr
 <comparison-expr> = arithmetic-expr (<opt-ws> comparison-op <opt-ws> arithmetic-expr)*
 <arithmetic-expr> = term (<opt-ws> <'+'> <opt-ws> term | <opt-ws> <'-'> <opt-ws> term)*
 <term> = factor (<opt-ws> <'*'> <opt-ws> factor | <opt-ws> <'/'> <opt-ws> factor | <opt-ws> <'%'> <opt-ws> factor)*
-<factor> = boolean | nil | function-call | pipeline-operation | literal | object | function | list | wildcard-access | try-catch | <'('> expr <')'> | user-identifier
+<factor> = boolean | nil | function-call | pipeline-operation | literal | object | function | list | wildcard-access | try-catch | <'('> expr <')'> | identifier
 
 (* Filter condition - expression without pipelines *)
 filter-condition = expr
@@ -108,7 +108,7 @@ list = single-line-list / multi-line-list
 (* Single line list *)
 single-line-list = <'['> <opt-ws> list-elements <opt-ws> <']'>
 <list-elements> = list-element (<opt-ws> list-element)* | #''
-list-element = literal | object | list | function | wildcard-access | user-identifier
+list-element = literal | object | list | function | wildcard-access | identifier
 
 (* Multi line list *)
 multi-line-list = <'['> newline list-elements-multiline newline <']'>
@@ -119,13 +119,13 @@ list-element-multiline = indent expr
 
 (* Function: [param1 param2 -> body] *)
 function = <'['> <opt-ws> function-params <opt-ws> <'->'> <opt-ws> function-body <opt-ws> <']'>
-function-params = user-identifier (<opt-ws> user-identifier)*
+function-params = identifier (<opt-ws> identifier)*
 function-body = expr
 
 (* ============= PIPELINES ============= *)
 
 (* Pipeline components *)
-pipeline-source = user-identifier | literal | object | list | wildcard-access
+pipeline-source = identifier | literal | object | list | wildcard-access
 pipeline-op = pipeline-operation / general-function-call
 
 (* Pipeline operations with proper indentation *)
@@ -147,7 +147,7 @@ indented-average-op = <'average'> <opt-ws> operation-arguments
 pipeline-operation = pipeline-name (<opt-ws> operation-arguments)?
 
 (* Pipeline operations - can be built-in or user-defined *)
-pipeline-name = user-identifier
+pipeline-name = identifier
 
 (* Arguments can be expression, object, or nothing *)
 operation-arguments = expr / multi-line-object
@@ -167,7 +167,7 @@ bare-arguments = expr (<opt-ws> expr)*
 (* ============= SPECIAL CONSTRUCTS ============= *)
 
 (* Wildcard access: _.field or _.field.nested or _ *)
-wildcard-access = '_' | '_' <'.'> user-identifier (<'.'> user-identifier)*
+wildcard-access = '_' | '_' <'.'> identifier (<'.'> identifier)*
 
 (* Pattern matching as field value: | condition -> result | _ -> default *)
 pattern-clauses = pattern-clause ( newline <indent> pattern-clause )*
