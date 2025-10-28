@@ -4,7 +4,7 @@
 
 ; ============= TOP LEVEL STRUCTURE =============
 
-program = (statement <opt-ws>)* | <opt-ws>
+program = (simple-pipeline <opt-ws>)* | (statement <opt-ws>)* | <opt-ws>
 
 ; Terminals
 integer = #'[0-9]+'
@@ -19,7 +19,7 @@ regular-char = #'[^\"]'
 
 ; ============= STATEMENTS =============
 
-<statement> = indented-pipeline | simple-pipeline | assignment | function-def | expr
+<statement> = indented-pipeline | assignment | function-def | expr
 
 ; Assignment: name = expression
 assignment = identifier <opt-ws> <'='> <opt-ws> expr
@@ -35,7 +35,7 @@ expr = logical-expr
 <comparison-expr> = arithmetic-expr (<opt-ws> comparison-op <opt-ws> arithmetic-expr)*
 <arithmetic-expr> = term (<opt-ws> <'+'> <opt-ws> term | <opt-ws> <'-'> <opt-ws> term)*
 <term> = factor (<opt-ws> <'*'> <opt-ws> factor | <opt-ws> <'/'> <opt-ws> factor | <opt-ws> <'%'> <opt-ws> factor)*
-<factor> = boolean | nil | literal | object | list | function | wildcard-access | pattern-match | try-catch | <'('> expr <')'> | identifier | simple-pipeline
+<factor> = boolean | nil | literal | object | list | function | wildcard-access | pattern-match | try-catch | <'('> expr <')'> | identifier | filter-keyword | map-keyword | group-by-keyword | sort-by-keyword | take-keyword | simple-pipeline
 
 
 
@@ -91,7 +91,7 @@ function-body = expr
 
 ; Simple pipeline on single line: data filter condition map transform
 simple-pipeline = pipeline-source ws pipeline-keyword-op (<opt-ws> pipeline-keyword-op)*
-pipeline-keyword-op = filter-op | map-op | group-by-op | sort-by-op | take-op | general-function-call
+pipeline-keyword-op = filter-op / map-op / group-by-op / sort-by-op / take-op / general-function-call
 pipeline-operation = pipeline-keyword-op | general-function-call
 pipeline-source = identifier | literal | object | list | wildcard-access
 
@@ -104,7 +104,7 @@ indented-ops = newline indented-pipeline-op+
 indented-pipeline-op = indent specific-pipeline-op
 
 ; Specific pipeline operations
-specific-pipeline-op = filter-op | map-op | group-by-op | sort-by-op | take-op
+specific-pipeline-op = filter-op / map-op / group-by-op / sort-by-op / take-op
 
 ; Standard pipeline operations
 filter-op = <'filter'> ws expr
@@ -112,6 +112,13 @@ map-op = <'map'> ws expr
 group-by-op = <'group-by'> ws expr
 sort-by-op = <'sort-by'> ws expr
 take-op = <'take'> ws expr
+
+; Pipeline keywords
+filter-keyword = 'filter'
+map-keyword = 'map'
+group-by-keyword = 'group-by'
+sort-by-keyword = 'sort-by'
+take-keyword = 'take'
 
 ; Function calls: func arg1 arg2 or func(arg1, arg2)
 function-call = identifier ws (arguments | bare-arguments)
