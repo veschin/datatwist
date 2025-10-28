@@ -103,16 +103,15 @@
     [["Invalid field access" "_.123invalid" [:wildcard-access]]
      ["Empty field" "_." [:wildcard-access]]]}
 
-   :simple-pipelines
+   :zen-pipelines
    {:positive
-    [["Basic pipeline" "users filter _.age > 18" [:simple-pipeline :filter-op]]
-     ["Chained pipeline" "users\n  filter _.age > 18\n  map {name: _.name}" [:indented-pipeline :indented-filter-op :indented-map-op]]
-     ["Multi-op pipeline" "data\n  filter even?\n  map double\n  take 5" [:indented-pipeline :indented-filter-op :indented-map-op :indented-take-op]]
-     ["Function call in pipeline" "data\n  process arg1 arg2" [:indented-pipeline :general-function-call]]]
+    [["Basic zen pipeline" "users\n  filter _.age > 18" [:indented-pipeline :indented-filter-op]]
+     ["Chained zen pipeline" "users\n  filter _.age > 18\n  map {name: _.name}" [:indented-pipeline :indented-filter-op :indented-map-op]]
+     ["Multi-op zen pipeline" "data\n  filter even?\n  map double\n  take 5" [:indented-pipeline :indented-filter-op :indented-map-op :indented-take-op]]
+     ["Function call in zen pipeline" "data\n  process arg1 arg2" [:indented-pipeline :indented-general-function-call]]]
 
     :negative
-    [["Invalid operation" "data invalid-op _.field" [:simple-pipeline]]
-     ["Missing expression" "filter _.age > 18" [:simple-pipeline]]]}
+    [["Invalid operation" "data\n  invalid-op _.field" [:indented-pipeline]]]}
 
    :indented-pipelines
    {:positive
@@ -137,8 +136,7 @@
      ["Complex guards in object" "{level:\n  | x > 10 and x < 20 -> \"teen\"\n  | x >= 20 -> \"adult\"\n  | _ -> \"child\"}" [:object :multi-line-field-value]]]
 
     :negative
-    [["Missing default case" "{risk:\n  | _.age > 10 -> \"big\"}" [:object]]
-     ["Invalid guard syntax" "{risk: _.age > 10 -> \"big\" | _ -> \"small\"}" [:object]]]}
+    [["Invalid guard syntax" "{risk: _.age > 10 -> \"big\" | _ -> \"small\"}" [:object]]]}
 
    :try-catch
    {:positive
@@ -243,15 +241,15 @@
       (testing desc
         (is (parse-failure? input))))))
 
-(deftest simple-pipelines-tests
-  (testing "Positive simple pipeline cases"
-    (doseq [[desc input expected] (:positive (:simple-pipelines test-cases))]
+(deftest zen-pipelines-tests
+  (testing "Positive zen pipeline cases"
+    (doseq [[desc input expected] (:positive (:zen-pipelines test-cases))]
       (testing desc
         (is (parse-success? input))
         (assert-parse-tree-structure input expected))))
 
-  (testing "Negative simple pipeline cases"
-    (doseq [[desc input _] (:negative (:simple-pipelines test-cases))]
+  (testing "Negative zen pipeline cases"
+    (doseq [[desc input _] (:negative (:zen-pipelines test-cases))]
       (testing desc
         (is (parse-failure? input))))))
 

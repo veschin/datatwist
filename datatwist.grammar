@@ -22,7 +22,7 @@ regular-char = #'[^\"]'
 
 (* ============= STATEMENTS ============= *)
 
-<statement> = indented-pipeline | assignment | function-def | expr
+<statement> = indented-pipeline | assignment | function-def | try-catch | expr
 
 (* Assignment: name = expression *)
 assignment = identifier <opt-ws> <'='> <opt-ws> expr
@@ -34,11 +34,11 @@ function-def = identifier <opt-ws> <'='> <opt-ws> function
 
 (* Expression precedence (from lowest to highest *)
 expr = logical-expr
-<logical-expr> = comparison-expr (<'or'> comparison-expr)*
+<logical-expr> = comparison-expr (<opt-ws> logical-op <opt-ws> comparison-expr)*
 <comparison-expr> = arithmetic-expr (<opt-ws> comparison-op <opt-ws> arithmetic-expr)*
 <arithmetic-expr> = term (<opt-ws> <'+'> <opt-ws> term | <opt-ws> <'-'> <opt-ws> term)*
 <term> = factor (<opt-ws> <'*'> <opt-ws> factor | <opt-ws> <'/'> <opt-ws> factor | <opt-ws> <'%'> <opt-ws> factor)*
-<factor> = boolean | nil | literal | object | list | function | function-call | wildcard-access | try-catch | <'('> expr <')'> | identifier | simple-pipeline | indented-pipeline
+<factor> = boolean | nil | literal | object | list | function | function-call | wildcard-access | try-catch | <'('> expr <')'> | identifier
 
 (* Filter condition - expression without pipelines *)
 filter-condition = filter-expr
@@ -100,7 +100,8 @@ object-field-multiline = indent field
 (* Field definitions *)
 field = identifier <opt-ws> <':'> <opt-ws> field-value
 field-value = same-line-field-value / multi-line-field-value
-same-line-field-value = expr
+same-line-field-value = expr / same-line-field-pipeline
+same-line-field-pipeline = pipeline-source <ws> pipeline-op (<ws> pipeline-op)*
 multi-line-field-value = newline <indent> (pattern-clauses / field-pipeline)
 
 (* Pipeline as field value *)
@@ -108,8 +109,16 @@ field-pipeline = simple-expr newline field-pipeline-ops
 field-pipeline-ops = indented-first-op remaining-ops / indented-first-op
 
 (* Lists: [item1 item2 item3] (no commas) *)
-list = <'['> <opt-ws> list-elements <opt-ws> <']'>
+list = single-line-list / multi-line-list
+
+(* Single line list *)
+single-line-list = <'['> <opt-ws> list-elements <opt-ws> <']'>
 <list-elements> = (expr <opt-ws>)*
+
+(* Multi line list *)
+multi-line-list = <'['> newline list-elements-multiline newline <']'>
+<list-elements-multiline> = list-element-multiline (<newline> list-element-multiline)*
+list-element-multiline = indent expr
 
 (* ============= FUNCTIONS ============= *)
 
@@ -120,11 +129,11 @@ function-body = expr
 
 (* ============= PIPELINES ============= *)
 
-(* Simple pipeline on single line: data filter condition map transform *)
-simple-pipeline = pipeline-source <ws> pipeline-op (<ws> pipeline-op)*
-pipeline-op = filter-op / map-op / group-by-op / sort-by-op / take-op / general-function-call
-pipeline-operation = pipeline-op | general-function-call
+(* Pipeline components *)
 pipeline-source = identifier | literal | object | list | wildcard-access
+pipeline-op = filter-op / map-op / group-by-op / sort-by-op / take-op / general-function-call
+
+
 
 (* Indented pipeline with newline separation *)
 indented-pipeline = pipeline-head newline indented-first-op remaining-ops
@@ -133,14 +142,15 @@ indented-first-op = indented-pipeline-op
 remaining-ops = (newline indented-pipeline-op)*
 
 (* Pipeline operations with proper indentation *)
-indented-pipeline-op = indented-filter-op / indented-map-op / indented-group-by-op / indented-sort-by-op / indented-take-op
+indented-pipeline-op = indented-filter-op / indented-map-op / indented-group-by-op / indented-sort-by-op / indented-take-op / indented-general-function-call
 
 (* Indented pipeline operations *)
 indented-filter-op = indent <'filter'> filter-content
-indented-map-op = indent <'map'> <opt-ws> expr-until-newline
+indented-map-op = indent <'map'> <opt-ws> expr
 indented-group-by-op = indent <'group-by'> <opt-ws> expr-until-newline
 indented-sort-by-op = indent <'sort-by'> <opt-ws> expr-until-newline
 indented-take-op = indent <'take'> <opt-ws> expr-until-newline
+indented-general-function-call = indent general-function-call
 
 (* Filter content - can be inline or multiline *)
 filter-content = opt-ws filter-content-body
@@ -157,7 +167,7 @@ expr-until-newline = logical-expr-until-newline
 <comparison-expr-until-newline> = arithmetic-expr-until-newline (<opt-ws> comparison-op <opt-ws> arithmetic-expr-until-newline)*
 <arithmetic-expr-until-newline> = term-until-newline (<opt-ws> <'+'> <opt-ws> term-until-newline | <opt-ws> <'-'> <opt-ws> term-until-newline)*
 <term-until-newline> = factor-until-newline (<opt-ws> <'*'> <opt-ws> factor-until-newline | <opt-ws> <'/'> <opt-ws> factor-until-newline | <opt-ws> <'%'> <opt-ws> factor-until-newline)*
-<factor-until-newline> = boolean | nil | literal | string | object | list | function | function-call | wildcard-access | try-catch | <'('> expr-until-newline <')'> | identifier | simple-pipeline
+<factor-until-newline> = boolean | nil | literal | string | object | list | function | function-call | wildcard-access | try-catch | <'('> expr-until-newline <')'> | identifier
 
 (* Expression content for pipeline operations *)
 filter-expr-content = simple-expr
@@ -172,7 +182,7 @@ simple-expr = simple-logical-expr
 <simple-comparison-expr> = simple-arithmetic-expr (<opt-ws> comparison-op <opt-ws> simple-arithmetic-expr)*
 <simple-arithmetic-expr> = simple-term (<opt-ws> <'+'> <opt-ws> simple-term | <opt-ws> <'-'> <opt-ws> simple-term)*
 <simple-term> = simple-factor (<opt-ws> <'*'> <opt-ws> simple-factor | <opt-ws> <'/'> <opt-ws> simple-factor | <opt-ws> <'%'> <opt-ws> simple-factor)*
-<simple-factor> = boolean | nil | literal | object | list | function | function-call | wildcard-access | try-catch | <'('> simple-expr <')'> | identifier | simple-pipeline
+<simple-factor> = boolean | nil | literal | object | list | function | function-call | wildcard-access | try-catch | <'('> simple-expr <')'> | identifier
 
 (* Specific pipeline operations *)
 specific-pipeline-op = filter-op / map-op / group-by-op / sort-by-op / take-op
@@ -194,9 +204,9 @@ take-keyword = 'take'
 (* Function calls: func arg1 arg2 or func(arg1, arg2) *)
 function-call = identifier <opt-ws> (arguments | bare-arguments)
 
-(* General function calls in pipeline context (explicitly exclude keywords) *)
+(* General function calls in pipeline context (only specific allowed functions) *)
 general-function-call = non-keyword-func
-non-keyword-func = <'process'> <opt-ws> (arguments | bare-arguments) | <'transform'> <opt-ws> (arguments | bare-arguments) | <'calculate'> <opt-ws> (arguments | bare-arguments) | <'custom-func'> <opt-ws> (arguments | bare-arguments) | identifier <opt-ws> (arguments | bare-arguments)
+non-keyword-func = <'process'> <opt-ws> (arguments | bare-arguments) | <'transform'> <opt-ws> (arguments | bare-arguments) | <'calculate'> <opt-ws> (arguments | bare-arguments) | <'custom-func'> <opt-ws> (arguments | bare-arguments)
 
 (* Arguments in parentheses (traditional) *)
 arguments = <'('> <opt-ws> (expr (',' <opt-ws> expr)*)? <opt-ws> <')'>
@@ -217,8 +227,10 @@ pattern-default = <'_'>
 pattern-test = expr
 pattern-result = expr
 
-(* Try-catch: try expr catch error -> fallback *)
-try-catch = <'try'> <opt-ws> expr <opt-ws> <'catch'> <opt-ws> identifier <opt-ws> <'->'> <opt-ws> expr
+(* Try-catch: try expr catch error-pattern -> fallback *)
+try-catch = <'try'> <opt-ws> expr <opt-ws> <'catch'> <opt-ws> catch-pattern <opt-ws> <'->'> <opt-ws> expr
+catch-pattern = identifier | pattern-destructuring
+pattern-destructuring = identifier (<ws> identifier)+
 
 (* ============= WHITESPACE AND FORMATTING ============= *)
 
