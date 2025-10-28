@@ -4,7 +4,7 @@
 
 (* ============= TOP LEVEL STRUCTURE ============= *)
 
-program = (expr newline indented-pipeline-body) (newline+ statement)* | statement (newline+ statement)* | #''
+program = indented-pipeline / statement (<opt-ws> (<';'> / newline) <opt-ws> statement)* / statement / <opt-ws>
 non-indented-start = #'(?:(?![ \t]{2,}).)' / indented-pipeline-op
 
 (* Terminals *)
@@ -23,8 +23,8 @@ regular-char = #'[^\"]'
 
 (* ============= STATEMENTS ============= *)
 
-<statement> = indented-pipeline | assignment | function-def | try-catch | function-call | expr
-indented-pipeline = expr newline indented-pipeline-body
+<statement> = function-call | indented-pipeline | assignment | function-def | try-catch | expr
+indented-pipeline = pipeline-source newline indented-pipeline-body
 indented-pipeline-body = indented-pipeline-ops pipeline-ending?
 indented-pipeline-ops = indented-pipeline-op (newline indented-pipeline-op)*
 pipeline-ending = newline indented-closing-brace
@@ -51,7 +51,7 @@ expr = logical-expr
 <comparison-expr> = arithmetic-expr (<opt-ws> comparison-op <opt-ws> arithmetic-expr)*
 <arithmetic-expr> = term (<opt-ws> <'+'> <opt-ws> term | <opt-ws> <'-'> <opt-ws> term)*
 <term> = factor (<opt-ws> <'*'> <opt-ws> factor | <opt-ws> <'/'> <opt-ws> factor | <opt-ws> <'%'> <opt-ws> factor)*
-<factor> = boolean | nil | function-call | pipeline-operation | literal | object | function | list | wildcard-access | try-catch | <'('> expr <')'> | identifier
+<factor> = boolean | nil | literal | function-call | object | function | list | wildcard-access | try-catch | <'('> expr <')'> | identifier
 
 (* Filter condition - expression without pipelines *)
 filter-condition = expr
@@ -162,7 +162,7 @@ general-function-call = user-identifier <opt-ws> (arguments | bare-arguments)
 arguments = <'('> <opt-ws> (expr (',' <opt-ws> expr)*)? <opt-ws> <')'>
 
 (* Bare arguments (Clojure-style) *)
-bare-arguments = expr (<opt-ws> expr)*
+bare-arguments = expr (<ws> expr)*
 
 (* ============= SPECIAL CONSTRUCTS ============= *)
 

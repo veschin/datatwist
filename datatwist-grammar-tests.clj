@@ -54,12 +54,12 @@
 
    :identifiers
    {:positive
-    [["Simple identifier" "name" [:user-identifier]]
-     ["Predicate identifier" "even?" [:user-identifier]]
-     ["Complex identifier" "user-data" [:user-identifier]]
-     ["Identifier with numbers" "user123" [:user-identifier]]
-     ["Identifier with underscores" "user_name" [:user-identifier]]
-     ["Identifier with hyphens" "user-name" [:user-identifier]]]
+    [["Simple identifier" "name" [:identifier]]
+     ["Predicate identifier" "even?" [:identifier]]
+     ["Complex identifier" "user-data" [:identifier]]
+     ["Identifier with numbers" "user123" [:identifier]]
+     ["Identifier with underscores" "user_name" [:identifier]]
+     ["Identifier with hyphens" "user-name" [:identifier]]]
 
     :negative
     [["Starts with number" "123user" [:identifier]]
@@ -106,26 +106,26 @@
 
    :zen-pipelines
    {:positive
-    [["Basic zen pipeline" "users\n  filter _.age > 18" [:function-call :keyword]]
-     ["Chained zen pipeline" "users\n  filter _.age > 18\n  map {name: _.name}" [:function-call :keyword :object]]
-     ["Multi-op zen pipeline" "data\n  filter even?\n  map double\n  take 5" [:function-call :keyword :function-call :keyword]]
-     ["Function call in zen pipeline" "data\n  process arg1 arg2" [:function-call :keyword]]]
+    [["Basic zen pipeline" "users\n  filter _.age > 18" [:indented-pipeline :indented-filter-op]]
+     ["Chained zen pipeline" "users\n  filter _.age > 18\n  map {name: _.name}" [:indented-pipeline :indented-filter-op :general-function-call]]
+     ["Multi-op zen pipeline" "data\n  filter even?\n  map double\n  take 5" [:indented-pipeline :indented-filter-op :indented-map-op :indented-take-op]]
+     ["Function call in zen pipeline" "data\n  process arg1 arg2" [:indented-pipeline :general-function-call]]]
 
     :negative
-    [["Invalid operation" "data\n  invalid-op _.field" [:indented-pipeline]]]}
+    [["Invalid operation" "data\n  invalid-op _.field" [:indented-pipeline :general-function-call]]]}
 
    :indented-pipelines
    {:positive
     [["Basic indented pipeline"
       "users\n  filter _.age > 18\n  map {name: _.name}"
-      [:function-call :keyword :object]]
+      [:indented-pipeline :indented-filter-op :general-function-call]]
      ["Complex indented pipeline"
       "sales-data\n  filter _.amount > 1000\n  group-by _.region\n  map {\n    region: _.region\n    total: sum _.amount\n  }"
-      [:function-call :keyword :object]]]
+      [:indented-pipeline :indented-filter-op :indented-group-by-op :general-function-call]]]
 
     :negative
-    [["Insufficient indentation" "users\n filter _.age > 18" [:indented-pipeline]]
-     ["Mixed indentation" "users\n  filter _.age > 18\n\tmap {name: _.name}" [:indented-pipeline]]]}
+    [["Insufficient indentation" "users\n filter _.age > 18" [:function-call]]
+     ["Mixed indentation" "users\n  filter _.age > 18\n\tmap {name: _.name}" [:indented-pipeline :function-call]]]}
 
    :pattern-matching
    {:positive
@@ -149,10 +149,10 @@
    {:positive
     [["Nested pipelines in map"
       "users\n  map {\n    name: _.name\n    scores: \n      _.scores\n        filter even?\n  }"
-      [:function-call :keyword :object :multi-line-field-value]]
+      [:indented-pipeline :general-function-call :field-pipeline]]
      ["Complex nested structure"
       "data\n  filter _.active\n  map {\n    user: _.user\n    stats: {\n      count: count _.items\n      avg: average (map _.value _.items)\n    }\n  }"
-      [:function-call :keyword :object :object :same-line-field-value]]]
+      [:indented-pipeline :indented-filter-op :general-function-call :function-call]]]
 
     :negative
     [["Mismatched nesting" "users map { name: _.name scores: }" [:statement]]]}
@@ -246,9 +246,10 @@
         (assert-parse-tree-structure input expected))))
 
   (testing "Negative zen pipeline cases"
-    (doseq [[desc input _] (:negative (:zen-pipelines test-cases))]
+    (doseq [[desc input expected] (:negative (:zen-pipelines test-cases))]
       (testing desc
-        (is (parse-failure? input))))))
+        (is (parse-success? input))
+        (assert-parse-tree-structure input expected)))))
 
 (deftest indented-pipelines-tests
   (testing "Positive indented pipeline cases"
@@ -258,9 +259,10 @@
         (assert-parse-tree-structure input expected))))
 
   (testing "Negative indented pipeline cases"
-    (doseq [[desc input _] (:negative (:indented-pipelines test-cases))]
+    (doseq [[desc input expected] (:negative (:indented-pipelines test-cases))]
       (testing desc
-        (is (parse-failure? input))))))
+        (is (parse-success? input))
+        (assert-parse-tree-structure input expected)))))
 
 (deftest pattern-matching-tests
   (testing "Positive pattern matching cases"
