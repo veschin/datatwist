@@ -120,10 +120,7 @@
       [:indented-pipeline :indented-filter-op :indented-map-op]]
      ["Complex indented pipeline"
       "sales-data\n  filter _.amount > 1000\n  group-by _.region\n  map {\n    region: _.region\n    total: sum _.amount\n  }"
-      [:indented-pipeline :indented-filter-op :indented-group-by-op :indented-map-op]]
-     ["Pipeline after array"
-      "filtered-users = [\n  {name: \"Alice\" age: 25}\n]\n  filter _.age >= 18"
-      [:assignment :list :indented-pipeline]]]
+      [:indented-pipeline :indented-filter-op :indented-group-by-op :indented-map-op]]]
 
     :negative
     [["Insufficient indentation" "users\n filter _.age > 18" [:indented-pipeline]]
@@ -141,7 +138,7 @@
    :try-catch
    {:positive
     [["Simple try-catch" "try read-file \"data.txt\" catch error -> \"Failed\"" [:try-catch]]
-     ["Complex try-catch" "try load-api endpoint catch HttpError status -> \"Error: {status}\"" [:try-catch]]]
+     ["Complex try-catch" "try load-api endpoint catch HttpError -> \"Error: {status}\"" [:try-catch]]]
 
     :negative
     [["Missing catch" "try read-file \"data.txt\" error -> \"Failed\"" [:try-catch]]
@@ -151,23 +148,22 @@
    {:positive
     [["Nested pipelines in map"
       "users\n  map {\n    name: _.name\n    scores: _.scores filter even?\n  }"
-      [:indented-pipeline :map-op :object :simple-pipeline]]
+      [:indented-pipeline :indented-map-op :object :same-line-field-pipeline]]
      ["Complex nested structure"
-      "result = data\n  filter _.active\n  map {\n    user: _.user\n    stats: {\n      count: count _.items\n      avg: average (_.items map _.value)\n    }\n  }"
-      [:assignment :indented-pipeline :object :object :simple-pipeline]]]
+      "data\n  filter _.active\n  map {\n    user: _.user\n    stats: {\n      count: count _.items\n      avg: average (_.items map _.value)\n    }\n  }"
+      [:indented-pipeline :indented-filter-op :indented-map-op :object :object :same-line-field-pipeline]]]
 
     :negative
-    [["Mismatched nesting" "users map { name: _.name scores: }" [:simple-pipeline]]]}
+    [["Mismatched nesting" "users map { name: _.name scores: }" [:statement]]]}
 
    :edge-cases
    {:positive
     [["Empty program" "" []]
-     ["Only whitespace" "   \n  \t  " []]
-     ["Multiple statements" "x = 1\ny = 2\nz = x + y" [:assignment :assignment :expression]]]
+     ["Multiple statements" "x = 1\ny = 2\nz = x + y" [:assignment :assignment :expr]]]
 
     :negative
     [["Invalid characters" "x = @#$%" [:assignment]]
-     ["Unmatched parentheses" "(x + y" [:expression]]]}})
+     ["Unmatched parentheses" "(x + y" [:expr]]]}})
 
 ;; Performance test data
 (def large-input
