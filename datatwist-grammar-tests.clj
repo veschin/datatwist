@@ -44,9 +44,9 @@
      ["String with escape" "\"Hello \\\"World\\\"\"" [:string]]
      ["Integer number" "42" [:number]]
      ["Float number" "3.14" [:number]]
-     ["Boolean true" "true" [:keyword]]
-     ["Boolean false" "false" [:keyword]]
-     ["Nil literal" "nil" [:keyword]]]
+     ["Boolean true" "true" [:boolean]]
+     ["Boolean false" "false" [:boolean]]
+     ["Nil literal" "nil" [:nil]]]
 
     :negative
     [["Unclosed string" "\"Hello World" [:string]]

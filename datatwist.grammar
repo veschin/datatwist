@@ -5,24 +5,18 @@
 (* ============= TOP LEVEL STRUCTURE ============= *)
 
 program = statement (newline+ statement)* | #''
-statement-separator = <';'> / newline-statement
-newline-statement = newline statement
-newline-non-indented = newline non-indented-start
 non-indented-start = #'(?:(?![ \t]{2,}).)' / indented-pipeline-op
 
 (* Terminals *)
 integer = #'[0-9]+'
 <identifier> = keyword / user-identifier
-keyword = 'true' | 'false' | 'nil' | 'filter' | 'map' | 'group-by' | 'sort-by' | 'take' | 'average' | 'sum' | 'count' | 'min' | 'max' | 'process' | 'transform' | 'calculate' | 'custom-func'
+keyword = 'filter' | 'map' | 'group-by' | 'sort-by' | 'take' | 'average' | 'sum' | 'count' | 'min' | 'max' | 'process' | 'transform' | 'calculate' | 'custom-func'
 user-identifier = #'[a-zA-Z][a-zA-Z0-9\-_]*[?]?'
 ws = #'[ \t]+'
 <opt-ws> = #'[ \t]*'
 newline = #'\r?\n'
 indent = #'[ \t]{2,}'
 regular-char = #'[^\"]'
-
-
-
 
 (* ============= STATEMENTS ============= *)
 
@@ -47,10 +41,9 @@ indented-arg-aggregation = indent arg-aggregation-name <opt-ws> indented-aggrega
 indented-stream-aggregation = indent stream-aggregation-name
 
 (* Indented aggregation content *)
-indented-aggregation-content = map-operation-content / expr-until-newline
+indented-aggregation-content = expr / multi-line-object
 
-(* Map operation content - special case for multiline objects *)
-map-operation-content = expr / multi-line-object
+
 
 indented-general-function-call = indent general-function-call
 
@@ -72,10 +65,6 @@ expr = logical-expr
 
 (* Filter condition - expression without pipelines *)
 filter-condition = expr
-
-
-
-
 
 (* Comparison operators  *)
 comparison-op = '>' | '<' | '>=' | '<=' | '==' | '!='
@@ -99,13 +88,6 @@ escaped-char = '\\\"' | '\\\\' | <'\\\\'> #'.'
 
 (* Numbers (integer and float) *)
 number = integer ('.' integer)?
-
-
-
-(* ============= IDENTIFIERS ============= *)
-
-(* Identifiers with optional ? suffix for predicates *)
-(* Supports letters, numbers, hyphens, underscores *)
 
 (* ============= DATA STRUCTURES ============= *)
 
@@ -160,18 +142,13 @@ function-body = expr
 pipeline-source = identifier | literal | object | list | wildcard-access
 pipeline-op = pipeline-function / general-function-call
 
-
-
-
-
 (* Pipeline operations with proper indentation *)
 indented-pipeline-op = indented-filter-op / indented-map-op / indented-group-by-op / indented-sort-by-op / indented-take-op / indented-general-function-call
 
 (* Indented pipeline operations *)
 indented-filter-op = indent <'filter'> filter-content
 indented-map-op = indent <'map'> <opt-ws> map-operation-content
-map-operation-content = expr / complete-multi-line-map
-complete-multi-line-map = multi-line-object
+map-operation-content = expr / multi-line-object
 indented-group-by-op = indent <'group-by'> <opt-ws> expr-until-newline
 indented-sort-by-op = indent <'sort-by'> <opt-ws> expr-until-newline
 indented-take-op = indent <'take'> <opt-ws> expr-until-newline
@@ -183,11 +160,9 @@ filter-content = opt-ws filter-content-body
 filter-content-body = expr-until-newline / multiline-filter-content
 
 (* Map content - can be inline or multiline *)
-map-content = opt-ws map-content-body
-map-content-body = expr-until-newline / full-multi-line-object
+map-content = opt-ws (expr-until-newline / multi-line-object)
 
-(* Full multi-line object for pipeline context *)
-full-multi-line-object = multi-line-object
+
 
 (* Multiline filter content - capture everything until next pipeline op *)
 multiline-filter-content = multiline-filter-line+
@@ -198,9 +173,6 @@ filter-line-content = #'(?:(?!\\n\\s+(?:filter|map|group-by|sort-by|take|average
 expr-until-newline = expr
 
 
-
-(* Specific pipeline operations *)
-specific-pipeline-op = pipeline-function
 
 (* ============= PIPELINE FUNCTIONS ============= *)
 
@@ -256,12 +228,6 @@ pattern-result = expr
 
 (* Try-catch: try expr catch error -> fallback *)
 try-catch = <'try'> <opt-ws> expr <opt-ws> <'catch'> <opt-ws> identifier <opt-ws> <'->'> <opt-ws> expr
-
-(* ============= WHITESPACE AND FORMATTING ============= *)
-
-(* Whitespace handling *)
-
-
 
 (* ============= END OF INPUT ============= *)
 
