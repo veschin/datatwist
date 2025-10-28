@@ -106,8 +106,8 @@
    :simple-pipelines
    {:positive
     [["Basic pipeline" "users filter _.age > 18" [:simple-pipeline :filter-op]]
-     ["Chained pipeline" "users\n  filter _.age > 18\n  map {name: _.name}" [:indented-pipeline :filter-op :map-op]]
-     ["Multi-op pipeline" "data\n  filter even?\n  map double\n  take 5" [:indented-pipeline :filter-op :map-op :take-op]]
+     ["Chained pipeline" "users\n  filter _.age > 18\n  map {name: _.name}" [:indented-pipeline :indented-filter-op :indented-map-op]]
+     ["Multi-op pipeline" "data\n  filter even?\n  map double\n  take 5" [:indented-pipeline :indented-filter-op :indented-map-op :indented-take-op]]
      ["Function call in pipeline" "data\n  process arg1 arg2" [:indented-pipeline :general-function-call]]]
 
     :negative
@@ -118,10 +118,10 @@
    {:positive
     [["Basic indented pipeline"
       "users\n  filter _.age > 18\n  map {name: _.name}"
-      [:indented-pipeline :filter-op :map-op]]
+      [:indented-pipeline :indented-filter-op :indented-map-op]]
      ["Complex indented pipeline"
       "sales-data\n  filter _.amount > 1000\n  group-by _.region\n  map {\n    region: _.region\n    total: sum _.amount\n  }"
-      [:indented-pipeline :filter-op :group-by-op :map-op]]
+      [:indented-pipeline :indented-filter-op :indented-group-by-op :indented-map-op]]
      ["Pipeline after array"
       "filtered-users = [\n  {name: \"Alice\" age: 25}\n]\n  filter _.age >= 18"
       [:assignment :list :indented-pipeline]]]
