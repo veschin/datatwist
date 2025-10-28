@@ -8,7 +8,7 @@
 (def grammar-text
   (->> (slurp "datatwist.grammar")
        str/split-lines
-       (remove #(re-find #"^\s*[;#]" %))
+       (remove #(re-find #"^\s*[;#(*]" %))
        (str/join "\n")))
 
 ;; Create parser from grammar file
@@ -108,7 +108,7 @@
     [["Basic pipeline" "users filter _.age > 18" [:simple-pipeline :filter-op]]
      ["Chained pipeline" "users filter _.age > 18 map {name: _.name}" [:simple-pipeline :filter-op :map-op]]
      ["Multi-op pipeline" "data filter even? map double take 5" [:simple-pipeline :filter-op :map-op :take-op]]
-     ["Function call in pipeline" "data process arg1 arg2" [:simple-pipeline :function-call]]]
+     ["Function call in pipeline" "data process arg1 arg2" [:simple-pipeline :general-function-call]]]
 
     :negative
     [["Invalid operation" "data invalid-op _.field" [:simple-pipeline]]
@@ -132,13 +132,13 @@
 
    :pattern-matching
    {:positive
-    [["Simple pattern match" "user -> | _.age < 18 -> \"minor\" | _ -> \"adult\"" [:pattern-match]]
-     ["Named pattern" "classify = user -> | _.age < 18 -> \"minor\" | _ -> \"adult\"" [:function-def :pattern-match]]
-     ["Complex guards" "x -> | x > 10 and x < 20 -> \"teen\" | x >= 20 -> \"adult\" | _ -> \"child\"" [:pattern-match]]]
+    [["Simple pattern match in object" "{risk:\n  | _.age < 18 -> \"minor\"\n  | _ -> \"adult\"}" [:object :multi-line-field-value]]
+     ["Pattern match with wildcard" "{score:\n  | _.value > 10 -> \"high\"\n  | _ -> \"low\"}" [:object :multi-line-field-value]]
+     ["Complex guards in object" "{level:\n  | x > 10 and x < 20 -> \"teen\"\n  | x >= 20 -> \"adult\"\n  | _ -> \"child\"}" [:object :multi-line-field-value]]]
 
     :negative
-    [["Missing default case" "x -> | x > 10 -> \"big\"" [:pattern-match]]
-     ["Invalid guard syntax" "x -> x > 10 -> \"big\" | _ -> \"small\"" [:pattern-match]]]}
+    [["Missing default case" "{risk:\n  | _.age > 10 -> \"big\"}" [:object]]
+     ["Invalid guard syntax" "{risk: _.age > 10 -> \"big\" | _ -> \"small\"}" [:object]]]}
 
    :try-catch
    {:positive
