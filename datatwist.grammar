@@ -38,7 +38,16 @@ expr = logical-expr
 <comparison-expr> = arithmetic-expr (<opt-ws> comparison-op <opt-ws> arithmetic-expr)*
 <arithmetic-expr> = term (<opt-ws> <'+'> <opt-ws> term | <opt-ws> <'-'> <opt-ws> term)*
 <term> = factor (<opt-ws> <'*'> <opt-ws> factor | <opt-ws> <'/'> <opt-ws> factor | <opt-ws> <'%'> <opt-ws> factor)*
-<factor> = boolean | nil | literal | object | list | function | function-call | wildcard-access | try-catch | <'('> expr <')'> | identifier | simple-pipeline
+<factor> = boolean | nil | literal | object | list | function | function-call | wildcard-access | try-catch | <'('> expr <')'> | identifier | simple-pipeline | indented-pipeline
+
+(* Filter condition - expression without pipelines *)
+filter-condition = filter-expr
+<filter-expr> = filter-logical-expr
+<filter-logical-expr> = filter-comparison-expr (<'or'> filter-comparison-expr)*
+<filter-comparison-expr> = filter-arithmetic-expr (<opt-ws> comparison-op <opt-ws> filter-arithmetic-expr)*
+<filter-arithmetic-expr> = filter-term (<opt-ws> <'+'> <opt-ws> filter-term | <opt-ws> <'-'> <opt-ws> filter-term)*
+<filter-term> = filter-factor (<opt-ws> <'*'> <opt-ws> filter-factor | <opt-ws> <'/'> <opt-ws> filter-factor | <opt-ws> <'%'> <opt-ws> filter-factor)*
+<filter-factor> = boolean | nil | literal | wildcard-access | <'('> filter-condition <')'> | identifier
 
 
 
@@ -109,13 +118,35 @@ pipeline-head = expr
 indented-ops = newline indented-pipeline-op+
 
 (* Pipeline operations with proper indentation *)
-indented-pipeline-op = indent specific-pipeline-op
+indented-pipeline-op = indented-filter-op / indented-map-op / indented-group-by-op / indented-sort-by-op / indented-take-op
+
+(* Indented pipeline operations *)
+indented-filter-op = indent <'filter'> <ws> filter-expr-content
+indented-map-op = indent <'map'> <opt-ws> map-expr-content
+indented-group-by-op = indent <'group-by'> <opt-ws> group-by-expr-content
+indented-sort-by-op = indent <'sort-by'> <opt-ws> sort-by-expr-content
+indented-take-op = indent <'take'> <opt-ws> take-expr-content
+
+(* Expression content for pipeline operations *)
+filter-expr-content = #'[^\\n]*'
+map-expr-content = #'[^\\n]*'
+group-by-expr-content = #'[^\\n]*'
+sort-by-expr-content = #'[^\\n]*'
+take-expr-content = #'[^\\n]*'
+
+(* Simple expression - without indented pipelines *)
+simple-expr = simple-logical-expr
+<simple-logical-expr> = simple-comparison-expr (<'or'> simple-comparison-expr)*
+<simple-comparison-expr> = simple-arithmetic-expr (<opt-ws> comparison-op <opt-ws> simple-arithmetic-expr)*
+<simple-arithmetic-expr> = simple-term (<opt-ws> <'+'> <opt-ws> simple-term | <opt-ws> <'-'> <opt-ws> simple-term)*
+<simple-term> = simple-factor (<opt-ws> <'*'> <opt-ws> simple-factor | <opt-ws> <'/'> <opt-ws> simple-factor | <opt-ws> <'%'> <opt-ws> simple-factor)*
+<simple-factor> = boolean | nil | literal | object | list | function | function-call | wildcard-access | try-catch | <'('> simple-expr <')'> | identifier | simple-pipeline
 
 (* Specific pipeline operations *)
 specific-pipeline-op = filter-op / map-op / group-by-op / sort-by-op / take-op
 
 (* Standard pipeline operations *)
-filter-op = <'filter'> <ws> comparison-expr
+filter-op = <'filter'> <ws> filter-condition
 map-op = <'map'> <opt-ws> expr
 group-by-op = <'group-by'> <opt-ws> expr
 sort-by-op = <'sort-by'> <opt-ws> expr
@@ -147,7 +178,7 @@ bare-arguments = expr (<opt-ws> expr)*
 wildcard-access = '_' | '_' <'.'> identifier (<'.'> identifier)*
 
 (* Pattern matching as field value: | condition -> result | _ -> default *)
-pattern-clauses = newline <indent> pattern-clause ( newline <indent> pattern-clause )*
+pattern-clauses = pattern-clause ( newline <indent> pattern-clause )*
 pattern-clause = '|' <opt-ws> pattern-condition <opt-ws> <'->'> <opt-ws> pattern-result
 pattern-condition = pattern-default / pattern-test
 pattern-default = <'_'>
