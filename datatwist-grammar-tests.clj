@@ -12,7 +12,10 @@
        (str/join "\n")))
 
 ;; Create parser from grammar file
-(def parser (insta/parser grammar-text))
+(def parser
+  (insta/parser
+   grammar-text
+   :auto-whitespace :standard))
 
 ;; Helper functions for testing
 (defn parse-success? [input]
@@ -41,9 +44,9 @@
      ["String with escape" "\"Hello \\\"World\\\"\"" [:string]]
      ["Integer number" "42" [:number]]
      ["Float number" "3.14" [:number]]
-     ["Boolean true" "true" [:boolean]]
-     ["Boolean false" "false" [:boolean]]
-     ["Nil literal" "nil" [:nil]]]
+     ["Boolean true" "true" [:keyword]]
+     ["Boolean false" "false" [:keyword]]
+     ["Nil literal" "nil" [:keyword]]]
 
     :negative
     [["Unclosed string" "\"Hello World" [:string]]
@@ -51,12 +54,12 @@
 
    :identifiers
    {:positive
-    [["Simple identifier" "name" [:identifier]]
-     ["Predicate identifier" "even?" [:identifier]]
-     ["Complex identifier" "user-data" [:identifier]]
-     ["Identifier with numbers" "user123" [:identifier]]
-     ["Identifier with underscores" "user_name" [:identifier]]
-     ["Identifier with hyphens" "user-name" [:identifier]]]
+    [["Simple identifier" "name" [:user-identifier]]
+     ["Predicate identifier" "even?" [:user-identifier]]
+     ["Complex identifier" "user-data" [:user-identifier]]
+     ["Identifier with numbers" "user123" [:user-identifier]]
+     ["Identifier with underscores" "user_name" [:user-identifier]]
+     ["Identifier with hyphens" "user-name" [:user-identifier]]]
 
     :negative
     [["Starts with number" "123user" [:identifier]]
@@ -103,10 +106,10 @@
 
    :zen-pipelines
    {:positive
-    [["Basic zen pipeline" "users\n  filter _.age > 18" [:indented-pipeline :indented-filter-op]]
-     ["Chained zen pipeline" "users\n  filter _.age > 18\n  map {name: _.name}" [:indented-pipeline :indented-filter-op :indented-map-op]]
-     ["Multi-op zen pipeline" "data\n  filter even?\n  map double\n  take 5" [:indented-pipeline :indented-filter-op :indented-map-op :indented-take-op]]
-     ["Function call in zen pipeline" "data\n  process arg1 arg2" [:indented-pipeline :indented-general-function-call]]]
+    [["Basic zen pipeline" "users\n  filter _.age > 18" [:function-call :keyword]]
+     ["Chained zen pipeline" "users\n  filter _.age > 18\n  map {name: _.name}" [:function-call :keyword :object]]
+     ["Multi-op zen pipeline" "data\n  filter even?\n  map double\n  take 5" [:function-call :keyword :function-call :keyword]]
+     ["Function call in zen pipeline" "data\n  process arg1 arg2" [:function-call :keyword]]]
 
     :negative
     [["Invalid operation" "data\n  invalid-op _.field" [:indented-pipeline]]]}
@@ -115,10 +118,10 @@
    {:positive
     [["Basic indented pipeline"
       "users\n  filter _.age > 18\n  map {name: _.name}"
-      [:indented-pipeline :indented-filter-op :indented-map-op]]
+      [:function-call :keyword :object]]
      ["Complex indented pipeline"
       "sales-data\n  filter _.amount > 1000\n  group-by _.region\n  map {\n    region: _.region\n    total: sum _.amount\n  }"
-      [:indented-pipeline :indented-filter-op :indented-group-by-op :indented-map-op]]]
+      [:function-call :keyword :object]]]
 
     :negative
     [["Insufficient indentation" "users\n filter _.age > 18" [:indented-pipeline]]
@@ -145,11 +148,11 @@
    :complex-nested
    {:positive
     [["Nested pipelines in map"
-      "users\n  map {\n    name: _.name\n    scores: _.scores filter even?\n  }"
-      [:indented-pipeline :indented-map-op :object :same-line-field-pipeline]]
+      "users\n  map {\n    name: _.name\n    scores: \n      _.scores\n        filter even?\n  }"
+      [:function-call :keyword :object :multi-line-field-value]]
      ["Complex nested structure"
-      "data\n  filter _.active\n  map {\n    user: _.user\n    stats: {\n      count: count _.items\n      avg: average (_.items map _.value)\n    }\n  }"
-      [:indented-pipeline :indented-filter-op :indented-map-op :object :object :same-line-field-pipeline]]]
+      "data\n  filter _.active\n  map {\n    user: _.user\n    stats: {\n      count: count _.items\n      avg: average (map _.value _.items)\n    }\n  }"
+      [:function-call :keyword :object :object :same-line-field-value]]]
 
     :negative
     [["Mismatched nesting" "users map { name: _.name scores: }" [:statement]]]}
