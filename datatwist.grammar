@@ -4,7 +4,7 @@
 
 (* ============= TOP LEVEL STRUCTURE ============= *)
 
-program = (statement <opt-ws>*)+ / <opt-ws>
+program = statement (<opt-ws> (<';'> / newline) <opt-ws> statement)* / statement / <opt-ws>
 
 (* Terminals *)
 integer = #'[0-9]+'
@@ -136,17 +136,19 @@ pipeline-op = filter-op / map-op / group-by-op / sort-by-op / take-op / general-
 
 
 (* Indented pipeline with newline separation *)
-indented-pipeline = pipeline-head newline indented-first-op remaining-ops
+indented-pipeline = pipeline-head newline indented-first-op remaining-ops-with-end
 pipeline-head = expr
 indented-first-op = indented-pipeline-op
 remaining-ops = (newline indented-pipeline-op)*
+remaining-ops-with-end = (newline indented-pipeline-op)* (newline multi-line-object-end)?
+multi-line-object-end = <'}'>
 
 (* Pipeline operations with proper indentation *)
 indented-pipeline-op = indented-filter-op / indented-map-op / indented-group-by-op / indented-sort-by-op / indented-take-op / indented-general-function-call
 
 (* Indented pipeline operations *)
 indented-filter-op = indent <'filter'> filter-content
-indented-map-op = indent <'map'> <opt-ws> expr
+indented-map-op = indent <'map'> map-content
 indented-group-by-op = indent <'group-by'> <opt-ws> expr-until-newline
 indented-sort-by-op = indent <'sort-by'> <opt-ws> expr-until-newline
 indented-take-op = indent <'take'> <opt-ws> expr-until-newline
@@ -155,6 +157,13 @@ indented-general-function-call = indent general-function-call
 (* Filter content - can be inline or multiline *)
 filter-content = opt-ws filter-content-body
 filter-content-body = expr-until-newline / multiline-filter-content
+
+(* Map content - can be inline or multiline *)
+map-content = opt-ws map-content-body
+map-content-body = expr-until-newline / full-multi-line-object
+
+(* Full multi-line object for pipeline context *)
+full-multi-line-object = <'{'> newline object-fields-multiline newline <'}'>
 
 (* Multiline filter content - capture everything until next pipeline op *)
 multiline-filter-content = multiline-filter-line+
