@@ -22,7 +22,7 @@ regular-char = #'[^\"]'
 
 (* ============= STATEMENTS ============= *)
 
-<statement> = indented-pipeline | assignment | function-def | try-catch | expr
+<statement> = function-call | indented-pipeline | assignment | function-def | try-catch | expr
 
 (* Assignment: name = expression *)
 assignment = identifier <opt-ws> <'='> <opt-ws> expr
@@ -38,7 +38,7 @@ expr = logical-expr
 <comparison-expr> = arithmetic-expr (<opt-ws> comparison-op <opt-ws> arithmetic-expr)*
 <arithmetic-expr> = term (<opt-ws> <'+'> <opt-ws> term | <opt-ws> <'-'> <opt-ws> term)*
 <term> = factor (<opt-ws> <'*'> <opt-ws> factor | <opt-ws> <'/'> <opt-ws> factor | <opt-ws> <'%'> <opt-ws> factor)*
-<factor> = boolean | nil | literal | object | list | function | function-call | wildcard-access | try-catch | <'('> expr <')'> | identifier
+<factor> = function-call | boolean | nil | literal | object | function | list | wildcard-access | try-catch | <'('> expr <')'> | identifier
 
 (* Filter condition - expression without pipelines *)
 filter-condition = filter-expr
@@ -227,10 +227,8 @@ pattern-default = <'_'>
 pattern-test = expr
 pattern-result = expr
 
-(* Try-catch: try expr catch error-pattern -> fallback *)
-try-catch = <'try'> <opt-ws> expr <opt-ws> <'catch'> <opt-ws> catch-pattern <opt-ws> <'->'> <opt-ws> expr
-catch-pattern = identifier | pattern-destructuring
-pattern-destructuring = identifier (<ws> identifier)+
+(* Try-catch: try expr catch error -> fallback *)
+try-catch = <'try'> <opt-ws> expr <opt-ws> <'catch'> <opt-ws> identifier <opt-ws> <'->'> <opt-ws> expr
 
 (* ============= WHITESPACE AND FORMATTING ============= *)
 

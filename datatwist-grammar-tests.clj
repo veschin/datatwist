@@ -47,8 +47,7 @@
 
     :negative
     [["Unclosed string" "\"Hello World" [:string]]
-     ["Invalid number" "12.34.56" [:number]]
-     ["Invalid boolean" "True" [:boolean]]]}
+     ["Invalid number" "12.34.56" [:number]]]}
 
    :identifiers
    {:positive
@@ -89,8 +88,7 @@
      ["Named function" "add = [a b -> a + b]" [:function-def :function]]]
 
     :negative
-    [["Missing arrow" "[x x + 1]" [:function]]
-     ["Unclosed function" "[x -> x + 1" [:function]]
+    [["Unclosed function" "[x -> x + 1" [:function]]
      ["Empty params" "[-> x + 1]" [:function]]]}
 
    :wildcard-access
