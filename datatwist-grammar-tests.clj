@@ -106,9 +106,9 @@
    :simple-pipelines
    {:positive
     [["Basic pipeline" "users filter _.age > 18" [:simple-pipeline :filter-op]]
-     ["Chained pipeline" "users filter _.age > 18 map {name: _.name}" [:simple-pipeline :filter-op :map-op]]
-     ["Multi-op pipeline" "data filter even? map double take 5" [:simple-pipeline :filter-op :map-op :take-op]]
-     ["Function call in pipeline" "data process arg1 arg2" [:simple-pipeline :general-function-call]]]
+     ["Chained pipeline" "users\n  filter _.age > 18\n  map {name: _.name}" [:indented-pipeline :filter-op :map-op]]
+     ["Multi-op pipeline" "data\n  filter even?\n  map double\n  take 5" [:indented-pipeline :filter-op :map-op :take-op]]
+     ["Function call in pipeline" "data\n  process arg1 arg2" [:indented-pipeline :general-function-call]]]
 
     :negative
     [["Invalid operation" "data invalid-op _.field" [:simple-pipeline]]

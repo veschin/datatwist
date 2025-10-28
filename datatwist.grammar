@@ -4,16 +4,19 @@
 
 (* ============= TOP LEVEL STRUCTURE ============= *)
 
-program = simple-pipeline / statement+ / <opt-ws>
+program = (statement <opt-ws>*)+ / <opt-ws>
 
 (* Terminals *)
 integer = #'[0-9]+'
 identifier = #'(?!(?:true|false|nil)$)[a-zA-Z][a-zA-Z0-9\-_]*[?]?'
-ws = #'\s+'
-<opt-ws> = #'\s*'
+ws = #'[ \t]+'
+<opt-ws> = #'[ \t]*'
+ws-with-nl = #'\s+'
+<opt-ws-with-nl> = #'\s*'
 newline = #'\r?\n'
 indent = #'[ \t]{2,}'
 regular-char = #'[^\"]'
+
 
 
 
@@ -36,6 +39,8 @@ expr = logical-expr
 <arithmetic-expr> = term (<opt-ws> <'+'> <opt-ws> term | <opt-ws> <'-'> <opt-ws> term)*
 <term> = factor (<opt-ws> <'*'> <opt-ws> factor | <opt-ws> <'/'> <opt-ws> factor | <opt-ws> <'%'> <opt-ws> factor)*
 <factor> = boolean | nil | literal | object | list | function | function-call | wildcard-access | try-catch | <'('> expr <')'> | identifier | simple-pipeline
+
+
 
 
 
@@ -74,6 +79,7 @@ number = integer ('.' integer)?
 (* Objects: {key: value key2: value2} (no commas) *)
 object = <'{'> <opt-ws> object-fields <opt-ws> <'}'>
 <object-fields> = (field <opt-ws>)*
+field = identifier <opt-ws> <':'> <opt-ws> field-value
 field = identifier <opt-ws> <':'> <opt-ws> (same-line-field-value / multi-line-field-value)
 same-line-field-value = expr
 multi-line-field-value = newline <indent> pattern-clauses
@@ -92,9 +98,9 @@ function-body = expr
 (* ============= PIPELINES ============= *)
 
 (* Simple pipeline on single line: data filter condition map transform *)
-simple-pipeline = pipeline-source <opt-ws> pipeline-keyword-op (<opt-ws> pipeline-keyword-op)*
-pipeline-keyword-op = filter-op / map-op / group-by-op / sort-by-op / take-op / general-function-call
-pipeline-operation = pipeline-keyword-op | general-function-call
+simple-pipeline = pipeline-source <ws> pipeline-op (<ws> pipeline-op)*
+pipeline-op = filter-op / map-op / group-by-op / sort-by-op / take-op / general-function-call
+pipeline-operation = pipeline-op | general-function-call
 pipeline-source = identifier | literal | object | list | wildcard-access
 
 (* Indented pipeline with newline separation *)
@@ -109,7 +115,7 @@ indented-pipeline-op = indent specific-pipeline-op
 specific-pipeline-op = filter-op / map-op / group-by-op / sort-by-op / take-op
 
 (* Standard pipeline operations *)
-filter-op = <'filter'> <opt-ws> expr
+filter-op = <'filter'> <ws> comparison-expr
 map-op = <'map'> <opt-ws> expr
 group-by-op = <'group-by'> <opt-ws> expr
 sort-by-op = <'sort-by'> <opt-ws> expr
@@ -141,8 +147,7 @@ bare-arguments = expr (<opt-ws> expr)*
 wildcard-access = '_' | '_' <'.'> identifier (<'.'> identifier)*
 
 (* Pattern matching as field value: | condition -> result | _ -> default *)
-pattern-field-value = newline <indent> pattern-clauses
-pattern-clauses = pattern-clause ( newline <indent> pattern-clause )*
+pattern-clauses = newline <indent> pattern-clause ( newline <indent> pattern-clause )*
 pattern-clause = '|' <opt-ws> pattern-condition <opt-ws> <'->'> <opt-ws> pattern-result
 pattern-condition = pattern-default / pattern-test
 pattern-default = <'_'>
