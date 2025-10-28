@@ -28,20 +28,7 @@ pipeline-ending = newline indented-closing-brace
 indented-closing-brace = indent <'}'>
 
 
-(* Unified indented pipeline function: indent + operator + optional body *)
-indented-pipeline-function = indented-filter-function / indented-arg-aggregation / indented-stream-aggregation
 
-(* Indented filter function with condition *)
-indented-filter-function = indent <'filter'> filter-content
-
-(* Indented arg aggregations need content *)
-indented-arg-aggregation = indent arg-aggregation-name <opt-ws> indented-aggregation-content
-
-(* Indented stream aggregations work on data *)
-indented-stream-aggregation = indent stream-aggregation-name
-
-(* Indented aggregation content *)
-indented-aggregation-content = expr / multi-line-object
 
 
 
@@ -61,7 +48,7 @@ expr = logical-expr
 <comparison-expr> = arithmetic-expr (<opt-ws> comparison-op <opt-ws> arithmetic-expr)*
 <arithmetic-expr> = term (<opt-ws> <'+'> <opt-ws> term | <opt-ws> <'-'> <opt-ws> term)*
 <term> = factor (<opt-ws> <'*'> <opt-ws> factor | <opt-ws> <'/'> <opt-ws> factor | <opt-ws> <'%'> <opt-ws> factor)*
-<factor> = function-call | stream-aggregation-function | boolean | nil | literal | object | function | list | wildcard-access | try-catch | <'('> expr <')'> | identifier
+<factor> = function-call | pipeline-operation | boolean | nil | literal | object | function | list | wildcard-access | try-catch | <'('> expr <')'> | identifier
 
 (* Filter condition - expression without pipelines *)
 filter-condition = expr
@@ -140,72 +127,25 @@ function-body = expr
 
 (* Pipeline components *)
 pipeline-source = identifier | literal | object | list | wildcard-access
-pipeline-op = pipeline-function / general-function-call
+pipeline-op = pipeline-operation / general-function-call
 
 (* Pipeline operations with proper indentation *)
-indented-pipeline-op = indented-filter-op / indented-map-op / indented-group-by-op / indented-sort-by-op / indented-take-op / indented-general-function-call
+indented-pipeline-op = indent pipeline-operation
 
-(* Indented pipeline operations *)
-indented-filter-op = indent <'filter'> filter-content
-indented-map-op = indent <'map'> <opt-ws> map-operation-content
-map-operation-content = expr / multi-line-object
-indented-group-by-op = indent <'group-by'> <opt-ws> expr-until-newline
-indented-sort-by-op = indent <'sort-by'> <opt-ws> expr-until-newline
-indented-take-op = indent <'take'> <opt-ws> expr-until-newline
-indented-average-op = indent <'average'> <opt-ws> expr-until-newline
-indented-general-function-call = indent general-function-call
+(* Unified pipeline operation: name + optional arguments *)
+pipeline-operation = pipeline-name (<opt-ws> operation-arguments)?
 
-(* Filter content - can be inline or multiline *)
-filter-content = opt-ws filter-content-body
-filter-content-body = expr-until-newline / multiline-filter-content
+(* All pipeline operations in one place *)
+pipeline-name = 'filter' | 'map' | 'group-by' | 'sort-by' | 'take' | 'average' | 'sum' | 'count' | 'min' | 'max' | 'process' | 'transform' | 'calculate' | 'custom-func'
 
-(* Map content - can be inline or multiline *)
-map-content = opt-ws (expr-until-newline / multi-line-object)
-
-
-
-(* Multiline filter content - capture everything until next pipeline op *)
-multiline-filter-content = multiline-filter-line+
-multiline-filter-line = newline indent filter-line-content
-filter-line-content = #'(?:(?!\\n\\s+(?:filter|map|group-by|sort-by|take|average|sum|count|min|max|process|transform|calculate|custom-func)\\b).)+'
-
-(* Expression that stops at newline *)
-expr-until-newline = expr
-
-
-
-(* ============= PIPELINE FUNCTIONS ============= *)
-
-(* Built-in pipeline function names - easily extendable list *)
-pipeline-function-name = 'filter' | 'map' | 'group-by' | 'sort-by' | 'take' | 'average' | 'sum' | 'count' | 'min' | 'max'
-
-(* Unified pipeline function: operator + optional body *)
-pipeline-function = filter-function / arg-aggregation-function / stream-aggregation-function
-
-(* Filter needs condition *)
-filter-function = <'filter'> <ws> filter-condition
-
-(* Aggregations that need arguments *)
-arg-aggregation-function = arg-aggregation-name <opt-ws> expr
-
-(* Aggregations that work on data stream - optionally with arguments *)
-stream-aggregation-function = stream-aggregation-name (<opt-ws> (arguments | bare-arguments))?
-
-(* Functions that need arguments *)
-arg-aggregation-name = 'map' | 'group-by' | 'sort-by' | 'take'
-
-(* Functions that work on data stream *)
-stream-aggregation-name = 'average' | 'sum' | 'count' | 'min' | 'max'
-
-(* Pipeline keywords for identifier validation - now using unified keyword rule *)
-pipeline-keyword = keyword
+(* Arguments can be expression, object, or nothing *)
+operation-arguments = expr / multi-line-object
 
 (* Function calls: func arg1 arg2 or func(arg1, arg2) *)
 function-call = identifier <opt-ws> (arguments | bare-arguments)
 
 (* General function calls in pipeline context (only specific allowed functions) *)
-general-function-call = non-keyword-func
-non-keyword-func = <'process'> <opt-ws> (arguments | bare-arguments) | <'transform'> <opt-ws> (arguments | bare-arguments) | <'calculate'> <opt-ws> (arguments | bare-arguments) | <'custom-func'> <opt-ws> (arguments | bare-arguments) | <'average'> <opt-ws> (arguments | bare-arguments) | <'sum'> <opt-ws> (arguments | bare-arguments) | <'count'> <opt-ws> (arguments | bare-arguments) | <'min'> <opt-ws> (arguments | bare-arguments) | <'max'> <opt-ws> (arguments | bare-arguments)
+general-function-call = pipeline-name <opt-ws> (arguments | bare-arguments)
 
 (* Arguments in parentheses (traditional) *)
 arguments = <'('> <opt-ws> (expr (',' <opt-ws> expr)*)? <opt-ws> <')'>
