@@ -9,7 +9,12 @@ non-indented-start = #'(?:(?![ \t]{2,}).)' / indented-pipeline-op
 
 (* Terminals *)
 integer = #'[0-9]+'
-identifier = 'true' | 'false' | 'nil' | #'[a-zA-Z][a-zA-Z0-9\-_]*[?]?'
+identifier = user-identifier
+user-identifier = #'(?!(?:true|false|nil)$)[a-zA-Z][a-zA-Z0-9\-_]*[?]?'
+
+(* Literals *)
+boolean = 'true' | 'false'
+nil = 'nil'
 ws = #'[ \t]+'
 <opt-ws> = #'[ \t]*'
 newline = #'\r?\n'
@@ -33,10 +38,10 @@ indented-closing-brace = indent <'}'>
 indented-general-function-call = indent general-function-call
 
 (* Assignment: name = expression *)
-assignment = identifier <opt-ws> <'='> <opt-ws> expr
+assignment = user-identifier <opt-ws> <'='> <opt-ws> expr
 
 (* Function definition: name = [params -> body] *)
-function-def = identifier <opt-ws> <'='> <opt-ws> function
+function-def = user-identifier <opt-ws> <'='> <opt-ws> function
 
 (* ============= EXPRESSIONS ============= *)
 
@@ -46,7 +51,7 @@ expr = logical-expr
 <comparison-expr> = arithmetic-expr (<opt-ws> comparison-op <opt-ws> arithmetic-expr)*
 <arithmetic-expr> = term (<opt-ws> <'+'> <opt-ws> term | <opt-ws> <'-'> <opt-ws> term)*
 <term> = factor (<opt-ws> <'*'> <opt-ws> factor | <opt-ws> <'/'> <opt-ws> factor | <opt-ws> <'%'> <opt-ws> factor)*
-<factor> = function-call | pipeline-operation | literal | object | function | list | wildcard-access | try-catch | <'('> expr <')'> | identifier
+<factor> = boolean | nil | function-call | pipeline-operation | literal | object | function | list | wildcard-access | try-catch | <'('> expr <')'> | user-identifier
 
 (* Filter condition - expression without pipelines *)
 filter-condition = expr
@@ -59,7 +64,7 @@ logical-op = 'and' | 'or'
 
 (* ============= LITERALS ============= *)
 
-literal = string | number
+literal = boolean | nil | string | number
 
 
 
@@ -85,8 +90,8 @@ multi-line-object = <'{'> newline object-fields-multiline (newline <'}'>)?
 object-field-multiline = indent (field-with-multiline-object / field)
 
 (* Field definitions *)
-field = identifier <opt-ws> <':'> <opt-ws> field-value
-field-with-multiline-object = identifier <opt-ws> <':'> <opt-ws> multi-line-object
+field = user-identifier <opt-ws> <':'> <opt-ws> field-value
+field-with-multiline-object = user-identifier <opt-ws> <':'> <opt-ws> multi-line-object
 field-value = multi-line-object / same-line-field-value / multi-line-field-value / field-multi-line-object
 field-multi-line-object = <'{'> newline object-fields-multiline (newline <'}'>)?
 same-line-field-value = expr / multi-line-object / same-line-field-pipeline
@@ -103,7 +108,7 @@ list = single-line-list / multi-line-list
 (* Single line list *)
 single-line-list = <'['> <opt-ws> list-elements <opt-ws> <']'>
 <list-elements> = list-element (<opt-ws> list-element)* | #''
-list-element = literal | object | list | function | wildcard-access | identifier
+list-element = literal | object | list | function | wildcard-access | user-identifier
 
 (* Multi line list *)
 multi-line-list = <'['> newline list-elements-multiline newline <']'>
@@ -114,29 +119,44 @@ list-element-multiline = indent expr
 
 (* Function: [param1 param2 -> body] *)
 function = <'['> <opt-ws> function-params <opt-ws> <'->'> <opt-ws> function-body <opt-ws> <']'>
-function-params = identifier (<opt-ws> identifier)*
+function-params = user-identifier (<opt-ws> user-identifier)*
 function-body = expr
 
 (* ============= PIPELINES ============= *)
 
 (* Pipeline components *)
-pipeline-source = identifier | literal | object | list | wildcard-access
+pipeline-source = user-identifier | literal | object | list | wildcard-access
 pipeline-op = pipeline-operation / general-function-call
 
 (* Pipeline operations with proper indentation *)
-indented-pipeline-op = indent pipeline-operation
+indented-pipeline-op = indent general-function-call | indent specific-pipeline-op
+
+(* Specific pipeline operations *)
+specific-pipeline-op = indented-filter-op | indented-map-op | indented-take-op | indented-group-by-op | indented-sum-op | indented-count-op | indented-average-op
+
+(* Built-in pipeline operations *)
+indented-filter-op = <'filter'> <opt-ws> operation-arguments
+indented-map-op = <'map'> <opt-ws> operation-arguments
+indented-take-op = <'take'> <opt-ws> operation-arguments
+indented-group-by-op = <'group-by'> <opt-ws> operation-arguments
+indented-sum-op = <'sum'> <opt-ws> operation-arguments
+indented-count-op = <'count'> <opt-ws> operation-arguments
+indented-average-op = <'average'> <opt-ws> operation-arguments
 
 (* Unified pipeline operation: name + optional arguments *)
-pipeline-operation = identifier (<opt-ws> operation-arguments)?
+pipeline-operation = pipeline-name (<opt-ws> operation-arguments)?
+
+(* Pipeline operations - can be built-in or user-defined *)
+pipeline-name = user-identifier
 
 (* Arguments can be expression, object, or nothing *)
 operation-arguments = expr / multi-line-object
 
 (* Function calls: func arg1 arg2 or func(arg1, arg2) *)
-function-call = identifier <opt-ws> (arguments | bare-arguments)
+function-call = user-identifier <opt-ws> (arguments | bare-arguments)
 
 (* General function calls in pipeline context *)
-general-function-call = identifier <opt-ws> (arguments | bare-arguments)
+general-function-call = user-identifier <opt-ws> (arguments | bare-arguments)
 
 (* Arguments in parentheses (traditional) *)
 arguments = <'('> <opt-ws> (expr (',' <opt-ws> expr)*)? <opt-ws> <')'>
@@ -147,7 +167,7 @@ bare-arguments = expr (<opt-ws> expr)*
 (* ============= SPECIAL CONSTRUCTS ============= *)
 
 (* Wildcard access: _.field or _.field.nested or _ *)
-wildcard-access = '_' | '_' <'.'> identifier (<'.'> identifier)*
+wildcard-access = '_' | '_' <'.'> user-identifier (<'.'> user-identifier)*
 
 (* Pattern matching as field value: | condition -> result | _ -> default *)
 pattern-clauses = pattern-clause ( newline <indent> pattern-clause )*
@@ -158,7 +178,7 @@ pattern-test = expr
 pattern-result = expr
 
 (* Try-catch: try expr catch error -> fallback *)
-try-catch = <'try'> <opt-ws> expr <opt-ws> <'catch'> <opt-ws> identifier <opt-ws> <'->'> <opt-ws> expr
+try-catch = <'try'> <opt-ws> expr <opt-ws> <'catch'> <opt-ws> user-identifier <opt-ws> <'->'> <opt-ws> expr
 
 (* ============= END OF INPUT ============= *)
 
