@@ -86,12 +86,26 @@ number = integer ('.' integer)?
 (* ============= DATA STRUCTURES ============= *)
 
 (* Objects: {key: value key2: value2} (no commas) *)
-object = <'{'> <opt-ws> object-fields <opt-ws> <'}'>
+object = single-line-object / multi-line-object
+
+(* Single line object *)
+single-line-object = <'{'> <opt-ws> object-fields <opt-ws> <'}'>
 <object-fields> = (field <opt-ws>)*
+
+(* Multi line object *)
+multi-line-object = <'{'> newline object-fields-multiline newline <'}'>
+<object-fields-multiline> = object-field-multiline (<newline> object-field-multiline)*
+object-field-multiline = indent field
+
+(* Field definitions *)
 field = identifier <opt-ws> <':'> <opt-ws> field-value
-field = identifier <opt-ws> <':'> <opt-ws> (same-line-field-value / multi-line-field-value)
+field-value = same-line-field-value / multi-line-field-value
 same-line-field-value = expr
-multi-line-field-value = newline <indent> pattern-clauses
+multi-line-field-value = newline <indent> (pattern-clauses / field-pipeline)
+
+(* Pipeline as field value *)
+field-pipeline = simple-expr newline field-pipeline-ops
+field-pipeline-ops = indented-first-op remaining-ops / indented-first-op
 
 (* Lists: [item1 item2 item3] (no commas) *)
 list = <'['> <opt-ws> list-elements <opt-ws> <']'>
@@ -113,26 +127,44 @@ pipeline-operation = pipeline-op | general-function-call
 pipeline-source = identifier | literal | object | list | wildcard-access
 
 (* Indented pipeline with newline separation *)
-indented-pipeline = pipeline-head indented-ops
+indented-pipeline = pipeline-head newline indented-first-op remaining-ops
 pipeline-head = expr
-indented-ops = newline indented-pipeline-op+
+indented-first-op = indented-pipeline-op
+remaining-ops = (newline indented-pipeline-op)*
 
 (* Pipeline operations with proper indentation *)
 indented-pipeline-op = indented-filter-op / indented-map-op / indented-group-by-op / indented-sort-by-op / indented-take-op
 
 (* Indented pipeline operations *)
-indented-filter-op = indent <'filter'> <ws> filter-expr-content
-indented-map-op = indent <'map'> <opt-ws> map-expr-content
-indented-group-by-op = indent <'group-by'> <opt-ws> group-by-expr-content
-indented-sort-by-op = indent <'sort-by'> <opt-ws> sort-by-expr-content
-indented-take-op = indent <'take'> <opt-ws> take-expr-content
+indented-filter-op = indent <'filter'> filter-content
+indented-map-op = indent <'map'> <opt-ws> expr-until-newline
+indented-group-by-op = indent <'group-by'> <opt-ws> expr-until-newline
+indented-sort-by-op = indent <'sort-by'> <opt-ws> expr-until-newline
+indented-take-op = indent <'take'> <opt-ws> expr-until-newline
+
+(* Filter content - can be inline or multiline *)
+filter-content = opt-ws filter-content-body
+filter-content-body = expr-until-newline / multiline-filter-content
+
+(* Multiline filter content - capture everything until next pipeline op *)
+multiline-filter-content = multiline-filter-line+
+multiline-filter-line = newline indent filter-line-content
+filter-line-content = #'(?:(?!\\n\\s+(?:filter|map|group-by|sort-by|take|process|transform|calculate|custom-func)\\b).)+'
+
+(* Expression that stops at newline *)
+expr-until-newline = logical-expr-until-newline
+<logical-expr-until-newline> = comparison-expr-until-newline (<opt-ws> <'and'> <opt-ws> comparison-expr-until-newline | <'or'> comparison-expr-until-newline)*
+<comparison-expr-until-newline> = arithmetic-expr-until-newline (<opt-ws> comparison-op <opt-ws> arithmetic-expr-until-newline)*
+<arithmetic-expr-until-newline> = term-until-newline (<opt-ws> <'+'> <opt-ws> term-until-newline | <opt-ws> <'-'> <opt-ws> term-until-newline)*
+<term-until-newline> = factor-until-newline (<opt-ws> <'*'> <opt-ws> factor-until-newline | <opt-ws> <'/'> <opt-ws> factor-until-newline | <opt-ws> <'%'> <opt-ws> factor-until-newline)*
+<factor-until-newline> = boolean | nil | literal | string | object | list | function | function-call | wildcard-access | try-catch | <'('> expr-until-newline <')'> | identifier | simple-pipeline
 
 (* Expression content for pipeline operations *)
-filter-expr-content = #'[^\\n]*'
-map-expr-content = #'[^\\n]*'
-group-by-expr-content = #'[^\\n]*'
-sort-by-expr-content = #'[^\\n]*'
-take-expr-content = #'[^\\n]*'
+filter-expr-content = simple-expr
+map-expr-content = simple-expr
+group-by-expr-content = simple-expr
+sort-by-expr-content = simple-expr
+take-expr-content = simple-expr
 
 (* Simple expression - without indented pipelines *)
 simple-expr = simple-logical-expr
