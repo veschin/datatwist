@@ -1,0 +1,63 @@
+#+title: DataTwist Language Zen
+
+* Core Philosophy
+DataTwist is a functional data processing language built on three principles:
+- Simple data access through intuitive field navigation
+- Simple aggregations with built-in transformation operations  
+- Simple composition via pipeline-based chaining
+
+* Language Design Decisions
+
+**Nil Tolerance**: Language is nil-tolerant - accessing non-existent fields returns explicit nil rather than errors
+**Pipeline First**: Operations flow through newline-separated pipelines, not inline chaining
+**Wildcard Access**: Use `_` or `_.field` for concise current element access
+**Guard Patterns**: Prefer guard syntax `| condition -> result` over if/else
+**Immediate Data Use**: Variables can be used immediately in pipelines without intermediate assignment
+
+* Syntax Consistency Rules
+
+**Functions**: Regular functions use `[params -> body]`, anonymous functions same syntax
+**Objects**: Consistent field syntax without commas: `{key: value key2: value2}`
+**Pipelines**: Newline-based with indentation, never inline `data | op`
+**Data Access**: Support both `_.field` wildcard and direct field access
+**Pattern Matching**: Use `_` for default case, not `otherwise`
+
+* Core Example
+#+BEGIN_SRC datatwist
+filtered-users = [
+  {name: "Alice" age: 25 status: "active" subscription: "premium" purchase-count: 10}
+  {name: "Bob" age: 30 status: "active" subscription: "basic" purchase-count: 8}
+  {name: "Charlie" age: 22 status: "inactive" subscription: "premium" purchase-count: 3}
+]
+  filter 
+    _.age >= 18 and 
+    _.status = "active" and
+    (_.subscription = "premium" or _.purchase-count > 5)
+  map {
+    name: _.name
+    email: _.email           ; Returns nil if not present
+    risk-score:
+      | _.age < 25 -> "high"
+      | _.late-payments > 3 -> "medium"  ; nil tolerant
+      | _ -> "low"
+    recommended-products:
+      _.purchase-history     ; Returns nil if not present
+        filter _.rating >= 4 and _.category != "restricted"
+        group-by _.category
+        map {
+          category: _.category
+          top-items: _
+            sort-by _.rating
+            take 3
+        }
+  }
+  filter _.risk-score != "high"
+  sort-by _.name
+#+END_SRC
+
+* Key Insights from Example Analysis
+1. **Immediate pipeline usage** after array declaration is valid syntax
+2. **Nil tolerance** enables accessing potentially missing fields safely
+3. **Guard patterns** provide cleaner conditional logic than if/else
+4. **Wildcard consistency** throughout pipeline operations
+5. **Nested pipelines** work seamlessly within map operations
