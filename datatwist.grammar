@@ -4,11 +4,14 @@
 
 (* ============= TOP LEVEL STRUCTURE ============= *)
 
-program = statement (<opt-ws> (<';'> / newline) <opt-ws> statement)* / statement / <opt-ws>
+program = statement (<opt-ws> statement-separator <opt-ws> statement)* / statement / <opt-ws>
+statement-separator = <';'> / newline-non-indented
+newline-non-indented = newline non-indented-start
+non-indented-start = #'(?![ \\t]{2,})'
 
 (* Terminals *)
 integer = #'[0-9]+'
-identifier = #'(?!(?:true|false|nil)$)[a-zA-Z][a-zA-Z0-9\-_]*[?]?'
+identifier = #'(?!(?:true|false|nil|filter|map|group-by|sort-by|take|process|transform|calculate|custom-func)$)[a-zA-Z][a-zA-Z0-9\-_]*[?]?'
 ws = #'[ \t]+'
 <opt-ws> = #'[ \t]*'
 ws-with-nl = #'\s+'
@@ -22,7 +25,19 @@ regular-char = #'[^\"]'
 
 (* ============= STATEMENTS ============= *)
 
-<statement> = function-call | indented-pipeline | assignment | function-def | try-catch | expr
+<statement> = indented-pipeline | function-call | assignment | function-def | try-catch | expr
+indented-pipeline = expr newline indented-pipeline-body
+indented-pipeline-body = indented-pipeline-ops pipeline-ending?
+indented-pipeline-ops = indented-pipeline-op (newline indented-pipeline-op)*
+pipeline-ending = newline indented-closing-brace
+indented-closing-brace = indent <'}'>
+indented-pipeline-op = indented-filter-op / indented-map-op / indented-group-by-op / indented-sort-by-op / indented-take-op / indented-general-function-call
+indented-filter-op = indent <'filter'> filter-content
+indented-map-op = indent <'map'> <opt-ws> map-operation-content
+indented-group-by-op = indent <'group-by'> <opt-ws> expr-until-newline
+indented-sort-by-op = indent <'sort-by'> <opt-ws> expr-until-newline
+indented-take-op = indent <'take'> <opt-ws> expr-until-newline
+indented-general-function-call = indent general-function-call
 
 (* Assignment: name = expression *)
 assignment = identifier <opt-ws> <'='> <opt-ws> expr
@@ -93,7 +108,7 @@ single-line-object = <'{'> <opt-ws> object-fields <opt-ws> <'}'>
 <object-fields> = (field <opt-ws>)*
 
 (* Multi line object *)
-multi-line-object = <'{'> newline object-fields-multiline newline <'}'>
+multi-line-object = <'{'> newline object-fields-multiline (newline <'}'>)?
 <object-fields-multiline> = object-field-multiline (<newline> object-field-multiline)*
 object-field-multiline = indent field
 
@@ -106,7 +121,7 @@ multi-line-field-value = newline <indent> (pattern-clauses / field-pipeline)
 
 (* Pipeline as field value *)
 field-pipeline = simple-expr newline field-pipeline-ops
-field-pipeline-ops = indented-first-op remaining-ops / indented-first-op
+field-pipeline-ops = indented-pipeline-op (newline indented-pipeline-op)* / indented-pipeline-op
 
 (* Lists: [item1 item2 item3] (no commas) *)
 list = single-line-list / multi-line-list
@@ -135,20 +150,16 @@ pipeline-op = filter-op / map-op / group-by-op / sort-by-op / take-op / general-
 
 
 
-(* Indented pipeline with newline separation *)
-indented-pipeline = pipeline-head newline indented-first-op remaining-ops-with-end
-pipeline-head = expr
-indented-first-op = indented-pipeline-op
-remaining-ops = (newline indented-pipeline-op)*
-remaining-ops-with-end = (newline indented-pipeline-op)* (newline multi-line-object-end)?
-multi-line-object-end = <'}'>
+
 
 (* Pipeline operations with proper indentation *)
 indented-pipeline-op = indented-filter-op / indented-map-op / indented-group-by-op / indented-sort-by-op / indented-take-op / indented-general-function-call
 
 (* Indented pipeline operations *)
 indented-filter-op = indent <'filter'> filter-content
-indented-map-op = indent <'map'> map-content
+indented-map-op = indent <'map'> <opt-ws> map-operation-content
+map-operation-content = expr / complete-multi-line-map
+complete-multi-line-map = <'{'> newline object-fields-multiline newline <'}'>
 indented-group-by-op = indent <'group-by'> <opt-ws> expr-until-newline
 indented-sort-by-op = indent <'sort-by'> <opt-ws> expr-until-newline
 indented-take-op = indent <'take'> <opt-ws> expr-until-newline
