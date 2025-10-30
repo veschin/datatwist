@@ -4,11 +4,11 @@
 
 (* ============= TOP LEVEL STRUCTURE ============= *)
 
-program = indented-pipeline / statement (<opt-ws> (<';'> / newline) <opt-ws> statement)* / statement / <opt-ws>
+program = comment* (indented-pipeline / function-def / assignment / statement (<opt-ws> (<';'> / newline / comment) <opt-ws> (indented-pipeline / function-def / assignment / statement))* / statement / <opt-ws>) comment*
 non-indented-start = #'(?:(?![ \t]{2,}).)' / indented-pipeline-op
 
 (* Terminals *)
-integer = #'[0-9]+'
+integer = #'-?[0-9]+'
 identifier = user-identifier
 user-identifier = #'(?!(?:true|false|nil)$)[a-zA-Z][a-zA-Z0-9\-_]*[?]?'
 
@@ -21,12 +21,23 @@ newline = #'\r?\n'
 indent = #'[ \t]{2,}'
 regular-char = #'[^\"]'
 
+(* ============= COMMENTS ============= *)
+
+(* Single-line comment: ;; this is a comment *)
+single-line-comment = ';;' #'[^\r\n]*'
+
+(* Multi-line comment: (comment content...) *)
+multi-line-comment = <'('> <'comment'> <opt-ws> comment-content <')'>
+comment-content = #'[^(^)]*' | comment-content <'('> comment-content <')'> comment-content
+
+<comment> = single-line-comment / multi-line-comment
+
 (* ============= STATEMENTS ============= *)
 
-<statement> = function-call | indented-pipeline | assignment | function-def | try-catch | expr
+<statement> = function-call | indented-pipeline | <assignment> | <function-def> | try-catch | comment | expr
 indented-pipeline = pipeline-source newline indented-pipeline-body
 indented-pipeline-body = indented-pipeline-ops pipeline-ending?
-indented-pipeline-ops = indented-pipeline-op (newline indented-pipeline-op)*
+indented-pipeline-ops = (indented-pipeline-op / comment) (newline (indented-pipeline-op / comment))*
 pipeline-ending = newline indented-closing-brace
 indented-closing-brace = indent <'}'>
 
@@ -47,7 +58,8 @@ function-def = user-identifier <opt-ws> <'='> <opt-ws> function
 
 (* Expression precedence (from lowest to highest *)
 expr = logical-expr
-<logical-expr> = comparison-expr (<opt-ws> logical-op <opt-ws> comparison-expr)*
+<logical-expr> = in-expr (<opt-ws> ('and' | 'or') <opt-ws> in-expr)*
+<in-expr> = comparison-expr (<opt-ws> 'in' <opt-ws> list)?
 <comparison-expr> = arithmetic-expr (<opt-ws> comparison-op <opt-ws> arithmetic-expr)*
 <arithmetic-expr> = term (<opt-ws> <'+'> <opt-ws> term | <opt-ws> <'-'> <opt-ws> term)*
 <term> = factor (<opt-ws> <'*'> <opt-ws> factor | <opt-ws> <'/'> <opt-ws> factor | <opt-ws> <'%'> <opt-ws> factor)*
@@ -57,7 +69,7 @@ expr = logical-expr
 filter-condition = expr
 
 (* Comparison operators  *)
-comparison-op = '>' | '<' | '>=' | '<=' | '==' | '!='
+comparison-op = '>' | '<' | '>=' | '<=' | '==' | '!=' | '='
 
 (* Logical operators *)
 logical-op = 'and' | 'or'
@@ -82,11 +94,11 @@ object = single-line-object / multi-line-object
 
 (* Single line object *)
 single-line-object = <'{'> <opt-ws> object-fields <opt-ws> <'}'>
-<object-fields> = field (<opt-ws> field)* | #''
+<object-fields> = field (<opt-ws> (field / comment))* | comment* | #''
 
 (* Multi line object *)
 multi-line-object = <'{'> newline object-fields-multiline (newline <'}'>)?
-<object-fields-multiline> = object-field-multiline (<newline> object-field-multiline)*
+<object-fields-multiline> = (object-field-multiline / comment) (<newline> (object-field-multiline / comment))*
 object-field-multiline = indent (field-with-multiline-object / field)
 
 (* Field definitions *)
@@ -96,7 +108,7 @@ field-value = multi-line-object / same-line-field-value / multi-line-field-value
 field-multi-line-object = <'{'> newline object-fields-multiline (newline <'}'>)?
 same-line-field-value = expr / multi-line-object / same-line-field-pipeline
 same-line-field-pipeline = pipeline-source <ws> pipeline-op (<ws> pipeline-op)*
-multi-line-field-value = newline <indent> (pattern-clauses / field-pipeline)
+multi-line-field-value = newline <indent> (pattern-clauses / field-pipeline / comment)
 
 (* Pipeline as field value *)
 field-pipeline = expr newline field-pipeline-ops
@@ -107,12 +119,12 @@ list = single-line-list / multi-line-list
 
 (* Single line list *)
 single-line-list = <'['> <opt-ws> list-elements <opt-ws> <']'>
-<list-elements> = list-element (<opt-ws> list-element)* | #''
+<list-elements> = list-element (<opt-ws> (list-element / comment))* | comment* | #''
 list-element = literal | object | list | function | wildcard-access | identifier
 
 (* Multi line list *)
 multi-line-list = <'['> newline list-elements-multiline newline <']'>
-<list-elements-multiline> = list-element-multiline (<newline> list-element-multiline)*
+<list-elements-multiline> = (list-element-multiline / comment) (<newline> (list-element-multiline / comment))*
 list-element-multiline = indent expr
 
 (* ============= FUNCTIONS ============= *)

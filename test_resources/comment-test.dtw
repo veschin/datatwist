@@ -1,0 +1,29 @@
+;; This is a single line comment
+(comment This is a multi-line comment)
+
+users = [
+  ;; User data structure
+  {
+    id: 1
+    name: "Alice"
+    (comment nested comment in object)
+    age: 25
+  }
+  ;; Another user
+  {
+    id: 2
+    name: "Bob"
+    age: 30
+  }
+]
+
+;; Process users with pipeline
+result = users
+  ;; Filter adults only
+  filter _.age >= 18
+  ;; Transform data
+  map {
+    name: _.name
+    is_adult: true
+    (comment transformation comment)
+  }

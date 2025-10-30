@@ -1,0 +1,25 @@
+filtered-users = [
+  {name: "Alice" age: 25 status: "active" subscription: "premium" purchase-count: 10 email: "alice@example.com"}
+  {name: "Bob" age: 30 status: "active" subscription: "basic" purchase-count: 8 email: "bob@example.com"}
+  {name: "Charlie" age: 22 status: "inactive" subscription: "premium" purchase-count: 3 email: "charlie@example.com"}
+]
+
+result = filtered-users
+  filter 
+    _.age >= 18 and 
+    _.status = "active" and
+    (_.subscription = "premium" or _.purchase-count > 5)
+  map {
+    name: _.name
+    email: _.email
+    risk-score:
+      | _.age < 25 -> "high"
+      | _.purchase-count < 5 -> "medium"
+      | _ -> "low"
+    tier:
+      | _.subscription = "premium" -> "gold"
+      | _.purchase-count > 7 -> "silver"
+      | _ -> "bronze"
+  }
+  filter _.risk-score != "high"
+  sort-by _.name

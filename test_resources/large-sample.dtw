@@ -1,0 +1,241 @@
+;; Large DataTwist Sample File
+;; Complex nested data structures with multiple arrays
+
+;; Main data sources
+users = [
+  {
+    id: 1
+    name: "Alice Johnson"
+    age: 28
+    profile: {
+      email: "alice@example.com"
+      settings: {
+        theme: "dark"
+        notifications: true
+        privacy: {
+          show_email: false
+          show_age: true
+          location: {
+            country: "USA"
+            city: "New York"
+            coordinates: {
+              lat: 40.7128
+              lng: -74.0060
+            }
+          }
+        }
+      }
+    }
+    orders: [
+      {
+        id: 1001
+        date: "2024-01-15"
+        items: [
+          {product: "Laptop" price: 1200 quantity: 1}
+          {product: "Mouse" price: 25 quantity: 2}
+        ]
+        total: 1250
+        status: "completed"
+      }
+      {
+        id: 1002
+        date: "2024-02-20"
+        items: [
+          {product: "Keyboard" price: 150 quantity: 1}
+          {product: "Monitor" price: 300 quantity: 1}
+        ]
+        total: 450
+        status: "shipped"
+      }
+    ]
+    tags: ["premium" "active" "verified"]
+    metrics: {
+      login_count: 156
+      last_login: "2024-03-10"
+      session_duration: 45.5
+    }
+  }
+  {
+    id: 2
+    name: "Bob Smith"
+    age: 35
+    profile: {
+      email: "bob@example.com"
+      settings: {
+        theme: "light"
+        notifications: false
+        privacy: {
+          show_email: true
+          show_age: false
+          location: {
+            country: "Canada"
+            city: "Toronto"
+            coordinates: {
+              lat: 43.6532
+              lng: -79.3832
+            }
+          }
+        }
+      }
+    }
+    orders: [
+      {
+        id: 2001
+        date: "2024-01-20"
+        items: [
+          {product: "Phone" price: 800 quantity: 1}
+          {product: "Case" price: 30 quantity: 1}
+        ]
+        total: 830
+        status: "completed"
+      }
+    ]
+    tags: ["standard" "new"]
+    metrics: {
+      login_count: 23
+      last_login: "2024-03-09"
+      session_duration: 12.3
+    }
+  }
+]
+
+products = [
+  {
+    id: "LAPTOP-001"
+    name: "ProBook X1"
+    category: "Electronics"
+    subcategory: "Computers"
+    specs: {
+      cpu: "Intel i7-12700H"
+      ram: "16GB DDR4"
+      storage: "512GB NVMe"
+      display: {
+        size: 15.6
+        resolution: "1920x1080"
+        type: "IPS"
+        refresh_rate: 144
+      }
+      weight: 1.8
+      dimensions: {
+        width: 35.5
+        height: 23.5
+        depth: 1.8
+      }
+    }
+    pricing: {
+      base_price: 1200
+      discount: 10
+      tax_rate: 0.08
+      currency: "USD"
+    }
+    inventory: {
+      warehouse: {
+        location: "US-East"
+        stock: 150
+        reserved: 25
+        available: 125
+      }
+      suppliers: [
+        {name: "TechCorp" lead_time: 7 min_order: 10}
+        {name: "GlobalParts" lead_time: 14 min_order: 50}
+      ]
+    }
+    reviews: [
+      {
+        user_id: 1
+        rating: 5
+        comment: "Excellent performance!"
+        date: "2024-02-15"
+        helpful: 12
+      }
+      {
+        user_id: 2
+        rating: 4
+        comment: "Good value for money"
+        date: "2024-02-20"
+        helpful: 8
+      }
+    ]
+    tags: ["bestseller" "recommended" "business"]
+  }
+]
+
+;; Complex data processing pipelines
+
+;; Process users with comprehensive analysis
+processed_users = users
+  filter _.age >= 25
+  map {
+    id: _.id
+    name: _.name
+    age_group: 
+      | _.age < 30 -> "young_adult"
+      | _.age < 40 -> "adult"
+      | _ -> "senior"
+    location: _.profile.settings.privacy.location.city
+    country: _.profile.settings.privacy.location.country
+    order_count: count _.orders
+    total_spent: sum (map _.total _.orders)
+    avg_order_value: average (map _.total _.orders)
+    is_premium: "premium" in _.tags
+    engagement_level:
+      | _.metrics.login_count > 200 -> "high"
+      | _.metrics.login_count > 50 -> "medium"
+      | _ -> "low"
+    session_score:
+      | _.metrics.session_duration > 60 -> 100
+      | _.metrics.session_duration > 30 -> 75
+      | _.metrics.session_duration > 15 -> 50
+      | _ -> 25
+  }
+  sort-by _.total_spent
+  reverse
+
+;; Analyze product performance
+product_analysis = products
+  map {
+    id: _.id
+    name: _.name
+    category: _.category
+    base_price: _.pricing.base_price
+    final_price: _.pricing.base_price * (1 - _.pricing.discount/100) * (1 + _.pricing.tax_rate)
+    stock_level: 
+      | _.inventory.warehouse.available < 50 -> "low"
+      | _.inventory.warehouse.available < 100 -> "medium"
+      | _ -> "high"
+    supplier_count: count _.inventory.suppliers
+    avg_supplier_lead_time: average (map _.lead_time _.inventory.suppliers)
+    review_count: count _.reviews
+    avg_rating: average (map _.rating _.reviews)
+    total_helpful_votes: sum (map _.helpful _.reviews)
+    has_display_specs: _.specs.display != nil
+    popularity_score: (count _.reviews * average (map _.rating _.reviews)) / 10
+  }
+  filter _.popularity_score > 3
+  sort-by _.popularity_score
+  reverse
+
+;; Advanced pattern matching with complex conditions
+user_segmentation = processed_users
+  map {
+    user: _
+    segment:
+      | _.age_group == "young_adult" and _.engagement_level == "high" and _.is_premium -> "young_premium_power"
+      | _.age_group == "young_adult" and _.engagement_level == "high" -> "young_power_user"
+      | _.age_group == "young_adult" and _.is_premium -> "young_premium_casual"
+      | _.age_group == "adult" and _.total_spent > 1500 -> "adult_high_value"
+      | _.age_group == "adult" and _.engagement_level == "high" -> "adult_engaged"
+      | _.age_group == "senior" and _.is_premium -> "senior_premium"
+      | _.total_spent > 2000 -> "vip"
+      | _.engagement_level == "low" -> "at_risk"
+      | _ -> "standard"
+  }
+  group-by _.segment
+  map {
+    segment: _.segment
+    user_count: count _.users
+    avg_spending: average (map _.user.total_spent _.users)
+    avg_engagement: average (map (_.user.session_score) _.users)
+  }
+  sort-by _.user_count
+  reverse
