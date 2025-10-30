@@ -5,4 +5,5 @@
 (def parser-with-indent
   (insta/parser
    (io/resource "datatwist.grammar")
-   :auto-whitespace :standard))
+   :auto-whitespace :standard
+   :trace true))

@@ -46,7 +46,7 @@ indented-closing-brace = indent <'}'>
 
 
 
-indented-general-function-call = indent general-function-call
+indented-general-function-call = indent function-call
 
 (* Assignment: name = expression *)
 assignment = user-identifier <opt-ws> <'='> <opt-ws> expr
@@ -138,10 +138,10 @@ function-body = expr
 
 (* Pipeline components *)
 pipeline-source = identifier | literal | object | list | wildcard-access
-pipeline-op = pipeline-operation / general-function-call
+pipeline-op = pipeline-operation / function-call
 
 (* Pipeline operations with proper indentation *)
-indented-pipeline-op = indent general-function-call | indent specific-pipeline-op
+indented-pipeline-op = indent function-call | indent specific-pipeline-op
 
 (* Specific pipeline operations *)
 specific-pipeline-op = indented-filter-op | indented-map-op | indented-take-op | indented-group-by-op | indented-sum-op | indented-count-op | indented-average-op
@@ -167,8 +167,7 @@ operation-arguments = expr / multi-line-object
 (* Function calls: func arg1 arg2 or func(arg1, arg2) *)
 function-call = user-identifier <opt-ws> (arguments | bare-arguments)
 
-(* General function calls in pipeline context *)
-general-function-call = user-identifier <opt-ws> (arguments | bare-arguments)
+
 
 (* Arguments in parentheses (traditional) *)
 arguments = <'('> <opt-ws> (expr (',' <opt-ws> expr)*)? <opt-ws> <')'>

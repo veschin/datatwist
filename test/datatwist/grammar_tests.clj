@@ -106,22 +106,22 @@
 
    :zen-pipelines
    {:positive
-    [["Basic zen pipeline" "users\n  filter _.age > 18" [:indented-pipeline :indented-filter-op]]
-     ["Chained zen pipeline" "users\n  filter _.age > 18\n  map {name: _.name}" [:indented-pipeline :indented-filter-op :general-function-call]]
-     ["Multi-op zen pipeline" "data\n  filter even?\n  map double\n  take 5" [:indented-pipeline :indented-filter-op :indented-map-op :indented-take-op]]
-     ["Function call in zen pipeline" "data\n  process arg1 arg2" [:indented-pipeline :general-function-call]]]
+    [["Basic zen pipeline" "users\n  filter _.age > 18" [:indented-pipeline :specific-pipeline-op]]
+     ["Chained zen pipeline" "users\n  filter _.age > 18\n  map {name: _.name}" [:indented-pipeline :specific-pipeline-op :function-call]]
+     ["Multi-op zen pipeline" "data\n  filter even?\n  map double\n  take 5" [:indented-pipeline :specific-pipeline-op :specific-pipeline-op :specific-pipeline-op]]
+     ["Function call in zen pipeline" "data\n  process arg1 arg2" [:indented-pipeline :function-call]]]
 
     :negative
-    [["Invalid operation" "data\n  invalid-op _.field" [:indented-pipeline :general-function-call]]]}
+    [["Invalid operation" "data\n  invalid-op _.field" [:indented-pipeline :function-call]]]}
 
    :indented-pipelines
    {:positive
     [["Basic indented pipeline"
       "users\n  filter _.age > 18\n  map {name: _.name}"
-      [:indented-pipeline :indented-filter-op :general-function-call]]
+      [:indented-pipeline :specific-pipeline-op :function-call]]
      ["Complex indented pipeline"
       "sales-data\n  filter _.amount > 1000\n  group-by _.region\n  map {\n    region: _.region\n    total: sum _.amount\n  }"
-      [:indented-pipeline :indented-filter-op :indented-group-by-op :general-function-call]]]
+      [:indented-pipeline :specific-pipeline-op :specific-pipeline-op :function-call]]]
 
     :negative
     [["Insufficient indentation" "users\n filter _.age > 18" [:function-call]]
@@ -149,10 +149,10 @@
    {:positive
     [["Nested pipelines in map"
       "users\n  map {\n    name: _.name\n    scores: \n      _.scores\n        filter even?\n  }"
-      [:indented-pipeline :general-function-call :field-pipeline]]
+      [:indented-pipeline :function-call :field-pipeline]]
      ["Complex nested structure"
       "data\n  filter _.active\n  map {\n    user: _.user\n    stats: {\n      count: count _.items\n      avg: average (map _.value _.items)\n    }\n  }"
-      [:indented-pipeline :indented-filter-op :general-function-call :function-call]]]
+      [:indented-pipeline :specific-pipeline-op :function-call :function-call]]]
 
     :negative
     [["Mismatched nesting" "users map { name: _.name scores: }" [:statement]]]}
