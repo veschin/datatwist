@@ -79,7 +79,7 @@
      [:program [:assignment [:identifier "name"] [:string "Alice"]]]]
 
     ["Expression assignment" "result = x + y"
-     [:program [:assignment [:identifier "result"] [:identifier "x"] "+" [:identifier "y"]]]]]
+     [:program [:assignment [:identifier "result"] [:identifier "x"] [:add "+"] [:identifier "y"]]]]]
 
    :data-structures
    [["Empty object" "{}"
@@ -111,16 +111,16 @@
 
    :functions
    [["Simple function" "[x -> x + 1]"
-     [:program [:function [:function-params [:identifier "x"]] [:function-body [:identifier "x"] "+" [:number "1"]]]]]
+     [:program [:function [:function-params [:identifier "x"]] [:function-body [:identifier "x"] [:add "+"] [:number "1"]]]]]
 
     ["Multi-param function" "[a b -> a + b]"
-     [:program [:function [:function-params [:identifier "a"] [:identifier "b"]] [:function-body [:identifier "a"] "+" [:identifier "b"]]]]]
+     [:program [:function [:function-params [:identifier "a"] [:identifier "b"]] [:function-body [:identifier "a"] [:add "+"] [:identifier "b"]]]]]
 
     ["Function with complex body" "[x -> x * 2 + 1]"
-     [:program [:function [:function-params [:identifier "x"]] [:function-body [:identifier "x"] "*" [:number "2"] "+" [:number "1"]]]]]
+     [:program [:function [:function-params [:identifier "x"]] [:function-body [:identifier "x"] [:mul "*"] [:number "2"] [:add "+"] [:number "1"]]]]]
 
     ["Named function" "add = [a b -> a + b]"
-     [:program [:function-def [:identifier "add"] [:function [:function-params [:identifier "a"] [:identifier "b"]] [:function-body [:identifier "a"] "+" [:identifier "b"]]]]]]]
+     [:program [:function-def [:identifier "add"] [:function [:function-params [:identifier "a"] [:identifier "b"]] [:function-body [:identifier "a"] [:add "+"] [:identifier "b"]]]]]]]
 
    :function-calls
    [["Simple function call" "func arg1"
@@ -147,16 +147,16 @@
 
    :expressions
    [["Simple addition" "x + y"
-     [:program [:identifier "x"] "+" [:identifier "y"]]]
+     [:program [:identifier "x"] [:add "+"] [:identifier "y"]]]
 
     ["Complex arithmetic" "x * 2 + y / 3"
-     [:program [:identifier "x"] "*" [:number "2"] "+" [:identifier "y"] "/" [:number "3"]]]
+     [:program [:identifier "x"] [:mul "*"] [:number "2"] [:add "+"] [:identifier "y"] [:div "/"] [:number "3"]]]
 
     ["Comparison" "x > 10"
-     [:program [:identifier "x"] [:comparison-op ">"] [:number "10"]]]
+     [:program [:identifier "x"] [:comparison-op [:gt ">"]] [:number "10"]]]
 
     ["Logical expression" "x > 10 and y < 20"
-     [:program [:identifier "x"] [:comparison-op ">"] [:number "10"] "and" [:identifier "y"] [:comparison-op "<"] [:number "20"]]]]
+     [:program [:identifier "x"] [:comparison-op [:gt ">"]] [:number "10"] [:logical-op [:and-op "and"]] [:identifier "y"] [:comparison-op [:lt "<"]] [:number "20"]]]]
 
    ;; PHASE 2 TARGET: Pipeline structure tests
    :pipelines

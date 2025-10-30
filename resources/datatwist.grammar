@@ -58,21 +58,37 @@ function-def = identifier <opt-ws> <'='> <opt-ws> function
 
 (* Expression precedence (from lowest to highest *)
 <expr> = logical-expr
-<logical-expr> = in-expr (<opt-ws> ('and' | 'or') <opt-ws> in-expr)*
+<logical-expr> = in-expr (<opt-ws> logical-op <opt-ws> in-expr)*
 <in-expr> = comparison-expr (<opt-ws> 'in' <opt-ws> list)?
 <comparison-expr> = arithmetic-expr (<opt-ws> comparison-op <opt-ws> arithmetic-expr)*
-<arithmetic-expr> = term (<opt-ws> ('+' | '-') <opt-ws> term)*
-<term> = factor (<opt-ws> ('*' | '/' | '%') <opt-ws> factor)*
+(* Arithmetic operators - Phase 2: direct nodes *)
+add = '+'
+sub = '-'
+mul = '*'
+div = '/'
+mod = '%'
+
+<arithmetic-expr> = term (<opt-ws> (add | sub) <opt-ws> term)*
+<term> = factor (<opt-ws> (mul | div | mod) <opt-ws> factor)*
 <factor> = boolean | nil | string | number | function-call | object | function | list | wildcard-access | try-catch | <'('> logical-expr <')'> | identifier
 
 (* Filter condition - expression without pipelines *)
 filter-condition = logical-expr
 
-(* Comparison operators  *)
-comparison-op = '>' | '<' | '>=' | '<=' | '==' | '!=' | '='
+(* Comparison operators - Phase 2: direct nodes instead of strings *)
+gt = '>'
+lt = '<'
+gte = '>='
+lte = '<='
+eq = '=='
+ne = '!='
+assign = '='
+comparison-op = gt | lt | gte | lte | eq | ne | assign
 
-(* Logical operators *)
-logical-op = 'and' | 'or'
+(* Logical operators - Phase 2: direct nodes instead of strings *)
+and-op = 'and'
+or-op = 'or'
+logical-op = and-op | or-op
 
 (* ============= LITERALS ============= *)
 
