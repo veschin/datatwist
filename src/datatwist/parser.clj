@@ -4,7 +4,7 @@
 
 (def parser-with-indent
   (insta/parser
-   (slurp "resources/datatwist.grammar")
+   (slurp "resources/nonexistent-grammar.grammar")
    :auto-whitespace :standard))
 
 (comment
