@@ -5,7 +5,7 @@
 (* ============= TOP LEVEL STRUCTURE ============= *)
 
 program = comment* (statement (<opt-ws> (<';'> / newline / comment) <opt-ws> statement)*)? comment*
-<statement> = indented-pipeline / function-def / assignment / logical-expr / comment
+<statement> = pipeline / indented-pipeline / function-def / assignment / logical-expr / comment
 non-indented-start = #'(?:(?![ \t]{2,}).)' / indented-pipeline-op
 
 (* Terminals *)
@@ -34,6 +34,11 @@ comment-content = #'[^(^)]*' | comment-content <'('> comment-content <')'> comme
 (* ============= STATEMENTS ============= *)
 
 
+(* Simplified pipeline structure - Phase 2 *)
+pipeline = pipeline-source newline pipeline-operations
+pipeline-operations = (pipeline-operation / comment) (newline (pipeline-operation / comment))*
+
+(* Legacy indented pipeline for backward compatibility during transition *)
 indented-pipeline = pipeline-source newline indented-pipeline-body
 indented-pipeline-body = indented-pipeline-ops pipeline-ending?
 indented-pipeline-ops = (indented-pipeline-op / comment) (newline (indented-pipeline-op / comment))*
@@ -140,7 +145,30 @@ function-body = logical-expr
 pipeline-source = identifier | boolean | nil | string | number | object | list | wildcard-access
 pipeline-op = pipeline-operation / function-call
 
-(* Pipeline operations with proper indentation *)
+(* ============= PIPELINE OPERATIONS ============= *)
+
+(* Simplified pipeline operations - Phase 2 *)
+pipeline-operation = filter-op | map-op | take-op | group-by-op | sum-op | count-op | average-op | user-defined-op
+
+(* Built-in pipeline operations with direct nodes *)
+filter-op = <'filter'> <opt-ws> operation-arguments
+map-op = <'map'> <opt-ws> operation-arguments
+take-op = <'take'> <opt-ws> operation-arguments
+group-by-op = <'group-by'> <opt-ws> operation-arguments
+sum-op = <'sum'> <opt-ws> operation-arguments?
+count-op = <'count'> <opt-ws> operation-arguments?
+average-op = <'average'> <opt-ws> operation-arguments?
+
+(* User-defined pipeline operations - exclude built-in operations *)
+user-defined-op = (!'filter' !'map' !'take' !'group-by' !'sum' !'count' !'average' pipeline-name) (<opt-ws> operation-arguments)?
+
+(* Pipeline operations - can be built-in or user-defined *)
+pipeline-name = identifier
+
+(* Arguments can be expression, object, or nothing *)
+operation-arguments = logical-expr / multi-line-object
+
+(* Legacy indented pipeline operations for backward compatibility *)
 indented-pipeline-op = indent function-call | indent specific-pipeline-op
 
 (* Specific pipeline operations *)
@@ -154,15 +182,6 @@ indented-group-by-op = <'group-by'> <opt-ws> operation-arguments
 indented-sum-op = <'sum'> <opt-ws> operation-arguments
 indented-count-op = <'count'> <opt-ws> operation-arguments
 indented-average-op = <'average'> <opt-ws> operation-arguments
-
-(* Unified pipeline operation: name + optional arguments *)
-pipeline-operation = pipeline-name (<opt-ws> operation-arguments)?
-
-(* Pipeline operations - can be built-in or user-defined *)
-pipeline-name = identifier
-
-(* Arguments can be expression, object, or nothing *)
-operation-arguments = logical-expr / multi-line-object
 
 (* Function calls: func arg1 arg2 or func(arg1, arg2) *)
 function-call = identifier <opt-ws> (arguments | bare-arguments)
