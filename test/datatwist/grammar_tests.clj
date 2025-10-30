@@ -356,11 +356,6 @@
         (str "DataTwist Grammar Test Results - " (java.util.Date.)
              "\n" results "\n")))
 
-;; Test to verify pre-commit hook
-(deftest pre-commit-test
-  (testing "This should fail"
-    (is (= 1 2) "This test is designed to fail")))
-
 ;; Run tests when file is loaded (for development)
 (comment
   (def test-results (run-comprehensive-tests))

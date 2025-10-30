@@ -68,4 +68,22 @@
       (println "❌ Some tests failed!"))))
 
 (defn -main [& _]
-  (run-all-tests))
+  (run-all-tests)
+  (let [grammar-results (test/run-tests 'datatwist.grammar-tests)
+        comment-results (test/run-tests 'datatwist.comment-tests)
+        dtw-files ["test_resources/zen-example.dtw"
+                   "test_resources/comment-test.dtw"
+                   "test_resources/large-sample.dtw"]
+        parser (var-get (resolve 'datatwist.grammar-tests/parser))
+        dtw-results (for [file dtw-files]
+                      (let [content (slurp file)
+                            result (parser content)]
+                        (if ((resolve 'instaparse.core/failure?) result)
+                          {:file file :status :failed}
+                          {:file file :status :success :nodes (count (flatten result))})))
+        dtw-failed (count (filter #(= (:status %) :failed) dtw-results))
+        total-failed (+ (:fail grammar-results) (:fail comment-results) dtw-failed)
+        total-errors (+ (:error grammar-results) (:error comment-results))]
+    (if (> (+ total-failed total-errors) 0)
+      (System/exit 1)
+      (System/exit 0))))

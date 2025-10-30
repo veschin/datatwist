@@ -1,13 +1,8 @@
 (ns datatwist.parser
   (:require [instaparse.core :as insta]
-            [clojure.string :as str]))
+            [clojure.java.io :as io]))
 
 (def parser-with-indent
   (insta/parser
-   (slurp "resources/nonexistent-grammar.grammar")
+   (io/resource "datatwist.grammar")
    :auto-whitespace :standard))
-
-(comment
-
-;; cd /home/veschin/work/datatwist && make test
-  )
