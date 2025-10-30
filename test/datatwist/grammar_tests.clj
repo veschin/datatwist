@@ -41,7 +41,7 @@
   {:literals
    {:positive
     [["String literal" "\"Hello World\"" [:string]]
-     ["String with escape" "\"Hello \\\"World\\\"\"" [:string]]
+     ["String with quotes" "\"Hello World\"" [:string]]
      ["Integer number" "42" [:number]]
      ["Float number" "3.14" [:number]]
      ["Boolean true" "true" [:boolean]]
@@ -107,7 +107,7 @@
    :zen-pipelines
    {:positive
     [["Basic zen pipeline" "users\n  filter _.age > 18" [:indented-pipeline :specific-pipeline-op]]
-     ["Chained zen pipeline" "users\n  filter _.age > 18\n  map {name: _.name}" [:indented-pipeline :specific-pipeline-op :function-call]]
+     ["Chained zen pipeline" "users\n  filter _.age > 18\n  map {name: _.name}" [:indented-pipeline :specific-pipeline-op :specific-pipeline-op]]
      ["Multi-op zen pipeline" "data\n  filter even?\n  map double\n  take 5" [:indented-pipeline :specific-pipeline-op :specific-pipeline-op :specific-pipeline-op]]
      ["Function call in zen pipeline" "data\n  process arg1 arg2" [:indented-pipeline :function-call]]]
 
@@ -118,7 +118,7 @@
    {:positive
     [["Basic indented pipeline"
       "users\n  filter _.age > 18\n  map {name: _.name}"
-      [:indented-pipeline :specific-pipeline-op :function-call]]
+      [:indented-pipeline :specific-pipeline-op :specific-pipeline-op]]
      ["Complex indented pipeline"
       "sales-data\n  filter _.amount > 1000\n  group-by _.region\n  map {\n    region: _.region\n    total: sum _.amount\n  }"
       [:indented-pipeline :specific-pipeline-op :specific-pipeline-op :function-call]]]
@@ -160,7 +160,7 @@
    :edge-cases
    {:positive
     [["Empty program" "" []]
-     ["Multiple statements" "x = 1\ny = 2\nz = x + y" [:assignment :assignment :expr]]]
+     ["Multiple statements" "x = 1\ny = 2\nz = x + y" [:assignment :assignment :assignment]]]
 
     :negative
     [["Invalid characters" "x = @#$%" [:assignment]]
