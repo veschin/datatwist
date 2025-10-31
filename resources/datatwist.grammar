@@ -183,17 +183,18 @@ indented-sum-op = <'sum'> <opt-ws> operation-arguments
 indented-count-op = <'count'> <opt-ws> operation-arguments
 indented-average-op = <'average'> <opt-ws> operation-arguments
 
-(* Function calls: func arg1 arg2 or func(arg1, arg2) *)
+(* Function calls: func arg1 arg2 or func(arg1 arg2) *)
 function-call = identifier-with-args / identifier-with-parens
 
 (* Function with bare arguments (Clojure-style) - direct arguments *)
 <identifier-with-args> = identifier <opt-ws> logical-expr (<ws> logical-expr)*
 
-(* Function with parenthesized arguments (traditional) - keep wrapper *)
-identifier-with-parens = identifier <opt-ws> arguments
+(* Function with parenthesized arguments - same as bare but in parentheses *)
+<identifier-with-parens> = identifier <opt-ws> parenthesized-args
 
-(* Arguments in parentheses (traditional) - keep wrapper for distinction *)
-arguments = <'('> <opt-ws> (logical-expr (',' <opt-ws> logical-expr)*)? <opt-ws> <')'>
+(* Arguments in parentheses - same syntax as bare arguments but not function calls *)
+parenthesized-args = <'('> <opt-ws> parenthesized-arg (<ws> parenthesized-arg)* <opt-ws> <')'>
+parenthesized-arg = boolean | nil | string | number | object | function | list | wildcard-access | try-catch | <'('> logical-expr <')'> | identifier
 
 (* ============= SPECIAL CONSTRUCTS ============= *)
 

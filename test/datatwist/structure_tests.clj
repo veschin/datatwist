@@ -135,8 +135,8 @@
     ["Function call with object" "create-user {name: \"Alice\" age: 25}"
      [:program [:function-call [:identifier "create-user"] [:object [:field [:identifier "name"] [:string "Alice"]] [:field [:identifier "age"] [:number "25"]]]]]]
 
-    ["Function call with parenthesized args" "func(data, filter)"
-     [:program [:function-call [:identifier-with-parens [:identifier "func"] [:arguments [:identifier "data"] "," [:identifier "filter"]]]]]]]
+    ["Function call with parenthesized args" "func(data filter)"
+     [:program [:function-call [:identifier "func"] [:function-call [:identifier "data"] [:identifier "filter"]]]]]]
 
    :wildcard-access
    [["Simple wildcard" "_"
