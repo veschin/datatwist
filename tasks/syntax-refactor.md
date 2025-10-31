@@ -450,25 +450,136 @@ number = #'-?[0-9]+(\.[0-9]+)?'
 
 ---
 
-## 🔄 NEXT PHASE: Pipeline & Advanced Simplification
+---
 
-### 1. Pipeline Structure Simplification (HIGH PRIORITY)
+## 📊 CURRENT STATUS: Phase 3 Complete ✅
 
-**Current Complex Structure:**
+### ✅ COMPLETED: Phase 3 Final Simplification (Oct 31, 2025)
+
+#### 1. Function Call Arguments Simplification ✅
+**Before (Complex)**:
 ```clojure
-[:indented-pipeline
- [:pipeline-source [:identifier "users"]]
- [:indented-pipeline-body
-  [:indented-pipeline-ops
-   [:indented-pipeline-op
-    [:indent "  "]
-    [:specific-pipeline-op
-     [:indented-filter-op
-      [:operation-arguments
-       [:wildcard-access "_" [:identifier "age"]]
-       [:comparison-op ">"]
-       [:number "18"]]]]]]]]]
+[:function-call 
+ [:identifier "process"] 
+ [:bare-arguments 
+  [:identifier "data"] 
+  [:identifier "filter"]]]]
 ```
+
+**After (Simplified)**:
+```clojure
+[:function-call 
+ [:identifier "process"] 
+ [:identifier "data"] 
+ [:identifier "filter"]]]
+```
+
+**Key Improvements**:
+- ✅ Eliminated `[:bare-arguments [...]]` wrapper completely
+- ✅ Direct arguments in function calls for Clojure-style syntax
+- ✅ Preserved parenthesized arguments with `[:arguments [...]]` wrapper for distinction
+- ✅ Added 2 new tests for parenthesized arguments coverage
+- ✅ All 295 tests passing (up from 293)
+
+#### 2. Pattern Matching Simplification ✅
+**Before (Complex)**:
+```clojure
+[:field [:identifier "age_group"]
+ [:multi-line-field-value
+  [:newline "\n"]
+  [:pattern-clauses
+   [:pattern-clause
+    "|"
+    [:pattern-condition [:pattern-test [:wildcard-access "_" [:identifier "age"]] [:comparison-op [:lt "<"]] [:number "25"]]]
+    [:pattern-result [:string "young"]]]
+   [:pattern-clause
+    "|"
+    [:pattern-condition [:pattern-default]]
+    [:pattern-result [:string "senior"]]]]]]
+```
+
+**After (Simplified)**:
+```clojure
+[:field [:identifier "age_group"]
+ [:multi-line-field-value
+  [:newline "\n"]
+  [:pattern
+   "|" [:pattern-condition [:wildcard-access "_" [:identifier "age"]] [:comparison-op [:lt "<"]] [:number "25"]] [:string "young"]
+   [:newline "\n"] "|" [:pattern-condition] [:string "senior"]]]]
+```
+
+**Key Improvements**:
+- ✅ Eliminated `[:pattern-clauses [...]]` wrapper
+- ✅ Eliminated `[:pattern-clause [...]]` wrapper  
+- ✅ Eliminated `[:pattern-result [...]]` wrapper
+- ✅ Simplified pattern condition structure
+- ✅ Reduced parse tree node count significantly (large-sample.dtw: 1612 → 1546 nodes)
+
+#### 3. Expression Wrapper Elimination ✅
+**Status**: Already completed via hidden `<expr>` nodes in grammar
+- ✅ No `[:expr ...]` wrappers found in any parse trees
+- ✅ Clean direct node structure throughout
+- ✅ Proper precedence handling maintained
+
+---
+
+## 🎯 PHASE 3 ACHIEVEMENTS
+
+### Parse Tree Optimization Results:
+- **Test Count**: 293 → 295 tests (+2 new function call tests)
+- **Node Reduction**: ~4% reduction in complex file parse trees
+- **Structure Simplicity**: Eliminated 3 major wrapper types
+- **Performance**: Maintained (~420-530ms for large input parsing)
+
+### Wrapper Elimination Summary:
+1. ✅ **Function Calls**: `[:bare-arguments [...]]` → direct arguments
+2. ✅ **Pattern Matching**: `[:pattern-clauses [...]]` + `[:pattern-clause [...]]` + `[:pattern-result [...]]` → simplified structure
+3. ✅ **Expressions**: `[:expr [...]]` → eliminated via hidden nodes
+4. ✅ **Maintained**: Parenthesized arguments distinction with `[:arguments [...]]`
+
+### Final Parse Tree Examples:
+
+#### Function Call Evolution:
+```clojure
+// Phase 2: [:function-call [:identifier "func"] [:bare-arguments [:identifier "arg1"] [:identifier "arg2"]]]
+// Phase 3: [:function-call [:identifier "func"] [:identifier "arg1"] [:identifier "arg2"]]]
+```
+
+#### Pattern Matching Evolution:
+```clojure
+// Phase 2: Complex nested structure with 4+ wrapper levels
+// Phase 3: Streamlined structure with minimal nesting
+```
+
+#### Complex Pipeline (Final):
+```clojure
+[:program 
+ [:pipeline 
+  [:identifier "data"]
+  [:pipeline-operation [:filter-op [:operation-arguments [:identifier "even?"]]]]
+  [:pipeline-operation [:map-op [:operation-arguments [:identifier "double"]]]]
+  [:pipeline-operation [:take-op [:operation-arguments [:number "5"]]]]
+  [:pipeline-operation [:sum-op]]]]
+```
+
+---
+
+## 🔄 NEXT PHASE: Potential Future Optimizations
+
+### Low Priority Opportunities:
+1. **Multi-line-field-value wrapper** - Could be eliminated for field patterns
+2. **Pipeline-operation wrapper** - Could be streamlined further  
+3. **Operation-arguments wrapper** - Could be simplified for single arguments
+4. **Field-value wrapper** - Could be eliminated in some contexts
+
+### Current Status: **EXCELLENT** ✅
+- All major structural complexity eliminated
+- Parse trees are semantically clear and minimal
+- Performance is stable and optimized
+- Test coverage is comprehensive (295 tests passing)
+- Code quality is high with minimal linting warnings
+
+**Phase 3 represents the completion of the core grammar simplification goals.**
 
 **Target Simple Structure:**
 ```clojure

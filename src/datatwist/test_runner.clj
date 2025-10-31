@@ -20,9 +20,17 @@
     (println (str "   Comment tests: " (:pass comment-results) " passed, "
                   (:fail comment-results) " failed, " (:error comment-results) " errors")))
 
+  ;; Run structure tests
+  (println "")
+  (println "3. Running structure tests...")
+  (require 'datatwist.structure-tests)
+  (let [structure-results (test/run-tests 'datatwist.structure-tests)]
+    (println (str "   Structure tests: " (:pass structure-results) " passed, "
+                  (:fail structure-results) " failed, " (:error structure-results) " errors")))
+
   ;; Test DTW files
   (println "")
-  (println "3. Testing DTW files...")
+  (println "4. Testing DTW files...")
   (require 'datatwist.grammar-tests)
   (let [parser (var-get (resolve 'datatwist.grammar-tests/parser))
         dtw-files ["test_resources/zen-example.dtw"
@@ -47,6 +55,7 @@
   (println "=== Test Summary ===")
   (let [grammar-results (test/run-tests 'datatwist.grammar-tests)
         comment-results (test/run-tests 'datatwist.comment-tests)
+        structure-results (test/run-tests 'datatwist.structure-tests)
         dtw-files ["test_resources/zen-example.dtw"
                    "test_resources/comment-test.dtw"
                    "test_resources/large-sample.dtw"]
@@ -59,9 +68,9 @@
                           {:file file :status :success :nodes (count (flatten result))})))
         dtw-passed (count (filter #(= (:status %) :success) dtw-results))
         dtw-failed (count (filter #(= (:status %) :failed) dtw-results))
-        total-passed (+ (:pass grammar-results) (:pass comment-results) dtw-passed)
-        total-failed (+ (:fail grammar-results) (:fail comment-results) dtw-failed)
-        total-errors (+ (:error grammar-results) (:error comment-results))]
+        total-passed (+ (:pass grammar-results) (:pass comment-results) (:pass structure-results) dtw-passed)
+        total-failed (+ (:fail grammar-results) (:fail comment-results) (:fail structure-results) dtw-failed)
+        total-errors (+ (:error grammar-results) (:error comment-results) (:error structure-results))]
     (println (str "Total: " total-passed " passed, " total-failed " failed, " total-errors " errors"))
     (if (= 0 total-failed total-errors)
       (println "🎉 All tests passed!")
@@ -71,6 +80,7 @@
   (run-all-tests)
   (let [grammar-results (test/run-tests 'datatwist.grammar-tests)
         comment-results (test/run-tests 'datatwist.comment-tests)
+        structure-results (test/run-tests 'datatwist.structure-tests)
         dtw-files ["test_resources/zen-example.dtw"
                    "test_resources/comment-test.dtw"
                    "test_resources/large-sample.dtw"]
@@ -82,7 +92,7 @@
                           {:file file :status :failed}
                           {:file file :status :success :nodes (count (flatten result))})))
         dtw-failed (count (filter #(= (:status %) :failed) dtw-results))
-        total-failed (+ (:fail grammar-results) (:fail comment-results) dtw-failed)
+        total-failed (+ (:fail grammar-results) (:fail comment-results) (:fail structure-results) dtw-failed)
         total-errors (+ (:error grammar-results) (:error comment-results))]
     (if (> (+ total-failed total-errors) 0)
       (System/exit 1)

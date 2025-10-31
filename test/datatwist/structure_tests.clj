@@ -1,4 +1,4 @@
-(ns datatwist.simplified-grammar-tests
+(ns datatwist.structure-tests
   (:require [clojure.test :refer :all]
             [instaparse.core :as insta]
             [clojure.java.io :as io]
@@ -124,16 +124,19 @@
 
    :function-calls
    [["Simple function call" "func arg1"
-     [:program [:function-call [:identifier "func"] [:bare-arguments [:identifier "arg1"]]]]]
+     [:program [:function-call [:identifier "func"] [:identifier "arg1"]]]]
 
     ["Function call with multiple args" "process data filter"
-     [:program [:function-call [:identifier "process"] [:bare-arguments [:identifier "data"] [:identifier "filter"]]]]]
+     [:program [:function-call [:identifier "process"] [:identifier "data"] [:identifier "filter"]]]]
 
     ["Function call with literal" "print \"Hello\""
-     [:program [:function-call [:identifier "print"] [:bare-arguments [:string "Hello"]]]]]
+     [:program [:function-call [:identifier "print"] [:string "Hello"]]]]
 
     ["Function call with object" "create-user {name: \"Alice\" age: 25}"
-     [:program [:function-call [:identifier "create-user"] [:bare-arguments [:object [:field [:identifier "name"] [:string "Alice"]] [:field [:identifier "age"] [:number "25"]]]]]]]]
+     [:program [:function-call [:identifier "create-user"] [:object [:field [:identifier "name"] [:string "Alice"]] [:field [:identifier "age"] [:number "25"]]]]]]
+
+    ["Function call with parenthesized args" "func(data, filter)"
+     [:program [:function-call [:identifier-with-parens [:identifier "func"] [:arguments [:identifier "data"] "," [:identifier "filter"]]]]]]]
 
    :wildcard-access
    [["Simple wildcard" "_"
@@ -303,7 +306,7 @@
   (println "Phase 2 (TODO): Pipeline & advanced simplification")
   (println "")
 
-  (let [results (run-tests 'datatwist.simplified-grammar-tests)
+  (let [results (run-tests 'datatwist.structure-tests)
         passed (:pass results)
         failed (:fail results)
         errors (:error results)
@@ -321,7 +324,7 @@
 ;; Helper to check Phase 1 implementation status
 (defn check-phase1-status []
   (println "=== Phase 1 Implementation Status ===")
-  (let [results (run-tests 'datatwist.simplified-grammar-tests)
+  (let [results (run-tests 'datatwist.structure-tests)
         phase1-tests [:phase1-literals-tests :phase1-identifiers-tests :phase1-assignments-tests
                       :phase1-data-structures-tests :phase1-functions-tests :phase1-function-calls-tests
                       :phase1-wildcard-access-tests :phase1-expressions-tests]]

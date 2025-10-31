@@ -121,7 +121,7 @@ field = identifier <opt-ws> <':'> <opt-ws> field-value
 field-with-multiline-object = identifier <opt-ws> <':'> <opt-ws> multi-line-object
 <field-value> = logical-expr / multi-line-object / same-line-field-pipeline / multi-line-field-value
 same-line-field-pipeline = pipeline-source <ws> pipeline-op (<ws> pipeline-op)*
-multi-line-field-value = newline <indent> (pattern-clauses / field-pipeline / comment)
+multi-line-field-value = newline <indent> (pattern / field-pipeline / comment)
 
 (* Pipeline as field value *)
 field-pipeline = logical-expr newline field-pipeline-ops
@@ -184,15 +184,16 @@ indented-count-op = <'count'> <opt-ws> operation-arguments
 indented-average-op = <'average'> <opt-ws> operation-arguments
 
 (* Function calls: func arg1 arg2 or func(arg1, arg2) *)
-function-call = identifier <opt-ws> (arguments | bare-arguments)
+function-call = identifier-with-args / identifier-with-parens
 
+(* Function with bare arguments (Clojure-style) - direct arguments *)
+<identifier-with-args> = identifier <opt-ws> logical-expr (<ws> logical-expr)*
 
+(* Function with parenthesized arguments (traditional) - keep wrapper *)
+identifier-with-parens = identifier <opt-ws> arguments
 
-(* Arguments in parentheses (traditional) *)
+(* Arguments in parentheses (traditional) - keep wrapper for distinction *)
 arguments = <'('> <opt-ws> (logical-expr (',' <opt-ws> logical-expr)*)? <opt-ws> <')'>
-
-(* Bare arguments (Clojure-style) *)
-bare-arguments = logical-expr (<ws> logical-expr)*
 
 (* ============= SPECIAL CONSTRUCTS ============= *)
 
@@ -200,12 +201,12 @@ bare-arguments = logical-expr (<ws> logical-expr)*
 wildcard-access = '_' | '_' <'.'> identifier (<'.'> identifier)*
 
 (* Pattern matching as field value: | condition -> result | _ -> default *)
-pattern-clauses = pattern-clause ( newline <indent> pattern-clause )*
-pattern-clause = '|' <opt-ws> pattern-condition <opt-ws> <'->'> <opt-ws> pattern-result
+pattern = pattern-clause ( newline <indent> pattern-clause )*
+<pattern-clause> = '|' <opt-ws> pattern-condition <opt-ws> <'->'> <opt-ws> pattern-result
 pattern-condition = pattern-default / pattern-test
-pattern-default = <'_'>
-pattern-test = logical-expr
-pattern-result = logical-expr
+<pattern-default> = <'_'>
+<pattern-test> = logical-expr
+<pattern-result> = logical-expr
 
 (* Try-catch: try expr catch error -> fallback *)
 try-catch = <'try'> <opt-ws> logical-expr <opt-ws> <'catch'> <opt-ws> identifier <opt-ws> <'->'> <opt-ws> logical-expr
