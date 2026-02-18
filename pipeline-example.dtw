@@ -1,3 +1,0 @@
-users
-  filter _.age > 18
-  map {name: _.name}
