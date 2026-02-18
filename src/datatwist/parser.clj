@@ -21,5 +21,4 @@
 (defn parse-error?
   "Returns true if the input fails to parse."
   [input]
-  ;; TODO: implement with real parser
-  (throw (ex-info "DataTwist parse-error? not implemented yet" {:input input})))
+  (insta/failure? (parser input)))
