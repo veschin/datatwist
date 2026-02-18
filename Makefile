@@ -10,7 +10,7 @@ test:
 # Lint code
 lint:
 	@echo "=== Running linter ==="
-	clj-kondo --lint src/ test/ 2>/dev/null || clj-kondo --lint *.clj
+	clj-kondo --lint src/
 
 # Clean cache
 clean:
@@ -22,7 +22,7 @@ clean:
 help:
 	@echo "DataTwist Development Commands:"
 	@echo ""
-	@echo "  make test  - Run all tests (grammar + DTW files)"
+	@echo "  make test  - Run all tests"
 	@echo "  make lint  - Run linter"
 	@echo "  make clean - Clean cache"
 	@echo "  make help  - Show this help"
