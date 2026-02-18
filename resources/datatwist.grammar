@@ -1,218 +1,65 @@
-(* DataTwist Language Grammar *)
-(* Based on Instaparse EBNF syntax *)
-(* Handles pipeline-based functional data processing language *)
+(* DataTwist Grammar - Prototype *)
+(* Covers: literals, identifiers, operators, precedence *)
+(* Uses :auto-whitespace :standard *)
 
-(* ============= TOP LEVEL STRUCTURE ============= *)
+Program = Expr+
 
-program = comment* (statement (<opt-ws> (<';'> / newline / comment) <opt-ws> statement)*)? comment*
-<statement> = pipeline / indented-pipeline / function-def / assignment / logical-expr / comment
-non-indented-start = #'(?:(?![ \t]{2,}).)' / indented-pipeline-op
+<Expr> = OrExpr
 
-(* Terminals *)
-identifier = #'(?!(?:true|false|nil)$)[a-zA-Z][a-zA-Z0-9\-_]*[?]?'
+(* Operator precedence via nesting: lowest to highest *)
+
+OrExpr = AndExpr (<'or'> AndExpr)+
+       | AndExpr
+
+AndExpr = NilCoalesce (<'and'> NilCoalesce)+
+        | NilCoalesce
+
+NilCoalesce = NotExpr (<'??'> NotExpr)+
+            | NotExpr
+
+NotExpr = <'not'> CompExpr
+        | CompExpr
+
+CompExpr = InExpr CompOp InExpr
+         | InExpr
+
+InExpr = AddExpr <'in'> AddExpr
+       | AddExpr
+
+AddExpr = MulExpr (AddOp MulExpr)+
+        | MulExpr
+
+MulExpr = UnaryExpr (MulOp UnaryExpr)+
+        | UnaryExpr
+
+UnaryExpr = <'-'> Atom
+          | Atom
+
+<Atom> = Float
+       | Integer
+       | String
+       | Boolean
+       | Nil
+       | Identifier
+       | Wildcard
+       | <'('> Expr <')'>
+
+(* Operator tokens - kept visible for AST *)
+AddOp = '+' | '-'
+MulOp = '*' | '/' | '%'
+CompOp = '>=' | '<=' | '!=' | '=' | '>' | '<'
 
 (* Literals *)
-boolean = 'true' | 'false'
-nil = 'nil'
-ws = #'[ \t]+'
-<opt-ws> = #'[ \t]*'
-newline = #'\r?\n'
-indent = #'[ \t]{2,}'
+Float = #'[0-9]+\.[0-9]+'
+Integer = #'[0-9]+'
+String = <'"'> #'[^"\\]*(?:\\.[^"\\]*)*' <'"'>
+Boolean = 'true' | 'false'
+Nil = 'nil'
 
+(* Identifiers and wildcard *)
+Identifier = !ReservedWord #'[a-zA-Z][a-zA-Z0-9_-]*[?!]?'
+Wildcard = '_'
+ReservedWord = ('true' | 'false' | 'nil' | 'and' | 'or' | 'not' | 'is' | 'in') !#'[a-zA-Z0-9_-]'
 
-(* ============= COMMENTS ============= *)
-
-(* Single-line comment: ;; this is a comment *)
-single-line-comment = ';;' #'[^\r\n]*'
-
-(* Multi-line comment: (comment content...) *)
-multi-line-comment = <'('> <'comment'> <opt-ws> comment-content <')'>
-comment-content = #'[^(^)]*' | comment-content <'('> comment-content <')'> comment-content
-
-<comment> = single-line-comment / multi-line-comment
-
-(* ============= STATEMENTS ============= *)
-
-
-(* Simplified pipeline structure - Phase 2 *)
-pipeline = pipeline-source newline pipeline-operations
-pipeline-operations = (pipeline-operation / comment) (newline (pipeline-operation / comment))*
-
-(* Legacy indented pipeline for backward compatibility during transition *)
-indented-pipeline = pipeline-source newline indented-pipeline-body
-indented-pipeline-body = indented-pipeline-ops pipeline-ending?
-indented-pipeline-ops = (indented-pipeline-op / comment) (newline (indented-pipeline-op / comment))*
-pipeline-ending = newline indented-closing-brace
-indented-closing-brace = indent <'}'>
-
-
-
-
-
-
-indented-general-function-call = indent function-call
-
-(* Assignment: name = expression *)
-assignment = identifier <opt-ws> <assignment-op> <opt-ws> logical-expr
-assignment-op = '='
-
-(* Function definition: name = [params -> body] *)
-function-def = identifier <opt-ws> <'='> <opt-ws> function
-
-(* ============= EXPRESSIONS ============= *)
-
-(* Expression precedence (from lowest to highest *)
-<expr> = logical-expr
-<logical-expr> = in-expr (<opt-ws> logical-op <opt-ws> in-expr)*
-<in-expr> = comparison-expr (<opt-ws> 'in' <opt-ws> list)?
-<comparison-expr> = arithmetic-expr (<opt-ws> comparison-op <opt-ws> arithmetic-expr)*
-(* Arithmetic operators - Phase 2: direct nodes *)
-add = '+'
-sub = '-'
-mul = '*'
-div = '/'
-mod = '%'
-
-<arithmetic-expr> = term (<opt-ws> (add | sub) <opt-ws> term)*
-<term> = factor (<opt-ws> (mul | div | mod) <opt-ws> factor)*
-<factor> = boolean | nil | string | number | function-call | object | function | list | wildcard-access | try-catch | <'('> logical-expr <')'> | identifier
-
-(* Filter condition - expression without pipelines *)
-filter-condition = logical-expr
-
-(* Comparison operators - Phase 2: direct nodes instead of strings *)
-gt = '>'
-lt = '<'
-gte = '>='
-lte = '<='
-eq = '=='
-ne = '!='
-assign = '='
-comparison-op = gt | lt | gte | lte | eq | ne | assign
-
-(* Logical operators - Phase 2: direct nodes instead of strings *)
-and-op = 'and'
-or-op = 'or'
-logical-op = and-op | or-op
-
-(* ============= LITERALS ============= *)
-
-
-
-
-
-(* String literals *)
-string = <'\"'> #'[^\"]*' <'\"'>
-
-(* Numbers (integer and float) *)
-number = #'-?[0-9]+(\.[0-9]+)?'
-
-(* ============= DATA STRUCTURES ============= *)
-
-(* Objects: {key: value key2: value2} (no commas) *)
-object = <'{'> <opt-ws> object-fields <opt-ws> <'}'>
-<object-fields> = (comment | field) (<opt-ws> (comment | field))* | #''
-multi-line-object = <'{'> newline object-fields-multiline (newline <'}'>)?
-<object-fields-multiline> = (object-field-multiline / comment) (<newline> (object-field-multiline / comment))*
-object-field-multiline = indent (field-with-multiline-object / field)
-
-(* Field definitions *)
-field = identifier <opt-ws> <':'> <opt-ws> field-value
-field-with-multiline-object = identifier <opt-ws> <':'> <opt-ws> multi-line-object
-<field-value> = logical-expr / multi-line-object / same-line-field-pipeline / multi-line-field-value
-same-line-field-pipeline = pipeline-source <ws> pipeline-op (<ws> pipeline-op)*
-multi-line-field-value = newline <indent> (pattern / field-pipeline / comment)
-
-(* Pipeline as field value *)
-field-pipeline = logical-expr newline field-pipeline-ops
-field-pipeline-ops = indented-pipeline-op (newline indented-pipeline-op)* / indented-pipeline-op
-
-(* Lists: [item1 item2 item3] (no commas) *)
-list = <'['> <opt-ws> list-elements <opt-ws> <']'>
-<list-elements> = (comment | list-element) (<opt-ws> (comment | list-element))* | #''
-<list-element> = boolean | nil | string | number | object | list | function | wildcard-access | identifier
-
-(* ============= FUNCTIONS ============= *)
-
-(* Function: [param1 param2 -> body] *)
-function = <'['> <opt-ws> function-params <opt-ws> <'->'> <opt-ws> function-body <opt-ws> <']'>
-function-params = identifier (<opt-ws> identifier)*
-function-body = logical-expr
-
-(* ============= PIPELINES ============= *)
-
-(* Pipeline components *)
-pipeline-source = identifier | boolean | nil | string | number | object | list | wildcard-access
-pipeline-op = pipeline-operation / function-call
-
-(* ============= PIPELINE OPERATIONS ============= *)
-
-(* Simplified pipeline operations - Phase 2 *)
-pipeline-operation = filter-op | map-op | take-op | group-by-op | sum-op | count-op | average-op | user-defined-op
-
-(* Built-in pipeline operations with direct nodes *)
-filter-op = <'filter'> <opt-ws> operation-arguments
-map-op = <'map'> <opt-ws> operation-arguments
-take-op = <'take'> <opt-ws> operation-arguments
-group-by-op = <'group-by'> <opt-ws> operation-arguments
-sum-op = <'sum'> <opt-ws> operation-arguments?
-count-op = <'count'> <opt-ws> operation-arguments?
-average-op = <'average'> <opt-ws> operation-arguments?
-
-(* User-defined pipeline operations - exclude built-in operations *)
-user-defined-op = (!'filter' !'map' !'take' !'group-by' !'sum' !'count' !'average' pipeline-name) (<opt-ws> operation-arguments)?
-
-(* Pipeline operations - can be built-in or user-defined *)
-pipeline-name = identifier
-
-(* Arguments can be expression, object, or nothing *)
-operation-arguments = logical-expr / multi-line-object
-
-(* Legacy indented pipeline operations for backward compatibility *)
-indented-pipeline-op = indent function-call | indent specific-pipeline-op
-
-(* Specific pipeline operations *)
-specific-pipeline-op = indented-filter-op | indented-map-op | indented-take-op | indented-group-by-op | indented-sum-op | indented-count-op | indented-average-op
-
-(* Built-in pipeline operations *)
-indented-filter-op = <'filter'> <opt-ws> operation-arguments
-indented-map-op = <'map'> <opt-ws> operation-arguments
-indented-take-op = <'take'> <opt-ws> operation-arguments
-indented-group-by-op = <'group-by'> <opt-ws> operation-arguments
-indented-sum-op = <'sum'> <opt-ws> operation-arguments
-indented-count-op = <'count'> <opt-ws> operation-arguments
-indented-average-op = <'average'> <opt-ws> operation-arguments
-
-(* Function calls: func arg1 arg2 or func(arg1 arg2) *)
-function-call = identifier-with-args / identifier-with-parens
-
-(* Function with bare arguments (Clojure-style) - direct arguments *)
-<identifier-with-args> = identifier <opt-ws> logical-expr (<ws> logical-expr)*
-
-(* Function with parenthesized arguments - same as bare but in parentheses *)
-<identifier-with-parens> = identifier <opt-ws> parenthesized-args
-
-(* Arguments in parentheses - same syntax as bare arguments but not function calls *)
-parenthesized-args = <'('> <opt-ws> parenthesized-arg (<ws> parenthesized-arg)* <opt-ws> <')'>
-parenthesized-arg = boolean | nil | string | number | object | function | list | wildcard-access | try-catch | <'('> logical-expr <')'> | identifier
-
-(* ============= SPECIAL CONSTRUCTS ============= *)
-
-(* Wildcard access: _.field or _.field.nested or _ *)
-wildcard-access = '_' | '_' <'.'> identifier (<'.'> identifier)*
-
-(* Pattern matching as field value: | condition -> result | _ -> default *)
-pattern = pattern-clause ( newline <indent> pattern-clause )*
-<pattern-clause> = '|' <opt-ws> pattern-condition <opt-ws> <'->'> <opt-ws> pattern-result
-pattern-condition = pattern-default / pattern-test
-<pattern-default> = <'_'>
-<pattern-test> = logical-expr
-<pattern-result> = logical-expr
-
-(* Try-catch: try expr catch error -> fallback *)
-try-catch = <'try'> <opt-ws> logical-expr <opt-ws> <'catch'> <opt-ws> identifier <opt-ws> <'->'> <opt-ws> logical-expr
-
-(* ============= END OF INPUT ============= *)
-
-
-
+(* Comments - consumed but not in AST *)
+Comment = <'//'> <#'[^\r\n]*'>
