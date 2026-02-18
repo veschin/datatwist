@@ -1,5 +1,6 @@
 (ns datatwist.test-runner
   (:require [clojure.test :refer [run-tests]]
+            [datatwist.parser-test]
             [datatwist.literals-test]
             [datatwist.data-structures-test]
             [datatwist.functions-test]
@@ -9,6 +10,7 @@
 
 (defn -main [& _args]
   (let [result (run-tests
+                'datatwist.parser-test
                 'datatwist.literals-test
                 'datatwist.data-structures-test
                 'datatwist.functions-test
