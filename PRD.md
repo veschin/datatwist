@@ -31,6 +31,7 @@ The power of Clojure without the parentheses, purpose-built for data pipelines.
 | Pipe semantics | Pipe-first (Elixir) | `data \|> f` = `f(data, ...)` |
 | Nil tolerance | Yes | Missing field access = nil, not error |
 | Comments | `;` and `(comment ...)` | Single-line `;`, block `(comment ...)` form — parsed but not evaluated |
+| String patterns | `#p"..."` reader macro with three tiers | Reverse-format string destructuring, natural for data extraction pipelines |
 | Nil coalescing | `??` | `value ?? default` -- triggers on nil only |
 | Nil in arithmetic | Coercion to identity | `nil + 5` = `5`, `nil + ""` = `""` |
 | Object field ops | `+`/`-` prefixes | `{+field: expr}` adds, `{-field}` removes |
@@ -234,6 +235,55 @@ users |> map {
 
 Context disambiguation: `| {...}` or `| [...]` = structural, `| expression` = guard.
 `when` adds a guard condition after structural pattern. First match wins.
+
+### 6b. String Pattern Destructuring (`#p`)
+
+Extends destructuring to strings via the `#p"..."` reader macro. Reverse-format matching: describe the shape of the string, capture named fields into an object.
+
+**Tier 1 — Simple capture:** `{var}` captures up to the next literal (greedy default, no constraint needed)
+```
+email-pat is #p"{user}@{domain}"
+ip-pat    is #p"{a}.{b}.{c}.{d}"
+log-pat   is #p"{ip} - {user} [{time}] \"{method} {url} HTTP/{ver}\" {status} {bytes}"
+```
+
+**Tier 2 — Type hints via `:` shorthand:** `:d` = digits only, `:w` = word chars, `:N` = exactly N chars
+```
+date-pat is #p"{y:4d}-{m:2d}-{d:2d}"    ; ISO date
+ip-strict is #p"{a:d}.{b:d}.{c:d}.{d:d}" ; digits-only octets
+code-pat  is #p"{code:3}-{rest}"          ; exactly 3 chars then rest
+```
+
+**Tier 3 — Full constraints for complex logic:**
+```
+url-pat is #p"{proto: 'http' maybe 's'}://{host: many (not '/:')}/{path: rest}"
+```
+
+**Escaping literal braces:** `{{` is a literal `{`, `}}` is a literal `}`
+```
+kv-pat is #p"{{key}}: {value}"    ; matches "{key}: hello" → {value: "hello"}
+```
+
+**Integration with guards:**
+```
+input
+  | #p"{name}@{domain}"   -> {type: "email"  name  domain}
+  | #p"{proto}://{host}"  -> {type: "url"    proto  host}
+  | _                     -> {type: "unknown"}
+```
+
+**Named patterns via `is` (patterns are first-class values):**
+```
+date-fmt is #p"{y:4d}-{m:2d}-{d:2d}"
+text | date-fmt -> {y, m, d}
+```
+
+**In pipelines:**
+```
+logs |> map (extract _.timestamp date-fmt) |> filter _.m = "01"
+```
+
+Captures become object fields — natural for pipeline processing. Regex `#"..."` remains as escape hatch for edge cases.
 
 ### 7. Clojure Interop
 

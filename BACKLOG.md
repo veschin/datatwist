@@ -116,6 +116,72 @@ Target: CIDER-like experience for DataTwist. Plugins live in `plugins/` (future 
 
 ## P2 — Medium Priority
 
+### String Pattern Destructuring (`#p`) `🔬 research`
+
+**Decision (locked)**: `#p"..."` reader macro for reverse-format string destructuring. Three-tier design:
+
+**Tier 1 — Simple capture:** `{var}` captures between literals (greedy up to next literal, no constraint needed)
+```
+#p"{user}@{domain}"                                               ; email
+#p"{a}.{b}.{c}.{d}"                                               ; IPv4
+#p"{ip} - {user} [{time}] \"{method} {url} HTTP/{ver}\" {status} {bytes}"  ; nginx log
+```
+
+**Tier 2 — Type hints via `:` shorthand:** `:d` = digits, `:w` = word chars, `:N` = exactly N chars
+```
+#p"{y:4d}-{m:2d}-{d:2d}"         ; ISO date
+#p"{a:d}.{b:d}.{c:d}.{d:d}"      ; digits-only octets
+#p"{code:3}-{rest}"               ; exactly 3 chars then rest
+```
+
+**Tier 3 — Full constraints for complex logic:**
+```
+#p"{proto: 'http' maybe 's'}://{host: many (not '/:')}/{path: rest}"
+```
+
+**Escaping literal braces:** `{{` → literal `{`, `}}` → literal `}`
+```
+#p"{{key}}: {value}"    ; matches "{key}: hello" → {value: "hello"}
+```
+
+**Integration with existing syntax:**
+```
+; Guards
+input | #p"{name}@{domain}" -> {type: "email", name, domain}
+      | #p"{proto}://{host}" -> {type: "url", proto, host}
+      | _ -> {type: "unknown"}
+
+; Named patterns via is
+date-fmt is #p"{y:4d}-{m:2d}-{d:2d}"
+text | date-fmt -> {y, m, d}
+
+; Pipelines
+logs |> map (extract _.timestamp date-fmt) |> filter _.m = "01"
+```
+
+#### Design decisions (locked)
+
+- `#p` reader macro (not `#pattern` — shorter)
+- `{var}` with no constraint captures up to next literal (smart default)
+- Short type hints: `:d` (digits), `:w` (word), `:N` (exact N chars)
+- Full constraint syntax inside `{}` for complex cases: `many`, `maybe`, `not`, `N..M`, alternation `|`
+- `{{` / `}}` for literal brace escaping (standard convention: Python, Rust, C#)
+- Patterns are first-class values (can bind with `is`, pass to functions)
+- Works in guards — extends existing pattern matching
+- Captures become object fields — natural for pipeline processing
+- Regex `#"..."` remains as escape hatch for edge cases
+- Replaces the previous "Regex Alternatives / Pattern Language" backlog item
+
+#### Implementation tasks
+
+- [ ] Parser support for `#p"..."` reader macro
+- [ ] Constraint mini-language parser (inside `{var: ...}`)
+- [ ] Compilation to `java.util.regex.Pattern` (via Regal or direct)
+- [ ] Integration with guard/pattern matching system
+- [ ] `extract` / `match` / `replace` stdlib functions using patterns
+- [ ] `{{` / `}}` escaping
+- [ ] BDD feature file + tests
+
 ### REPL & Developer Experience `⏳ waiting`
 
 Depends on nREPL & Editor Integration research.
@@ -177,6 +243,7 @@ Needs design decisions. Blocked: needs user.
 **Decision (locked)**: `#` prefix like Clojure for reader macros.
 
 - [ ] `#sample {predicate}` — conditional sampling: filter what data enters sample. Re-samples if predicate doesn't match. `SAMPLE_ATTEMPTS` controls max retries. Can set sample size to zero.
+- [ ] `#p"..."` — string pattern destructuring (see P2 item above for full design)
 - [ ] Reader macro dispatch system (extensible `#name` syntax)
 - [ ] `#dbg`-style debugging support
 
@@ -186,15 +253,6 @@ Needs design decisions. Blocked: needs user.
 - [ ] Response formats: json, markdown, html, text
 - [ ] Parse fetched content, extract data from it
 - [ ] Pipeline integration: `http! "api.com/users" |> parse-json |> filter _.active`
-
-### Regex Alternatives / Pattern Language
-
-Research needed: simpler interface for text pattern matching than regex.
-
-- [ ] Research: verbal expressions, Rosie Pattern Language, PEG for user-facing patterns
-- [ ] Goal: describe what you want in words/structured syntax, not `[a-zA-Z]+\d{3}`
-- [ ] Maybe: `match "starts with 'Hello' then any word then a number"`
-- [ ] Regex still available as escape hatch
 
 ### Language Extensions
 
