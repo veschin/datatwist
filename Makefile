@@ -1,6 +1,6 @@
 # DataTwist Makefile
 
-.PHONY: test lint clean demo demo-glow changelog help
+.PHONY: test lint clean demo changelog help
 
 # Default target - run all tests
 test:
@@ -10,10 +10,6 @@ test:
 # Run language showcase demo
 demo:  ## Run language showcase demo
 	@clj -M -m datatwist.demo-runner
-
-# Run demo piped through glow for markdown rendering (requires glow)
-demo-glow:  ## Run demo with glow rendering (requires glow in PATH)
-	@clj -M -m datatwist.demo-runner 2>&1 | glow -
 
 # Lint code
 lint:
@@ -36,6 +32,5 @@ help:
 	@echo "  make test  - Run all tests"
 	@echo "  make lint  - Run linter"
 	@echo "  make clean - Clean cache"
-	@echo "  make demo       - Run language showcase demo"
-	@echo "  make demo-glow  - Run demo piped through glow (requires glow in PATH)"
+	@echo "  make demo  - Run language showcase demo"
 	@echo "  make help  - Show this help"
