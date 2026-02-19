@@ -315,45 +315,35 @@
                       (if (both-numbers? l r)
                         (== l r)
                         (= l r)))
-                    (ordering-compare [l r]
-                      ;; Returns :nil-result, :false-result, or :compare
-                      ;; nil > nil => nil
-                      ;; nil > X   => nil (left nil propagates)
-                      ;; X > nil   => false (right nil treated as missing/absent)
+                    (coerce-nil-for-ordering [l r]
+                      ;; Nil coerces to 0 (numbers) or "" (strings) in ordering comparisons
                       (cond
-                        (and (nil? l) (nil? r)) :nil-result
-                        (nil? l)                :nil-result
-                        (nil? r)                :false-result
-                        (both-numbers? l r)     :compare
-                        (both-strings? l r)     :compare
-                        :else (throw (ex-info "Cannot compare" {:left l :right r}))))]
+                        ;; Both nil → compare as 0 vs 0
+                        (and (nil? l) (nil? r)) [0 0]
+                        ;; One nil, other is number → nil becomes 0
+                        (and (nil? l) (number? r)) [0 r]
+                        (and (number? l) (nil? r)) [l 0]
+                        ;; One nil, other is string → nil becomes ""
+                        (and (nil? l) (string? r)) ["" r]
+                        (and (string? l) (nil? r)) [l ""]
+                        ;; Both nil but no type hint → default to 0
+                        (nil? l) [0 (or r 0)]
+                        (nil? r) [(or l 0) 0]
+                        ;; Normal case
+                        :else [l r]))
+                    (do-compare [l r cmp-fn]
+                      (let [[cl cr] (coerce-nil-for-ordering l r)]
+                        (cond
+                          (both-numbers? cl cr) (cmp-fn cl cr)
+                          (both-strings? cl cr) (cmp-fn (compare cl cr) 0)
+                          :else (throw (ex-info "Cannot compare" {:left l :right r})))))]
               (case op
                 "="  (numeric-equal left right)
                 "!=" (not (numeric-equal left right))
-                ">"  (case (ordering-compare left right)
-                       :nil-result  nil
-                       :false-result false
-                       (if (both-strings? left right)
-                         (pos? (compare left right))
-                         (> left right)))
-                "<"  (case (ordering-compare left right)
-                       :nil-result  nil
-                       :false-result false
-                       (if (both-strings? left right)
-                         (neg? (compare left right))
-                         (< left right)))
-                ">=" (case (ordering-compare left right)
-                       :nil-result  nil
-                       :false-result false
-                       (if (both-strings? left right)
-                         (>= (compare left right) 0)
-                         (>= left right)))
-                "<=" (case (ordering-compare left right)
-                       :nil-result  nil
-                       :false-result false
-                       (if (both-strings? left right)
-                         (<= (compare left right) 0)
-                         (<= left right)))))))
+                ">"  (do-compare left right >)
+                "<"  (do-compare left right <)
+                ">=" (do-compare left right >=)
+                "<=" (do-compare left right <=)))))
 
 ;; --- AddExpr ---
         (= :AddExpr tag)

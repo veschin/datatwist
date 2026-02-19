@@ -261,11 +261,11 @@
     ;; Uppercase sorts before lowercase in Unicode/ASCII
     (is (= true (eval-dt "\"Apple\" < \"apple\""))))
 
-  (testing "Comparison with nil - ordering comparison returns false"
-    (is (= false (eval-dt "5 > nil"))))
+  (testing "Comparison with nil - nil coerces to 0"
+    (is (= true (eval-dt "5 > nil"))))
 
-  (testing "nil > nil returns nil"
-    (is (nil? (eval-dt "nil > nil"))))
+  (testing "nil > nil — both coerce to 0, 0 > 0 is false"
+    (is (= false (eval-dt "nil > nil"))))
 
   (testing "Comparison between incompatible types throws type error"
     (is (throws? "\"hello\" > 5"))))
@@ -527,10 +527,10 @@
 
 (deftest nil-in-pipelines
   (testing "Nil-tolerant field access in comparison"
-    ;; user.age is nil (field does not exist), nil > 18 => nil
-    (is (nil? (eval-dt-last
-               "user is {name: \"Alice\"}"
-               "user.age > 18"))))
+    ;; user.age is nil (field does not exist), nil coerces to 0 => 0 > 18 => false
+    (is (= false (eval-dt-last
+                  "user is {name: \"Alice\"}"
+                  "user.age > 18"))))
 
   (testing "Nil-tolerant field in arithmetic"
     ;; item.price is nil => nil coerces to 0 => 0 * 1.1 = 0.0
