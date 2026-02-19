@@ -560,3 +560,36 @@
 
   (testing "Parenthesized expression assigned"
     (is (= 45 (eval-dt-last "x is (2 + 3) * (4 + 5)" "x")))))
+
+;; ==========================================================================
+;; SECTION 18: Regex Literals
+;; ==========================================================================
+
+(deftest regex-literals
+  (testing "Regex literal compiles to java.util.regex.Pattern"
+    (is (= java.util.regex.Pattern (type-of "#\",\""))))
+
+  (testing "Regex literal - simple comma pattern"
+    (let [result (eval-dt "#\",\"")]
+      (is (instance? java.util.regex.Pattern result))
+      (is (= "," (.pattern result)))))
+
+  (testing "Regex literal - empty pattern"
+    (let [result (eval-dt "#\"\"")]
+      (is (instance? java.util.regex.Pattern result))
+      (is (= "" (.pattern result)))))
+
+  (testing "Regex literal - digit pattern"
+    (let [result (eval-dt "#\"\\d+\"")]
+      (is (instance? java.util.regex.Pattern result))
+      (is (= "\\d+" (.pattern result)))))
+
+  (testing "Regex literal - dot-star pattern"
+    (let [result (eval-dt "#\".*\"")]
+      (is (instance? java.util.regex.Pattern result))
+      (is (= ".*" (.pattern result)))))
+
+  (testing "Regex literal assigned with is"
+    (is (= java.util.regex.Pattern (type-of "#\",\"")))
+    (let [result (eval-dt-last "sep is #\",\"" "sep")]
+      (is (instance? java.util.regex.Pattern result)))))

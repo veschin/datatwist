@@ -9,10 +9,16 @@
 Program = _ Expr (_ CodeExpr)* _
 
 (* --- Expression: full expression including Require (for first position) --- *)
-Expr = Require / TryCatch / Binding / PipeExpr
+Expr = Require / TryCatch / Binding / StmtPipeExpr
 
 (* --- CodeExpr: expressions that may follow the first Expr (excludes Require) --- *)
-CodeExpr = TryCatch / Binding / PipeExpr
+CodeExpr = TryCatch / Binding / StmtPipeExpr
+
+(* --- StmtPipeExpr: PipeExpr at statement level, rejecting bare assignment mistakes.
+   Negative lookahead rejects 'Identifier = value' which looks like assignment.
+   The pattern [a-zA-Z...]*\s*=(?![>=]) matches 'x = ...' but not 'x != ...' or 'x >= ...'.
+   Hidden (<>) so it does not appear as a node in the AST. --- *)
+<StmtPipeExpr> = !#"(?!(?:true|false|nil|is|and|or|not|in|when|as|try|catch|finally|recur|require)(?:[^a-zA-Z0-9_?!-]|$))[a-zA-Z][a-zA-Z0-9_\-]*[?!]?\s*=\s*(?:[0-9\"\[{]|true(?![a-zA-Z0-9_?!-])|false(?![a-zA-Z0-9_?!-])|nil(?![a-zA-Z0-9_?!-]))" PipeExpr
 
 (* --- Require --- *)
 Require = <KW-REQUIRE> __ DotName __ <KW-AS> __ Identifier
@@ -82,14 +88,18 @@ Recur = <KW-RECUR> __I CallArg (__I CallArg)*
 (* CallTarget restricts to callable atoms — prevents literals like 2/true/"s"
    from greedily consuming the next token as a function argument *)
 CallTarget = (Wildcard / Identifier / ParenExpr / InstanceMethod / Constructor / QualifiedName) (<'.'> FieldName)*
-CallArg = FieldAccess
+(* NegFieldAccess: allows unary minus on FieldAccess but NOT full function calls.
+   Used in List elements and CallArg to allow e.g. [-10 50] and nth items -1
+   without enabling juxtaposition ambiguity like [f x] → [f(x)]. *)
+NegFieldAccess = #'-(?=\S)' FieldAccess / FieldAccess
+CallArg = NegFieldAccess
 
 (* --- Field access: dot notation, NO spaces around dot --- *)
 FieldAccess = Atom (<'.'> FieldName)*
 FieldName = #'[a-zA-Z][a-zA-Z0-9_\-]*[?!]?'
 
 (* --- Atom --- *)
-Atom = Float / Integer / String / Boolean / Nil / Keyword
+Atom = Float / Integer / String / Boolean / Nil / Keyword / Regex
      / Object / FnDef / List
      / InstanceMethod / Constructor / QualifiedName
      / Wildcard / Identifier / ParenExpr
@@ -117,11 +127,11 @@ FnParam = DestructObjPattern / DestructListPattern / RestParam / Wildcard / Iden
 RestParam = <'&'> _ Identifier
 FnBody = Expr (_ Expr)*
 
-(* --- List: elements are FieldAccess (not full PipeExpr) to prevent
-   juxtaposition function call ambiguity inside brackets.
+(* --- List: elements are NegFieldAccess (FieldAccess with optional unary minus) to prevent
+   juxtaposition function call ambiguity inside brackets while allowing [-10 50].
    simplify is container-aware — List never collapses. --- *)
 List = <'['> _ <']'>
-     / <'['> _ FieldAccess (_ FieldAccess)* _ <']'>
+     / <'['> _ NegFieldAccess (_ NegFieldAccess)* _ <']'>
 
 (* --- Destructuring patterns --- *)
 DestructPattern = DestructObjPattern (_ <KW-AS> _ Identifier)?
@@ -147,6 +157,7 @@ String  = <'"'> #'(?:[^"\\]|\\.)*' <'"'>
 Boolean = #'(true|false)(?![a-zA-Z0-9_?!\-])'
 Nil     = #'nil(?![a-zA-Z0-9_?!\-])'
 Keyword = #':[a-zA-Z][a-zA-Z0-9_\-]*'
+Regex   = <'#"'> #'(?:[^"\\]|\\.)*' <'"'>
 
 (* --- Interop --- *)
 InstanceMethod = #'\.[a-zA-Z][a-zA-Z0-9_\-]*'
