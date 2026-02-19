@@ -72,8 +72,8 @@ UnaryExpr = #'-(?=\S)' FnCallExpr / FnCallExpr
 
 (* --- Function call: juxtaposition or parens --- *)
 FnCallExpr = FnCall / Recur / FieldAccess
-FnCall = CallTarget <'('> _ <')'> / CallTarget __ CallArg (__ CallArg)*
-Recur = <KW-RECUR> __ CallArg (__ CallArg)*
+FnCall = CallTarget <'('> _ <')'> / CallTarget __I CallArg (__I CallArg)*
+Recur = <KW-RECUR> __I CallArg (__I CallArg)*
 (* CallTarget restricts to callable atoms — prevents literals like 2/true/"s"
    from greedily consuming the next token as a function argument *)
 CallTarget = (Wildcard / Identifier / ParenExpr / InstanceMethod / Constructor / QualifiedName) (<'.'> FieldName)*
@@ -138,6 +138,7 @@ RestBinding = <'&'> _ (Identifier / Wildcard)
 Float   = #'[0-9]+\.[0-9]+'
 Integer = #'[0-9]+'
 String  = <'"'> #'(?:[^"\\]|\\.)*' <'"'>
+        / <"'"> #"(?:[^'\\]|\\.)*" <"'">
 Boolean = #'(true|false)(?![a-zA-Z0-9_?!\-])'
 Nil     = #'nil(?![a-zA-Z0-9_?!\-])'
 Keyword = #':[a-zA-Z][a-zA-Z0-9_\-]*'
@@ -171,5 +172,8 @@ Identifier = #'(?!(?:true|false|nil|is|and|or|not|in|when|as|try|catch|finally|r
 <KW-REQUIRE> = #'require(?![a-zA-Z0-9_?!\-])'
 
 (* --- Whitespace: optional and required (hidden) --- *)
-<_>  = <#'(\s|//[^\n]*)*'>
-<__> = <#'(\s|//[^\n]*)+'>
+<_>   = <#'(\s|//[^\n]*)*'>
+<__>  = <#'(\s|//[^\n]*)+'>
+(* Inline whitespace: spaces/tabs only — no newlines. Used in FnCall to prevent
+   cross-line argument capture, e.g. `(expr)\nx` must NOT be a function call. *)
+<__I> = <#'([ \t]|//[^\n]*)+'>

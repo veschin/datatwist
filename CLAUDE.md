@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Agent Usage
+
+When spawning subagents via Task tool, almost always use Sonnet (`model: "sonnet"`). Reserve Opus for review or complex architectural decisions.
+
 ## Context Window Rules
 
 - NEVER read large files (>100 lines) in their entirety — they won't fit in context.
@@ -20,10 +24,7 @@ make lint              # Run clj-kondo linter on src/
 make clean             # Remove .cpcache/ and .lsp/.cache/
 
 # Run a single test namespace
-clj -M -m clojure.test datatwist.literals-test
-
-# Run tests matching a pattern (requires adding cognitect test-runner or similar)
-clj -X clojure.test/run-tests :nses '[datatwist.literals-test]'
+clj -M -e "(require 'clojure.test 'datatwist.literals-test) (clojure.test/run-tests 'datatwist.literals-test)"
 ```
 
 Dependencies are managed via `deps.edn` (Clojure CLI, no Leiningen). The sole external dependency is `instaparse/instaparse 1.5.0`.
@@ -38,10 +39,9 @@ Dependencies are managed via `deps.edn` (Clojure CLI, no Leiningen). The sole ex
 - `eval-dt` — **Stub, not implemented** — throws `ex-info`. This is the next major task.
 - `parse-error?` — Returns true if input fails to parse
 
-**Current status:** Grammar is complete (all parser tests pass). 537 test errors + 3 failures are
-all caused by `eval-dt` not being implemented yet.
+**Current status:** Grammar is complete (all 68 parser tests pass, 423 assertions). The remaining 339 tests (569 assertions) all depend on `eval-dt` and currently produce 537 errors + 3 failures.
 
-The grammar file (`resources/datatwist.grammar`) defines the full language syntax using Instaparse's EBNF notation with **manual whitespace** (`_` = optional, `__` = required). No `:auto-whitespace` is used.
+The grammar file (`resources/datatwist.grammar`, 175 lines) defines the full language syntax using Instaparse's EBNF notation with **manual whitespace** (`_` = optional, `__` = required). No `:auto-whitespace` is used. Keywords are hidden via `<>` angle brackets (e.g., `<KW-IS>`) so they don't appear in the AST. Comments use `//`.
 
 ### Test Structure
 
@@ -56,7 +56,9 @@ Tests follow a strict BDD-to-TDD mapping: each `deftest` corresponds 1:1 to a BD
 | `binding_test.clj` | `5-binding-destructuring.feature` | `is` binding, object/list destructuring |
 | `pattern_matching_test.clj` | `6-pattern-matching.feature` | Guards (`\| expr -> result`), structural matching |
 
-All tests use helpers from `test/datatwist/test_helpers.clj`:
+**Exception: `parser_test.clj`** does not use `test_helpers.clj`. It has its own helpers (`parses?`, `parse-fails?`, `ast`, `simplify`) that test the grammar directly via `instaparse.core`, without going through `eval-dt`.
+
+All other test files use helpers from `test/datatwist/test_helpers.clj`:
 - `eval-dt` — Evaluate a single DataTwist expression
 - `eval-dt-last` — Evaluate multiple lines, return last result (for binding scenarios)
 - `parse-error?` — Assert syntax is rejected by the parser
