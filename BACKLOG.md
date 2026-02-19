@@ -8,7 +8,9 @@ Status legend: `🔬 research` `📝 bdd/tests` `🔍 audit` `🚧 in progress` 
 
 ### GraalVM Native Binary `🔬 research`
 
-Build DataTwist as a standalone native binary via GraalVM `native-image`. Critical for distribution.
+Build DataTwist as a standalone native binary via GraalVM `native-image`. Critical for distribution. The binary IS the DataTwist CLI — the main entry point for all user-facing workflows.
+
+**Decision (preliminary):** The GraalVM native binary is the DataTwist CLI. Subcommands cover the full lifecycle: run scripts, REPL, format, lint, test, web UI, credential management. TUI experience via a gum-style visual framework (charmbracelet/gum or similar). Need to determine which features are available per platform (e.g., `pass` integration is Unix-only, webui may need JVM fallback).
 
 - [ ] Create CLI entry point (`-main` with arg parsing: file input, REPL, `--eval`)
 - [ ] Add GraalVM native-image build config (`native-image.properties`, reflection config)
@@ -18,6 +20,12 @@ Build DataTwist as a standalone native binary via GraalVM `native-image`. Critic
 - [ ] Investigate startup time — target <50ms
 - [ ] Consider shipping as uberjar fallback
 - [ ] AOT-compile the parser at build time (Instaparse uses `clojure.core/eval` at parse generation — problematic for GraalVM)
+- [ ] CLI subcommands: `datatwist run`, `datatwist repl`, `datatwist eval`, `datatwist fmt`, `datatwist lint`, `datatwist test`, `datatwist webui`
+- [ ] `datatwist creds add <project> <key>` — add credential to pass store (`datatwist/<project>/<key>`)
+- [ ] `datatwist creds list [project]` — list credentials
+- [ ] `datatwist creds remove <project> <key>` — remove credential
+- [ ] TUI framework (charmbracelet/gum style) — visual interactive prompts, selection, spinners
+- [ ] Platform-specific feature matrix: which subcommands available on linux/macos/windows
 
 ---
 
@@ -273,6 +281,18 @@ host is pass.myproject.db-host    ; => "db.prod.com"
 - [ ] Environment-based overrides: `DT_PROFILE=work` selects default connection profile
 - [ ] Keyring integration: macOS Keychain, Linux secret-service, Windows Credential Manager (lower priority than pass)
 - [ ] Design: config format (TOML, EDN, or DataTwist syntax?), encryption strategy (GPG vs OS keyring)
+
+### Docker & Kubernetes Sources `🔬 research`
+
+Query Docker containers and Kubernetes resources as data sources, like database tables.
+
+- [ ] Docker connector: `docker is connect "docker://local"` — list/inspect containers, images, networks
+- [ ] `docker |> query "containers" |> filter _.status = "running"`
+- [ ] Kubernetes connector: `k8s is connect "k8s://context-name"` — pods, services, deployments, configmaps
+- [ ] `k8s |> query "pods" |> filter _.namespace = "production"`
+- [ ] Credential storage for Docker registries and K8s contexts via `pass` module
+- [ ] Read logs: `docker |> logs "container-name" |> filter (contains _ "ERROR")`
+- [ ] Integration with `pass` module for registry/cluster auth
 
 ---
 
