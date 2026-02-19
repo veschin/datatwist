@@ -224,7 +224,7 @@
 (deftest multiple-inline-functions-in-pipeline
   (testing "Scenario: Multiple inline functions in a pipeline"
     (testing "chained filter, map, sort-by with inline functions"
-      (is (= ["alice" "bob"]
+      (is (= ["Alice" "Bob"]
              (eval-dt-last
               "users is [{name: \"Bob\" active: true} {name: \"Alice\" active: true} {name: \"Eve\" active: false}]"
               "result is users |> filter [u -> u.active = true] |> map [u -> u.name] |> sort"

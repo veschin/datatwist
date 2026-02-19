@@ -62,9 +62,9 @@
     ;; Assigning it a value and reading it back confirms identifier behavior.
     (is (= 42 (eval-dt-last "1e10 is 42" "1e10"))))
 
-  (testing "Underscore separators in numbers are NOT supported in v1 - parses as identifier"
-    ;; 1_000_000 should parse as an identifier, not a number.
-    (is (= 99 (eval-dt-last "1_000_000 is 99" "1_000_000")))))
+  (testing "Underscore separators in numbers are NOT supported in v1"
+    ;; 1_000_000 starts with a digit so it's not a valid identifier; this is a parse error.
+    (is (parse-error? "1_000_000 is 99"))))
 
 ;; ==========================================================================
 ;; SECTION 3: String Literals
@@ -302,8 +302,8 @@
 
   (testing "Logical not with field access"
     ;; not _.active negates the active field
-    (is (= true (eval-dt-last "_ is {active: false}" "not _.active")))
-    (is (= false (eval-dt-last "_ is {active: true}" "not _.active"))))
+    (is (= true (eval-dt "{active: false} |> not _.active")))
+    (is (= false (eval-dt "{active: true} |> not _.active"))))
 
   (testing "Short-circuit evaluation - and"
     ;; false and (10 / 0 > 1) should NOT evaluate the right side
@@ -490,10 +490,8 @@
 
 (deftest edge-cases-misc
   (testing "Chained comparisons are NOT supported"
-    ;; BDD says evaluates to true. This is left-to-right: (1 < 2) < 3.
-    ;; Depending on implementation this could be true or a type error.
-    ;; Following the BDD Then line.
-    (is (= true (eval-dt "1 < 2 < 3"))))
+    ;; CompExpr is non-associative: chained comparisons are a parse error.
+    (is (parse-error? "1 < 2 < 3")))
 
   (testing "Whitespace around operators is required"
     (is (parse-error? "2+3")))

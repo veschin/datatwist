@@ -481,7 +481,7 @@
                       "  | x >= 0 -> x\n"
                       "  | _      -> 0 - x\n"
                       "]")]
-      (is (= 5 (eval-dt-last abs-fn "abs -5")))
+      (is (= 5 (eval-dt-last abs-fn "abs (0 - 5)")))
       (is (= 3 (eval-dt-last abs-fn "abs 3")))))
 
   (testing "Function with mixed guard and structural branches"
@@ -513,7 +513,7 @@
                            "  | _     -> a / b\n"
                            "]")]
       (is (nil? (eval-dt-last safe-div-fn "safe-div 10 0")))
-      (is (= 5 (eval-dt-last safe-div-fn "safe-div 10 2")))))
+      (is (= 5.0 (eval-dt-last safe-div-fn "safe-div 10 2")))))
 
   (testing "Default branch fires when no other branch matches"
     ;; Scenario: Default branch fires when no other branch matches

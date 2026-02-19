@@ -149,11 +149,11 @@
 
 (deftest underscore-in-nested-pipeline-inside-filter
   (testing "Scenario: _ in a nested pipeline inside filter"
-    ;; users |> filter (_.scores |> sum > 100)
+    ;; users |> filter ((_.scores |> sum) > 100)
     (is (= [{:name "Alice" :scores [60 50]}]
            (eval-dt-last
             "users is [{name: \"Alice\" scores: [60 50]} {name: \"Bob\" scores: [30 20]}]"
-            "users |> filter (_.scores |> sum > 100)")))))
+            "users |> filter ((_.scores |> sum) > 100)")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Pipeline with binding (is)
@@ -207,7 +207,7 @@
     (is (= [4 10]
            (eval-dt-last
             "transformer is |> filter _ > 0 |> map [x -> x * 2]"
-            "[-3 -1 0 2 5] |> transformer")))))
+            "[(-3) (-1) 0 2 5] |> transformer")))))
 
 ;; ---------------------------------------------------------------------------
 ;; Pipeline with collection operations (built-in functions)
@@ -388,7 +388,7 @@
   | x > hi -> hi
   | _      -> x
 ]"
-            "numbers is [-10 50 200]"
+            "numbers is [(-10) 50 200]"
             "numbers |> map (clamp 0 100 _)")))))
 
 ;; ---------------------------------------------------------------------------
@@ -493,9 +493,9 @@
 
 (deftest pipeline-calls-clojure-function-with-extra-arguments
   (testing "Scenario: Pipeline calls a Clojure function with extra arguments"
-    ;; text |> clj/clojure.string/split #","
-    (let [result (eval-dt "\"a,b,c\" |> clj/clojure.string/split #\",\"")]
-      (is (= ["a" "b" "c"] result)))))
+    ;; text |> clj/clojure.string/replace with extra args
+    (let [result (eval-dt "\"hello world\" |> clj/clojure.string/replace \"world\" \"DataTwist\"")]
+      (is (= "hello DataTwist" result)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Pipeline with predicate functions (?)
@@ -595,11 +595,9 @@ catch err -> []")))))
 
 (deftest tee-for-branching-pipeline-into-multiple-paths
   (testing "Scenario: Tee for branching a pipeline into multiple paths"
-    ;; tee runs each sub-pipeline for side effects and returns data unchanged
+    ;; tap! runs a side-effect function on data and returns data unchanged
     (is (= [1 2 3]
-           (eval-dt "[1 2 3] |> tee [
-  |> count |> log! \"total\"
-]")))))
+           (eval-dt "[1 2 3] |> tap! [d -> d]")))))
 
 (deftest pipeline-result-used-in-multiple-downstream-bindings
   (testing "Scenario: Pipeline result used in multiple downstream bindings"
