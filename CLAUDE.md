@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Context Window Rules
+
+- NEVER read large files (>100 lines) in their entirety — they won't fit in context.
+- Always use `offset`/`limit` parameters when reading files, or use Grep to find specific sections.
+- For test files: grep for the specific failing test name, then read only that section.
+
 ## Project Overview
 
 DataTwist is a functional data processing language built on Clojure/JVM. It compiles DataTwist source code to Clojure via an Instaparse EBNF grammar. The language uses pipe-first semantics (`|>`), `is` for binding, and `[params -> body]` for functions. See `PRD.md` for the complete language specification and design decisions.
@@ -29,9 +35,13 @@ Dependencies are managed via `deps.edn` (Clojure CLI, no Leiningen). The sole ex
 `src/datatwist/parser.clj` — The single source file. Contains:
 - `parser` — Instaparse parser built from `resources/datatwist.grammar` (EBNF)
 - `parse` — Returns AST (parse tree) or instaparse failure
-- `eval-dt` / `parse-error?` — Stubs for the evaluator (not yet implemented)
+- `eval-dt` — **Stub, not implemented** — throws `ex-info`. This is the next major task.
+- `parse-error?` — Returns true if input fails to parse
 
-The grammar file (`resources/datatwist.grammar`) defines the full language syntax using Instaparse's EBNF notation with `:auto-whitespace :standard`.
+**Current status:** Grammar is complete (all parser tests pass). 537 test errors + 3 failures are
+all caused by `eval-dt` not being implemented yet.
+
+The grammar file (`resources/datatwist.grammar`) defines the full language syntax using Instaparse's EBNF notation with **manual whitespace** (`_` = optional, `__` = required). No `:auto-whitespace` is used.
 
 ### Test Structure
 
@@ -56,6 +66,11 @@ All tests use helpers from `test/datatwist/test_helpers.clj`:
 ### BDD Specifications
 
 `bdd/` contains 9 Gherkin `.feature` files (numbered 1–9) that serve as the authoritative language specification. Features 7–9 (interop, lazy evaluation, error reporting) do not yet have corresponding test files.
+
+## Current Status
+
+**Grammar:** complete — all parser tests pass.
+**Evaluator (`eval-dt`):** not implemented — stub in `parser.clj:14` throws `ex-info`. This causes 537 errors across all non-parser test files. Next task is implementing the evaluator.
 
 ## Key Language Design Decisions
 
