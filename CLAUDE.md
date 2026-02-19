@@ -26,6 +26,7 @@ When spawning subagents via Task tool, almost always use Sonnet (`model: "sonnet
 - Haiku for trivial tasks (backlog edits, doc updates, file renames) — cheapest model
 - Proactively persist cross-session knowledge: if the user shares a design idea, preference, or decision — write it to CLAUDE.md or BACKLOG.md immediately. Don't rely on conversation memory.
 - If a task is too large for one session or an idea needs design work — add it to BACKLOG.md with context, don't lose it
+- Implementation agents work in feature branches (`feat/<name>`), merge to main when verified. Prevents parallel agents from conflicting on the same files.
 
 ## Context Window Rules
 
