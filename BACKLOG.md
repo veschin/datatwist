@@ -4,7 +4,7 @@
 
 Evaluator complete. Remaining 4 failures + 14 errors are all grammar/test issues:
 
-- [ ] Semicolons `;` as statement separators in function bodies (3 errors)
+- [ ] Fix 3 tests using `;` — replace with `\n` (BDD spec says "Semicolons: NOT used")
 - [ ] Negative number literals in lists and function args: `[-10 50]`, `nth items -1` (3 errors)
 - [ ] `_` as binding target: `_ is {active: false}` (2 errors)
 - [ ] Chained comparisons: `1 < 2 < 3` (1 error)
@@ -98,7 +98,15 @@ Extend the language with importable modules and data source connectors. The goal
 - [ ] Pretty-printed output (tables for lists of objects, syntax-highlighted values)
 - [ ] `--watch` mode: re-run script on file change
 - [ ] Error messages with source locations and suggestions
+
+### Editor SDK / LSP
+
 - [ ] LSP server for editor integration (syntax highlighting, go-to-definition, autocomplete)
+- [ ] **Function signature hints with placeholder values** — при вводе `sort-by` показывать inline hint типа `sort-by ·field· ·asc/desc·`, для `filter` → `filter ·predicate·`, для `take` → `take ·n·`. Каждая stdlib-функция должна иметь metadata с именами параметров и примерами значений.
+- [ ] Snippet-style placeholders: Tab между параметрами, dropdown для enum-like аргументов (asc/desc, true/false)
+- [ ] Hover documentation: описание функции + пример использования + тип аргументов
+- [ ] Autocomplete с контекстом: после `|>` предлагать collection-функции, после `.` предлагать поля из известной структуры
+- [ ] Go-to-definition для `is`-биндингов и `require`-алиасов
 
 ---
 

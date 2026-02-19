@@ -17,6 +17,10 @@
 (declare eval-pipeline eval-pipe-atom-with-fn-call)
 (declare eval-try-catch)
 
+;; Dynamic flag to indicate Constructor is being evaluated in a callable context.
+;; When true, Constructor returns a fn; when false, it invokes immediately (0 args).
+(def ^:dynamic *constructor-callable?* false)
+
 ;; ---------------------------------------------------------------------------
 ;; Helper: apply a callable to arguments
 ;; ---------------------------------------------------------------------------
@@ -35,7 +39,7 @@
 ;; ---------------------------------------------------------------------------
 
 (def ^:private transparent-tags
-  #{:Expr :PipeExpr :PipeAtom :OrExpr :AndExpr :NotExpr :NilCoalesce
+  #{:Expr :CodeExpr :PipeExpr :PipeAtom :OrExpr :AndExpr :NotExpr :NilCoalesce
     :CompExpr :InExpr :AddExpr :MulExpr :UnaryExpr :FnCallExpr
     :FieldAccess :Atom})
 
@@ -102,7 +106,7 @@
            ;; RemoveField: {-tmp}
            (and (vector? part) (= :RemoveField (first part)))
            (let [key (keyword (second (second part)))]
-             [(dissoc m key) e])
+             [(if (map? m) (dissoc m key) m) e])
 
            ;; Regular: {name: expr}
            (and (vector? part) (= :Identifier (first part)))
@@ -182,10 +186,44 @@
         (= :Atom tag)
         (eval-node (first children) env)
 
-        ;; --- QualifiedName: clj/some.ns/fn ---
+        ;; --- QualifiedName: clj/some.ns/fn, alias/fn, or Java ClassName/member ---
         (= :QualifiedName tag)
-        (let [name-str (first children)]
-          (or (stdlib/resolve-qualified name-str)
+        (let [name-str (first children)
+              ;; Expand alias prefix if registered via `require ... as alias`
+              aliases   (env/lookup env "__aliases__")
+              expanded  (if (and aliases (.contains name-str "/"))
+                          (let [slash-idx (.indexOf name-str "/")
+                                prefix    (subs name-str 0 slash-idx)
+                                suffix    (subs name-str (inc slash-idx))]
+                            (if-let [full-ns (get aliases prefix)]
+                              (str full-ns "/" suffix)
+                              name-str))
+                          name-str)
+              ;; Try to resolve as Java static field/method.
+              ;; Detects ClassName/member (e.g. Math/PI) or fully-qualified java.lang.Integer/parseInt.
+              ;; Uses Class/forName, falling back if not a Java class.
+              java-static
+              (when (.contains expanded "/")
+                (let [slash-idx (.indexOf expanded "/")
+                      cls-part  (subs expanded 0 slash-idx)
+                      mbr-part  (subs expanded (inc slash-idx))
+                      ;; Expand short class names to java.lang.* if they start with uppercase
+                      full-cls  (if (and (not (.contains cls-part "."))
+                                         (Character/isUpperCase (.charAt cls-part 0)))
+                                  (str "java.lang." cls-part)
+                                  cls-part)]
+                  (try
+                    (let [cls (Class/forName full-cls)]
+                      ;; Try field first, then wrap as static method fn
+                      (try
+                        (clojure.lang.Reflector/getStaticField cls mbr-part)
+                        (catch Exception _
+                          (fn [& args]
+                            (clojure.lang.Reflector/invokeStaticMethod
+                             cls mbr-part (into-array Object args))))))
+                    (catch Exception _ nil))))]
+          (or java-static
+              (stdlib/resolve-qualified expanded)
               (env/lookup env name-str)))
 
         ;; --- InstanceMethod: .methodName ---
@@ -198,10 +236,16 @@
         ;; --- Constructor: SomeClass. ---
         (= :Constructor tag)
         (let [class-name (subs (first children) 0 (dec (count (first children))))]
-          (fn [& args]
+          (if *constructor-callable?*
+            ;; In a FnCall context: return a fn to be called with args
+            (fn [& args]
+              (clojure.lang.Reflector/invokeConstructor
+               (Class/forName class-name)
+               (into-array Object args)))
+            ;; Standalone value: invoke immediately with zero args
             (clojure.lang.Reflector/invokeConstructor
              (Class/forName class-name)
-             (into-array Object args))))
+             (into-array Object []))))
 
         ;; --- NotExpr ---
         (= :NotExpr tag)
@@ -274,7 +318,7 @@
                     (ordering-compare [l r]
                       ;; Returns :nil-result, :false-result, or :compare
                       ;; nil > nil => nil
-                      ;; nil > X   => nil (left nil = undefined)
+                      ;; nil > X   => nil (left nil propagates)
                       ;; X > nil   => false (right nil treated as missing/absent)
                       (cond
                         (and (nil? l) (nil? r)) :nil-result
@@ -385,7 +429,10 @@
         (= :FnCall tag)
         (let [call-target (first children)
               call-args   (rest children)
-              f           (eval-node call-target env)
+              ;; Evaluate call target with constructor-callable? = true so that
+              ;; Constructor nodes return a fn rather than auto-invoking with 0 args.
+              f           (binding [*constructor-callable?* true]
+                            (eval-node call-target env))
               args        (mapv #(eval-node (second %) env) call-args)]
           (apply-fn f args))
 
@@ -423,7 +470,21 @@
             (reduce (fn [val fn-node]
                       (let [fname (second fn-node)]
                         (when (some? val)
-                          (get val (keyword fname)))))
+                          (cond
+                            ;; Map access
+                            (map? val)
+                            (get val (keyword fname))
+                            ;; Exception: .message -> .getMessage() (empty string if nil)
+                            (and (instance? Throwable val) (= fname "message"))
+                            (or (.getMessage ^Throwable val) "")
+                            ;; Exception: .type -> class name
+                            (and (instance? Throwable val) (= fname "type"))
+                            (.getSimpleName (.getClass val))
+                            ;; Try map access as fallback for other objects
+                            :else
+                            (try
+                              (get val (keyword fname))
+                              (catch Exception _ nil))))))
                     resolved
                     fields)))
 
@@ -516,7 +577,7 @@
         (eval-node (second children) env)
 
         ;; --- Expr/PipeExpr/PipeAtom: multi-child versions ---
-        (or (= :Expr tag) (= :PipeExpr tag) (= :PipeAtom tag))
+        (or (= :Expr tag) (= :CodeExpr tag) (= :PipeExpr tag) (= :PipeAtom tag))
         (eval-node (first children) env)
 
         ;; --- Require (stub) ---
@@ -728,8 +789,7 @@
     (let [fn-env      (bind-params (or params []) (vec args) closure-env)
           first-param (first (or params []))
           fn-env      (if (and first-param
-                               (= :normal (:type first-param))
-                               (not (nil? (first args))))
+                               (= :normal (:type first-param)))
                         (env/bind fn-env "_" (first args))
                         fn-env)]
       (eval-body body-node fn-env params closure-env))))
@@ -773,7 +833,12 @@
                        (throw (ex-info "No matching arity"
                                        {:args-count n :arities (mapv :fixed arities)})))
                      (let [{:keys [params body]} match
-                           fn-env (bind-params (or params []) (vec args) closure-env)]
+                           fn-env      (bind-params (or params []) (vec args) closure-env)
+                           first-param (first (or params []))
+                           fn-env      (if (and first-param
+                                                (= :normal (:type first-param)))
+                                         (env/bind fn-env "_" (first args))
+                                         fn-env)]
                        (eval-body body fn-env params closure-env))))]
     dispatch))
 
@@ -976,6 +1041,10 @@
                   ;; Descend to innermost node to determine pattern type
                   guard-innermost (descend-to-inner guard-inner)
                   ctx             (env/lookup env "_")
+                  ;; _ is explicitly bound only when the key exists in the env map.
+                  ;; This distinguishes pipeline/function context (where _ is bound to
+                  ;; the current element) from standalone guard blocks (no context).
+                  ctx-bound?      (contains? env "_")
 
                   ;; Try to match pattern, returning [matched? new-env-with-bindings]
                   [matches? match-env]
@@ -995,27 +1064,40 @@
                     (match-obj-pattern guard-inner ctx env)
 
                     ;; List literal pattern: [] or [x y z]
-                    ;; guard-innermost is a List node
+                    ;; When _ is bound: match against ctx. Otherwise: match if empty? is truthy.
                     (and (vector? guard-innermost)
                          (= :List (first guard-innermost)))
-                    (match-list-pattern guard-innermost ctx env)
+                    (if ctx-bound?
+                      (match-list-pattern guard-innermost ctx env)
+                      ;; Standalone: evaluate list literal and check DataTwist truthiness
+                      ;; ([] is truthy — only nil and false are falsy)
+                      (let [lit (eval-node guard-innermost env)]
+                        [(not (or (nil? lit) (false? lit))) env]))
 
                     ;; Object literal pattern: {type: "book" name: n}
-                    ;; guard-innermost is an Object node
+                    ;; When _ is bound: match against ctx. Otherwise: truthy check.
                     (and (vector? guard-innermost)
                          (= :Object (first guard-innermost)))
-                    (match-obj-pattern guard-innermost ctx env)
+                    (if ctx-bound?
+                      (match-obj-pattern guard-innermost ctx env)
+                      (let [lit (eval-node guard-innermost env)]
+                        [(not (or (nil? lit) (false? lit))) env]))
 
                     ;; Bare literal pattern: | 42 / | "ok" / | true / | nil
-                    ;; Compare against _ (the match target / current context)
+                    ;; When _ is bound: compare against ctx (equality match).
+                    ;; When _ is not bound: evaluate as DataTwist boolean condition
+                    ;; (DataTwist truthiness: only nil and false are falsy).
                     (and (vector? guard-innermost)
                          (contains? #{:Integer :Float :String :Boolean :Nil}
                                     (first guard-innermost)))
                     (let [lit (eval-node guard-innermost env)]
-                      [(if (and (nil? lit) (nil? ctx))
-                         true
-                         (= ctx lit))
-                       env])
+                      (if ctx-bound?
+                        [(if (and (nil? lit) (nil? ctx))
+                           true
+                           (= ctx lit))
+                         env]
+                        ;; Standalone: DataTwist truthiness — only nil and false are falsy
+                        [(not (or (nil? lit) (false? lit))) env]))
 
                     ;; Boolean expression guard: evaluate the inner expression
                     :else
@@ -1294,10 +1376,31 @@
           (eval-expr (first children) env)
           [(eval-node node env) env])
 
+        ;; CodeExpr is the same as Expr but excludes Require (grammar-level constraint)
+        :CodeExpr
+        (if (= 1 (count children))
+          (eval-expr (first children) env)
+          [(eval-node node env) env])
+
         :PipeExpr
         (if (= 1 (count children))
           (eval-expr (first children) env)
           [(eval-node node env) env])
+
+        ;; Require: load a Clojure namespace and register alias in env.
+        ;; Grammar: Require = <KW-REQUIRE> __ DotName __ <KW-AS> __ Identifier
+        ;; children: [DotName, Identifier]
+        :Require
+        (let [dot-name-node  (first children)
+              alias-node     (second children)
+              ns-str         (second dot-name-node)   ; DotName = "clojure.string"
+              alias-str      (second alias-node)       ; Identifier = "str"
+              _              (try (clojure.core/require (symbol ns-str))
+                                  (catch Exception _ nil))
+              aliases        (or (env/lookup env "__aliases__") {})
+              new-aliases    (assoc aliases alias-str ns-str)
+              new-env        (env/bind env "__aliases__" new-aliases)]
+          [nil new-env])
 
         ;; Default: eval, don't change env
         [(eval-node node env) env]))))
@@ -1306,10 +1409,18 @@
 ;; Public entry point
 ;; ---------------------------------------------------------------------------
 
+(defn- comment-or-whitespace-only?
+  "Returns true if the input contains only whitespace and // comments."
+  [input]
+  (let [stripped (.replaceAll input "//[^\n]*" "")]
+    (clojure.string/blank? stripped)))
+
 (defn evaluate
   "Parse and evaluate DataTwist source code. Returns the result."
   [input]
-  (let [ast (parser/parse input)]
-    (when (insta/failure? ast)
-      (throw (ex-info "Parse error" {:input input :failure ast})))
-    (eval-node ast (stdlib/default-env))))
+  ;; A comment-only or whitespace-only program produces no form → nil.
+  (when-not (comment-or-whitespace-only? input)
+    (let [ast (parser/parse input)]
+      (when (insta/failure? ast)
+        (throw (ex-info "Parse error" {:input input :failure ast})))
+      (eval-node ast (stdlib/default-env)))))

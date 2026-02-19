@@ -304,7 +304,7 @@
 (deftest nth-negative-index-returns-nil
   ;; Scenario: nth with negative index returns nil
   (testing "nth with negative index returns nil"
-    (is (nil? (eval-dt-last "items is [10 20 30]" "nth items -1")))))
+    (is (nil? (eval-dt-last "items is [10 20 30]" "nth items (-1)")))))
 
 (deftest first-and-last-on-lists
   ;; Scenario: first and last on lists

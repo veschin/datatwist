@@ -372,13 +372,13 @@
 (deftest binding-inside-function-body-creates-lexical-scope
   (testing "Scenario: Binding inside a function body creates lexical scope"
     (is (= 6 (eval-dt-last
-              "compute is [data -> n is count data; n * 2]"
+              "compute is [data -> n is count data\n n * 2]"
               "compute [1 2 3]")))))
 
 (deftest multiple-sequential-bindings-in-function-body
   (testing "Scenario: Multiple sequential bindings in function body"
     (is (= 2 (eval-dt-last
-              "process is [data -> filtered is data |> filter _.active; n is count filtered; n]"
+              "process is [data -> filtered is data |> filter _.active\n n is count filtered\n n]"
               "process [{name: \"A\" active: true} {name: \"B\" active: false} {name: \"C\" active: true}]")))))
 
 (deftest inner-scope-shadows-outer-binding
@@ -399,8 +399,8 @@
 (deftest rebinding-inside-function-body-shadows-previous-local
   (testing "Scenario: Rebinding inside function body shadows previous local"
     (is (= 2 (eval-dt-last
-              "f is [-> x is 1; x is x + 1; x]"
-              "f")))))
+              "f is [-> x is 1\n x is x + 1\n x]"
+              "f()")))))
 
 ;; --------------------------------------------------------------------------
 ;; Destructuring in Pipeline Context
@@ -537,10 +537,10 @@
 
 (deftest list-pattern-on-left-of-is-is-destructuring
   (testing "Scenario: `[a b c]` on left of `is` is a destructuring pattern"
-    (is (= 1 (eval-dt-last
-              "items is [10 20 30]"
-              "[a b c] is items"
-              "a")))
+    (is (= 10 (eval-dt-last
+               "items is [10 20 30]"
+               "[a b c] is items"
+               "a")))
     (is (= 20 (eval-dt-last
                "items is [10 20 30]"
                "[a b c] is items"

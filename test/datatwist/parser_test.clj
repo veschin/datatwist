@@ -74,9 +74,9 @@
    :PipeExpr    #{:Pipeline :SourcelessPipeline :Compose :GuardBlock :OrExpr}
    :PipeAtom    #{:GuardBlock :OrExpr}
    :OrExpr      #{:AndExpr}
-   :AndExpr     #{:NotExpr}
-   :NotExpr     #{:NilCoalesce}
-   :NilCoalesce #{:CompExpr}
+   :AndExpr     #{:NilCoalesce}
+   :NilCoalesce #{:NotExpr}
+   :NotExpr     #{:CompExpr}
    :CompExpr    #{:InExpr}
    :InExpr      #{:AddExpr}
    :AddExpr     #{:MulExpr}

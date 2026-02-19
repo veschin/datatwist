@@ -3,11 +3,16 @@
    Start rule must be first!
    ===================================================== *)
 
-(* --- Program: one or more expressions --- *)
-Program = _ Expr (_ Expr)* _
+(* --- Program: optional single Expr (which may be Require) followed by CodeExprs.
+   This enforces that require statements may only appear first.
+   If require appears after code, the remaining input won't match CodeExpr and parse fails. *)
+Program = _ Expr (_ CodeExpr)* _
 
-(* --- Expression --- *)
+(* --- Expression: full expression including Require (for first position) --- *)
 Expr = Require / TryCatch / Binding / PipeExpr
+
+(* --- CodeExpr: expressions that may follow the first Expr (excludes Require) --- *)
+CodeExpr = TryCatch / Binding / PipeExpr
 
 (* --- Require --- *)
 Require = <KW-REQUIRE> __ DotName __ <KW-AS> __ Identifier
@@ -44,13 +49,13 @@ GuardPattern = DestructListPattern / DestructObjPattern / OrExpr
 OrExpr = AndExpr (_ <KW-OR> _ AndExpr)*
 
 (* --- Logical AND --- *)
-AndExpr = NotExpr (_ <KW-AND> _ NotExpr)*
-
-(* --- Logical NOT — 'not' kept visible in AST --- *)
-NotExpr = KW-NOT __ NotExpr / NilCoalesce
+AndExpr = NilCoalesce (_ <KW-AND> _ NilCoalesce)*
 
 (* --- Nil coalescing ?? --- *)
-NilCoalesce = CompExpr (_ <'??'> _ CompExpr)*
+NilCoalesce = NotExpr (_ <'??'> _ NotExpr)*
+
+(* --- Logical NOT — 'not' kept visible in AST --- *)
+NotExpr = KW-NOT __ NotExpr / CompExpr
 
 (* --- Comparison: non-associative (0 or 1 operator) --- *)
 CompExpr = InExpr (_ CompOp _ InExpr)?
@@ -145,8 +150,8 @@ Keyword = #':[a-zA-Z][a-zA-Z0-9_\-]*'
 
 (* --- Interop --- *)
 InstanceMethod = #'\.[a-zA-Z][a-zA-Z0-9_\-]*'
-Constructor = #'[A-Z][a-zA-Z0-9]*\.'
-QualifiedName = #'[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)*\/[a-zA-Z][a-zA-Z0-9_\-]*'
+Constructor = #'([a-z][a-zA-Z0-9_]*\.)+[A-Z][a-zA-Z0-9]*\.|[A-Z][a-zA-Z0-9]*\.'
+QualifiedName = #'[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)*(\/[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)*)+\/[a-zA-Z][a-zA-Z0-9_\-]*[?!]?|[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)*\/[a-zA-Z][a-zA-Z0-9_\-]*[?!]?'
 
 (* --- Dotted name: module names and Java class names (no slash required) --- *)
 DotName = #'[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)*'

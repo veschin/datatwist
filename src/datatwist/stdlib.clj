@@ -12,6 +12,7 @@
     (map? v)        "object"
     (vector? v)     "list"
     (sequential? v) "list"
+    (keyword? v)    "keyword"
     (string? v)     "string"
     (integer? v)    "integer"
     (float? v)      "float"
@@ -228,28 +229,36 @@
         (vec result)
         result))))
 
+(defn- resolve-ns-fn
+  "Resolve a 'ns.part/fn-name' or bare 'fn-name' string to a Clojure var."
+  [name-str]
+  (let [last-slash (.lastIndexOf name-str "/")]
+    (if (< last-slash 0)
+      ;; No slash: treat as clojure.core symbol
+      (when-let [v (resolve (symbol name-str))]
+        (let [f (deref v)]
+          (if (fn? f) (wrap-clj-fn f) f)))
+      ;; Has slash: ns.part/fn-name
+      (let [ns-part (subs name-str 0 last-slash)
+            fn-part (subs name-str (inc last-slash))]
+        (try
+          (require (symbol ns-part))
+          (catch Exception _ nil))
+        (when-let [v (resolve (symbol (str ns-part "/" fn-part)))]
+          (let [f (deref v)]
+            (if (fn? f) (wrap-clj-fn f) f)))))))
+
 (defn resolve-qualified
-  "Resolve a DataTwist qualified name like 'clj/clojure.string/upper-case'
-   or 'clj/range' (clojure.core) to a Clojure var.
+  "Resolve a DataTwist qualified name like 'clj/clojure.string/upper-case',
+   'clj/range', or bare 'clojure.string/upper-case' to a Clojure var.
    Wraps fn results: sequential outputs are coerced to vectors."
   [name-str]
-  (when (clojure.string/starts-with? name-str "clj/")
-    (let [rest-str   (subs name-str 4)
-          last-slash (.lastIndexOf rest-str "/")]
-      (if (< last-slash 0)
-        ;; No extra namespace: 'clj/range' → clojure.core/range
-        (when-let [v (resolve (symbol rest-str))]
-          (let [f (deref v)]
-            (if (fn? f) (wrap-clj-fn f) f)))
-        ;; Has namespace: 'clj/clojure.string/upper-case'
-        (let [ns-part (subs rest-str 0 last-slash)
-              fn-part (subs rest-str (inc last-slash))]
-          (try
-            (require (symbol ns-part))
-            (catch Exception _ nil))
-          (when-let [v (resolve (symbol (str ns-part "/" fn-part)))]
-            (let [f (deref v)]
-              (if (fn? f) (wrap-clj-fn f) f))))))))
+  (if (clojure.string/starts-with? name-str "clj/")
+    ;; Strip 'clj/' prefix and resolve the rest
+    (resolve-ns-fn (subs name-str 4))
+    ;; Direct namespace/fn reference (e.g. clojure.string/upper-case)
+    (when (.contains name-str "/")
+      (resolve-ns-fn name-str))))
 
 ;; ---------------------------------------------------------------------------
 ;; Default environment
@@ -365,5 +374,6 @@
    "substring"   dt-substring
    ;; Side-effect builtins (pre-wrapped: return first arg)
    "log!"        (fn [data & msgs] (apply println msgs) data)
-   "tap!"        (fn [data f] (f data) data)
+   "tap!"        (fn ([data] (println data) data)
+                   ([data f] (f data) data))
    "save!"       (fn [data & _args] data)})
