@@ -310,6 +310,29 @@ Query Docker containers and Kubernetes resources as data sources, like database 
 - [ ] Read logs: `docker |> logs "container-name" |> filter (contains _ "ERROR")`
 - [ ] Integration with `pass` module for registry/cluster auth
 
+### Documentation System & Autodoc `🔬 research`
+
+Docstrings, inline documentation, and automatic type inference from runtime data.
+
+#### Design decisions (locked)
+
+- **`dtw` is a plain object** (Lua-style): `dtw`, `dtw.connections`, `dtw.proxy` — all readable/writable objects. No special accessor syntax needed.
+- **`doc` function**: `doc filter` returns documentation for any function (built-in or user-defined)
+- **`@doc` annotation**: attach docstring to user functions: `double is [x -> x * 2] @doc "Doubles a number"`
+- **Autodoc**: runtime type inference from samples — observe actual argument types and return types, generate signatures automatically. Not static types — observation of real data.
+
+#### Tasks
+
+- [ ] `@doc "..."` annotation syntax — attach docstring to `is` bindings
+- [ ] `doc` function — retrieve documentation for any symbol
+- [ ] Built-in function docs — docstrings for all stdlib functions
+- [ ] Autodoc: infer argument types from sample data (Number, String, List, Object, Function, etc.)
+- [ ] Autodoc: infer return type from evaluation results
+- [ ] Autodoc: generate function signatures like `filter : [a -> Bool] -> [a] -> [a]`
+- [ ] Autodoc: collect usage examples from REPL/script history
+- [ ] Integration with nREPL — `doc` operation returns formatted docs to IDE
+- [ ] Integration with LSP — hover documentation, signature hints
+
 ---
 
 ## P3 — Future
