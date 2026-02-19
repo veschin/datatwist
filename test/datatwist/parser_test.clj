@@ -82,11 +82,12 @@
    :AddExpr     #{:MulExpr}
    :MulExpr     #{:UnaryExpr}
    :UnaryExpr   #{:FnCallExpr}
-   :FnCallExpr  #{:FnCall :Recur :FieldAccess}
-   :FieldAccess #{:Atom}
-   :Atom        #{:Float :Integer :String :Boolean :Nil :Keyword
-                  :Object :FnDef :List :InstanceMethod :Constructor
-                  :QualifiedName :Wildcard :Identifier :ParenExpr}})
+   :FnCallExpr     #{:FnCall :Recur :FieldAccess}
+   :NegFieldAccess #{:FieldAccess}
+   :FieldAccess    #{:Atom}
+   :Atom           #{:Float :Integer :String :Boolean :Nil :Keyword :Regex
+                     :Object :FnDef :List :InstanceMethod :Constructor
+                     :QualifiedName :Wildcard :Identifier :ParenExpr}})
 
 (defn validate-wrapper-chain
   "Walk through single-child wrapper nodes from root, validating each
@@ -746,6 +747,41 @@
 (deftest parse-list-negative-cases
   (testing "commas between elements are a parse error"
     (is (parse-fails? "[1, 2, 3]"))))
+
+(deftest parse-list-with-negative-numbers
+  (testing "list with a negative integer element"
+    (is (= [:List [:NegFieldAccess "-" [:Integer "10"]] [:Integer "50"]]
+           (parses-to "[-10 50]"))))
+
+  (testing "list with only a negative integer"
+    (is (= [:List [:NegFieldAccess "-" [:Integer "1"]]]
+           (parses-to "[-1]"))))
+
+  (testing "list with multiple negative integers"
+    (is (= [:List [:NegFieldAccess "-" [:Integer "1"]] [:NegFieldAccess "-" [:Integer "2"]] [:NegFieldAccess "-" [:Integer "3"]]]
+           (parses-to "[-1 -2 -3]"))))
+
+  (testing "list with negative float"
+    (is (= [:List [:NegFieldAccess "-" [:Float "3.14"]] [:Integer "0"]]
+           (parses-to "[-3.14 0]"))))
+
+  (testing "[f x] is still a two-element list, not a function call"
+    (is (= [:List [:Identifier "f"] [:Identifier "x"]]
+           (parses-to "[f x]")))))
+
+(deftest parse-fncall-with-negative-arg
+  (testing "function call with negative integer argument (no parens needed)"
+    ;; NegFieldAccess without minus simplifies away; with minus it stays as NegFieldAccess
+    (is (= [:FnCall [:Identifier "nth"] [:Identifier "items"] [:NegFieldAccess "-" [:Integer "1"]]]
+           (parses-to "nth items -1"))))
+
+  (testing "function call with only a negative arg"
+    (is (= [:FnCall [:Identifier "abs"] [:NegFieldAccess "-" [:Integer "5"]]]
+           (parses-to "abs -5"))))
+
+  (testing "qualified name static call with negative arg"
+    (is (= [:FnCall [:QualifiedName "Math/abs"] [:NegFieldAccess "-" [:Integer "5"]]]
+           (parses-to "Math/abs -5")))))
 
 ;; ==========================================================================
 ;; SECTION 19: Field Access (Dot Notation)
@@ -1533,11 +1569,9 @@
     (is (= [:FnCall [:InstanceMethod ".method"] [:Identifier "object"]]
            (parses-to ".method object"))))
 
-  (testing "static method call — parses as two expressions (QualifiedName + UnaryExpr)"
-    (let [tree (parses-to "Math/abs -5")]
-      (is (= :Program (first tree)))
-      (is (= [:QualifiedName "Math/abs"] (nth tree 1)))
-      (is (= [:UnaryExpr "-" [:Integer "5"]] (nth tree 2)))))
+  (testing "static method call with negative arg parses as FnCall"
+    (is (= [:FnCall [:QualifiedName "Math/abs"] [:NegFieldAccess "-" [:Integer "5"]]]
+           (parses-to "Math/abs -5"))))
 
   (testing "constructor"
     (is (= [:FnCall [:Constructor "ArrayList."] [:Integer "10"]]
@@ -1632,3 +1666,39 @@
     (let [tree (parses-to "[n ->\n  | n <= 0 -> 0\n  | _ -> n + recur (n - 1)\n]")]
       (is (= :FnDef (first tree)))
       (is (= :GuardBlock (first (nth tree 2)))))))
+
+;; ==========================================================================
+;; SECTION 30: Regex Literals
+;; ==========================================================================
+
+(deftest parse-regex-literals
+  (testing "simple regex literal"
+    (is (= [:Regex ","] (parses-to "#\",\""))))
+
+  (testing "regex parses as :Regex node"
+    (is (= :Regex (first (parses-to "#\",\"")))))
+
+  (testing "empty regex"
+    (is (= [:Regex ""] (parses-to "#\"\""))))
+
+  (testing "regex with common pattern characters"
+    (is (= :Regex (first (parses-to "#\"[a-z]+\"")))))
+
+  (testing "regex with escaped quote"
+    (is (= :Regex (first (parses-to "#\"\\\"\"")))))
+
+  (testing "regex with dot-star pattern"
+    (is (= [:Regex ".*"] (parses-to "#\".*\""))))
+
+  (testing "regex with digits pattern"
+    (is (= [:Regex "\\d+"] (parses-to "#\"\\d+\""))))
+
+  (testing "regex is not parsed as identifier or string"
+    (is (not= :Identifier (first (parses-to "#\",\""))))
+    (is (not= :String (first (parses-to "#\",\"")))))
+
+  (testing "hash without quote is a parse error"
+    (is (parse-fails? "#foo")))
+
+  (testing "unclosed regex is a parse error"
+    (is (parse-fails? "#\"hello"))))
