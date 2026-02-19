@@ -184,6 +184,24 @@ Requires a thorough analysis: what do we gain from a persistent daemon vs. state
 
 ## P2 — Medium Priority
 
+### Benchmarking & Analytics System `🔬 research`
+
+Built-in tools for measuring, profiling, and analyzing data and performance.
+
+- [ ] `measure!` — time execution of expression or pipeline, return `{result time-ms}`
+- [ ] `size` / `count` / `length` — unified size measurement for any data type (collections, strings, objects, streams)
+- [ ] `describe` — statistical summary of collection: count, min, max, mean, median, stddev, percentiles, null count
+- [ ] `freq` — frequency table for categorical data
+- [ ] `histogram` — distribution of numeric data
+- [ ] `profile!` — detailed breakdown of pipeline: time per step, rows per step, memory per step
+- [ ] `compare!` — A/B benchmark: run two expressions N times, report mean/median/p99 with statistical significance
+- [ ] `schema` — infer and display data schema: field names, types, cardinality, null rates
+- [ ] Volume analytics: data sizes in bytes/KB/MB, row counts, column counts
+- [ ] Memory profiling: track allocations per pipeline step
+- [ ] `benchmark!` — run expression N times, report min/max/mean/stddev/percentiles
+- [ ] Output formats: table (REPL), JSON (programmatic), chart (IDE)
+- [ ] Integration with `tap!` — benchmark results as tap output
+
 ### String Pattern Destructuring (`#p`) `🔬 research`
 
 **Decision (locked)**: `#p"..."` reader macro for reverse-format string destructuring. Three-tier design:
