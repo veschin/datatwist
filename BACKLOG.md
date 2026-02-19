@@ -95,7 +95,7 @@ math/sin 3.14             // qualified access
 
 **Decision (preliminary)**: Connector interface — minimal, 5 functions: `connect`, `query`, `close!`, `tables`, `schema`. Not ready to go deeper yet.
 
-**Connection pool (preliminary)**: `connect` creates a connection pool internally (HikariCP). User doesn't manage the pool explicitly. Default pool size configurable via `env.POOL_SIZE` (default: 5). Transparent — simple interface, complexity hidden inside.
+**Connection pool (preliminary)**: `connect` creates a connection pool internally (HikariCP). User doesn't manage the pool explicitly. Default pool size configurable via `dtw.POOL_SIZE` (default: 5). Transparent — simple interface, complexity hidden inside.
 
 - [ ] Namespace resolution (file-based, classpath, registry)
 - [ ] `require` with qualified access and selective import
@@ -103,7 +103,7 @@ math/sin 3.14             // qualified access
 - [ ] Connector interface: `connect`, `query`, `close!`, `tables`, `schema`
 - [ ] Built-in connectors: postgres, sqlite, http, fs, csv
 - [ ] Connector + Pushdown integration
-- [ ] Connection pool management (HikariCP) — transparent, configurable via `env.POOL_SIZE`
+- [ ] Connection pool management (HikariCP) — transparent, configurable via `dtw.POOL_SIZE`
 
 ### Demo Runner Rework `🔬 research`
 
@@ -266,29 +266,34 @@ Research doc: `docs/error-reporting-research.md`
 
 #### Design decisions (locked)
 
-- **Two separate modules**: `env` for OS environment + DataTwist settings, `pass` for secrets.
-- **`env` module**: `env.HOME` accesses OS environment variables. `env.SAMPLE_SIZE` accesses DataTwist settings. Both live in the same `env` namespace; DataTwist settings take precedence over OS env when names collide.
+- **Three namespaces, clearly separated**: `env` for OS environment variables only, `pass` for secrets from password-store, `dtw` for all DataTwist internal config.
+- **`env` module**: `env.HOME`, `env.PATH`, `env.DB_URL` — OS environment variables only. No DataTwist settings live here.
 - **`pass` module**: `pass.myproject.db-host` maps to `pass show datatwist/myproject/db-host`. Flat structure — one value per key, returns a string. Integrates with the standard Unix `pass` (password-store).
 - **Leaf path returns string, directory path returns object**: Accessing a leaf key returns a single string value. Accessing a directory path (non-leaf) returns an object with all keys as fields. Enables standard destructuring.
+- **`dtw` module**: all DataTwist internal config — settings/constants (`dtw.SAMPLE_SIZE`, `dtw.POOL_SIZE`), saved connection profiles (`dtw.connections.prod-db`), VPN configurations (`dtw.vpn.prod-vpn`), and proxy configurations (`dtw.proxy.prod-proxy`).
 
 ```
-; Environment and settings
-env.HOME              ; => "/home/user"
-env.SAMPLE_SIZE       ; => 10
+; OS environment
+env.HOME                    ; => "/home/user"
 
-; Single value
-host is pass.myproject.db-host    ; => "db.prod.com"
-
-; Directory as object — destructure
+; Secrets
 {db-host, db-pass} is pass.myproject
-; pass.myproject => {db-host: "db.prod.com", db-pass: "secret123", api-token: "sk-abc..."}
+
+; DataTwist config
+dtw.SAMPLE_SIZE             ; => 10
+
+; Connections with network config
+db is connect dtw.connections.prod-db dtw.vpn.prod-vpn
+db is connect dtw.connections.prod-db dtw.proxy.prod-proxy
 ```
 
 - [ ] `pass` module — resolve credentials via `pass show datatwist/<project>/<key>`, flat key/value, returns string
-- [ ] `env` module — OS environment variable access + DataTwist settings in one namespace, settings take precedence
-- [ ] Connection profiles: named configs (`work-db`, `prod-api`) with host, port, auth, proxy settings
-- [ ] Proxy/VPN-aware connections: per-profile SOCKS5/HTTP proxy
-- [ ] `connect` function uses profiles: resolves creds + proxy automatically
+- [ ] `env` module — OS environment variable access only (`env.HOME`, `env.PATH`, `env.DB_URL`)
+- [ ] `dtw` module — DataTwist internal config namespace (settings, connection profiles, VPN, proxy)
+- [ ] `dtw.connections.*` — saved connection profile storage and resolution
+- [ ] `dtw.vpn.*` — VPN configuration profiles (WireGuard, OpenVPN)
+- [ ] `dtw.proxy.*` — proxy configuration profiles (SOCKS5, HTTP)
+- [ ] `connect` accepts profile + optional network config (VPN or proxy)
 - [ ] Environment-based overrides: `DT_PROFILE=work` selects default connection profile
 - [ ] Keyring integration: macOS Keychain, Linux secret-service, Windows Credential Manager (lower priority than pass)
 - [ ] Design: config format (TOML, EDN, or DataTwist syntax?), encryption strategy (GPG vs OS keyring)
@@ -347,10 +352,10 @@ Query Docker containers and Kubernetes resources as data sources, like database 
 
 ### Cache Management
 
-**Decision (preliminary)**: `invalidate-cache!` command for manual reset. Global `AUTO_INVALIDATE` setting. Eviction policy details TBD.
+**Decision (preliminary)**: `invalidate-cache!` command for manual reset. Global `dtw.AUTO_INVALIDATE` setting. Eviction policy details TBD.
 
 - [ ] `invalidate-cache!` — manual cache reset for an expression/pipeline
-- [ ] `AUTO_INVALIDATE` global setting — automatic invalidation on source change
+- [ ] `dtw.AUTO_INVALIDATE` global setting — automatic invalidation on source change
 - [ ] Per-expression cache invalidation
 - [ ] Pipeline-level invalidation (invalidate end → whole pipeline re-executes)
 - [ ] Cache size limits and eviction policy (TBD)
