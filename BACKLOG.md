@@ -74,10 +74,12 @@ require math.{sin cos}    // specific functions
 math/sin 3.14             // qualified access
 ```
 
+**Decision (preliminary)**: Connector interface — minimal, 5 functions: `connect`, `query`, `close!`, `tables`, `schema`. Not ready to go deeper yet.
+
 - [ ] Namespace resolution (file-based, classpath, registry)
 - [ ] `require` with qualified access and selective import
 - [ ] Namespace caching, circular dependency detection
-- [ ] Connector interface: `connect`, `query`, `close`, schema introspection
+- [ ] Connector interface: `connect`, `query`, `close!`, `tables`, `schema`
 - [ ] Built-in connectors: postgres, sqlite, http, fs, csv
 - [ ] Connector + Pushdown integration
 
@@ -94,6 +96,11 @@ math/sin 3.14             // qualified access
 
 Target: CIDER-like experience for DataTwist. Plugins live in `plugins/` (future separate repos).
 
+#### Design decisions (locked)
+
+- **Reference implementation**: CIDER is the reference. Emacs-first.
+- **MVP scope**: eval sub-expression at cursor + inspect drill-down (like CIDER inspector). Nothing more for MVP.
+
 - [ ] nREPL server — middleware for DataTwist eval on top of Clojure nREPL
 - [ ] Eval sub-expression — parse sub-expr at cursor position, eval in current context
 - [ ] Inspector — drill-down into nested objects/lists (like CIDER inspector)
@@ -104,9 +111,11 @@ Target: CIDER-like experience for DataTwist. Plugins live in `plugins/` (future 
 
 **Decision (locked)**: NO BLOCKING EVER. Stream or wait. Notification system when sample is ready. The unit of the language is a sample — get/transform/save data.
 
+**Decision (locked)**: Rethink traditional parallelism. The language works with samples (batches), so async is the natural model. Everything can be async; parallel where appropriate. No explicit `pmap`/`pfilter` — the runtime decides based on sample size and operation type.
+
 - [ ] Streaming-first: data arrives as stream, never blocks
 - [ ] Notification system: "sample ready" events for IDE/REPL
-- [ ] Parallel map/filter: automatic parallelization of collection operations
+- [ ] Parallel map/filter: automatic parallelization based on sample size + op type (no explicit pmap/pfilter)
 - [ ] Pipeline-level parallelism: independent branches execute concurrently
 - [ ] Error propagation across async boundaries
 - [ ] Backpressure and resource limits (thread pool, connection pool)
@@ -209,10 +218,19 @@ Design doc: `docs/lsp-tree-sitter-design.md`. Plugins live in `plugins/lsp/`.
 BDD: `bdd/9-error-reporting.feature`, Tests: `test/datatwist/error_reporting_test.clj` (42 TDD stubs)
 Research doc: `docs/error-reporting-research.md`
 
+#### Design decisions (locked)
+
+- **Both expected tokens AND "did you mean?" fuzzy matching** in parse error messages. Not either/or.
+- **Warnings are non-blocking**: warnings print but execution continues.
+- **`WARNINGS_AS_ERRORS` constant**: set to enable strict mode where warnings fail execution.
+
 - [ ] Error code system: `DT-PXXX` / `DT-TXXX` / `DT-RXXX`
 - [ ] Elm/Rust-style messages with source snippets and hints
+- [ ] "Did you mean?" fuzzy matching for identifiers and keywords
+- [ ] Expected token hints in parse errors
 - [ ] Suppress Java/Clojure stack traces from user output
-- [ ] Data-aware warnings (nil prevalence, common mistakes)
+- [ ] Data-aware warnings (nil prevalence, common mistakes) — non-blocking by default
+- [ ] `WARNINGS_AS_ERRORS` constant for strict mode
 - [ ] JSON error output: `{:code "DT-T001" :message "..." :hint "..." :line N :col N}`
 - [ ] Error code registry (`docs/error-codes.md`): catalog of all codes with descriptions, examples, fix suggestions
 
@@ -224,14 +242,19 @@ Research doc: `docs/error-reporting-research.md`
 
 ### Credentials & Network Configuration `⏳ waiting`
 
-Needs design decisions. Blocked: needs user.
+#### Design decisions (locked)
 
-- [ ] Credential store: encrypted local config (`.datatwist/credentials`) or native `pass` integration
+- **Separate module** for credentials, not bundled into connectors.
+- **`pass` integration**: uses `pass` (password-store) as the credential backend. DataTwist namespace per project in the pass store (e.g. `datatwist/myproject/db-password`).
+- **ENV module integration**: works alongside the ENV module for environment variable access. Secrets resolved from pass; non-secret config from ENV.
+
+- [ ] `pass` integration — resolve credentials via password-store with `datatwist/<project>/<key>` namespace convention
+- [ ] ENV module — environment variable access, works alongside `pass`
 - [ ] Connection profiles: named configs (`work-db`, `prod-api`) with host, port, auth, proxy settings
 - [ ] Proxy/VPN-aware connections: per-profile SOCKS5/HTTP proxy
 - [ ] `connect` function uses profiles: resolves creds + proxy automatically
 - [ ] Environment-based overrides: `DT_PROFILE=work` selects default connection profile
-- [ ] Keyring integration: macOS Keychain, Linux secret-service, Windows Credential Manager
+- [ ] Keyring integration: macOS Keychain, Linux secret-service, Windows Credential Manager (lower priority than pass)
 - [ ] Design: config format (TOML, EDN, or DataTwist syntax?), encryption strategy (GPG vs OS keyring)
 
 ---
@@ -249,15 +272,24 @@ Needs design decisions. Blocked: needs user.
 
 ### HTTP Sources & Web Data
 
-- [ ] `http! "url"` — fetch web pages as data source
-- [ ] Response formats: json, markdown, html, text
-- [ ] Parse fetched content, extract data from it
-- [ ] Pipeline integration: `http! "api.com/users" |> parse-json |> filter _.active`
+**Decision (preliminary)**: Not a simple `http!` call — needs proper design. Each site/API is unique. Key considerations: JSON responses work natively as data; HTML parsing also needed. Auth varieties (Bearer, Basic, API keys, OAuth) must all be supported. Secrets via ENV/credentials module. No final design yet.
+
+- [ ] HTTP client with auth: Bearer, Basic, API key, OAuth
+- [ ] JSON responses work natively as DataTwist data (no explicit parse-json needed)
+- [ ] HTML parsing / scraping support
+- [ ] Integration with credentials module for secrets (no inline secrets)
+- [ ] Response formats: json, html, text, markdown
+- [ ] Pipeline integration: `fetch! "api.com/users" |> filter _.active`
+- [ ] Design: auth configuration API, session management, retries
 
 ### Language Extensions
 
-- [ ] String interpolation: `"Hello {name}"`
-- [ ] Multi-line strings / heredocs (`"""..."""`)
+#### Design decisions (locked)
+
+- **String interpolation**: `#s"Hello {name}"` reader macro. Concern: scope visibility must be clear (which variables are in scope). Multiline strings — undecided yet.
+
+- [x] String interpolation: `#s"Hello {name}"` reader macro — locked design decision (multiline undecided)
+- [ ] Multi-line strings / heredocs (`"""..."""`) — undecided
 - [ ] Date/time literals and operations
 - [ ] Spread operator in objects: `{...base, name: "new"}`
 - [ ] Optional type annotations for tooling
@@ -267,10 +299,13 @@ Needs design decisions. Blocked: needs user.
 
 ### Cache Management
 
-- [ ] `invalidate-cache!` — reset cached samples for an expression/pipeline
+**Decision (preliminary)**: `invalidate-cache!` command for manual reset. Global `AUTO_INVALIDATE` setting. Eviction policy details TBD.
+
+- [ ] `invalidate-cache!` — manual cache reset for an expression/pipeline
+- [ ] `AUTO_INVALIDATE` global setting — automatic invalidation on source change
 - [ ] Per-expression cache invalidation
 - [ ] Pipeline-level invalidation (invalidate end → whole pipeline re-executes)
-- [ ] Cache size limits and eviction policy
+- [ ] Cache size limits and eviction policy (TBD)
 
 ### tap! Output Channels
 
