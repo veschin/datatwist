@@ -147,7 +147,19 @@ Target: CIDER-like experience for DataTwist. Plugins live in `plugins/` (future 
 
 Persistent background server that IDE, CLI, and tools connect to. Eliminates JVM startup cost, holds project state, caches, samples.
 
-#### Design decisions (locked)
+#### Architecture research needed
+
+Requires a thorough analysis: what do we gain from a persistent daemon vs. stateless CLI invocations (GraalVM native binary starts in ms)? Trade-offs to investigate:
+
+- **Pro**: shared state (sample caches, connection pools, autodoc type data) persists between invocations
+- **Pro**: IDE connects to live process with data context
+- **Pro**: hot reload on file changes
+- **Con**: another process to manage (start/stop/crash recovery)
+- **Con**: GraalVM binary is already fast — do we really need persistent state?
+- **Con**: complexity of two-tier architecture (global + per-project)
+- **Question**: can we get the same benefits with a simpler model? (e.g. cache files on disk, lazy daemon that starts on first IDE connection)
+
+#### Preliminary design (needs validation)
 
 - **Two-tier architecture**:
   - **Global daemon** (cross-project): always running, instant REPL access from any project, handles eval requests, doc queries, formatting. One per user.
