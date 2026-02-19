@@ -320,17 +320,17 @@
   (testing "Scenario: Nil greater-than a value is false"
     (is (= false (eval-dt "nil > 5")))))
 
-(deftest nil-less-than-value-is-false
-  (testing "Scenario: Nil less-than a value is false"
-    (is (= false (eval-dt "nil < 5")))))
+(deftest nil-less-than-value-is-true
+  (testing "Scenario: Nil less-than a value — nil coerces to 0"
+    (is (= true (eval-dt "nil < 5")))))
 
-(deftest nil-greater-or-equal-is-false
-  (testing "Scenario: Nil greater-or-equal is false"
-    (is (= false (eval-dt "nil >= 0")))))
+(deftest nil-greater-or-equal-zero-is-true
+  (testing "Scenario: Nil greater-or-equal zero — nil coerces to 0"
+    (is (= true (eval-dt "nil >= 0")))))
 
-(deftest nil-less-or-equal-is-false
-  (testing "Scenario: Nil less-or-equal is false"
-    (is (= false (eval-dt "nil <= 0")))))
+(deftest nil-less-or-equal-zero-is-true
+  (testing "Scenario: Nil less-or-equal zero — nil coerces to 0"
+    (is (= true (eval-dt "nil <= 0")))))
 
 ;; --- 4D: Nil in logical operators ---
 

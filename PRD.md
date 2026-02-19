@@ -402,15 +402,23 @@ IDE plugin shows table inline on click/hover.
 | `nil.field` | `nil` | Nil-tolerant field access |
 | `nil.a.b.c` | `nil` | Chain propagates |
 | `nil = nil` | `true` | Identity |
+| `nil = 0` | `false` | nil is only equal to nil |
 | `nil != 5` | `true` | Not equal |
-| `nil > 5` | `false` | No ordering for nil |
+| `nil > 5` | `false` | Nil coerces to 0 in numeric comparison |
+| `nil < 5` | `true` | Nil coerces to 0 in numeric comparison |
+| `nil >= 0` | `true` | Nil coerces to 0 |
+| `nil > "a"` | `false` | Nil coerces to "" in string comparison |
 | `nil and x` | `nil` | Short-circuit (Clojure) |
 | `nil or x` | `x` | Short-circuit (Clojure) |
 | `value ?? default` | `default` if value is nil | Nil coalescing |
-| `nil + 5` | `5` | Nil coerces to identity element (0 for numbers) |
-| `nil + "hi"` | `"hi"` | Nil coerces to identity element ("" for strings) |
+| `nil + 5` | `5` | Nil coerces to 0 for numbers |
+| `nil + "hi"` | `"hi"` | Nil coerces to "" for strings |
 | `nil * 5` | `0` | Nil coerces to 0 |
+| `nil - 5` | `-5` | Nil coerces to 0 |
+| `nil / 5` | `0.0` | Nil coerces to 0, division always Double |
 | `nil \|> filter _` | `[]` | Nil source = empty collection |
+
+**Nil coercion rule:** nil acts as the identity/zero element of its context — `0` for numbers, `""` for strings, `false` for booleans. This applies to arithmetic AND comparisons. Nil is only equal to itself (`nil = nil`), but in ordering comparisons (`>`, `<`, `>=`, `<=`) it coerces to the zero element.
 
 Truthiness: only `nil` and `false` are falsy. `0`, `""`, `[]`, `{}` are truthy (Clojure semantics).
 
