@@ -27,6 +27,17 @@ Build DataTwist as a standalone native binary via GraalVM `native-image`. Critic
 - [ ] TUI framework (charmbracelet/gum style) — visual interactive prompts, selection, spinners
 - [ ] Platform-specific feature matrix: which subcommands available on linux/macos/windows
 
+**Decision (locked):** `datatwist connect` is an interactive wizard for setting up data source connections. The CLI knows all supported source types (databases, files, APIs, Docker, K8s), guides the user through configuration with TUI prompts (gum-style), tests the connection, and saves it as a named profile. Saved profiles are reusable via `connect "profile-name"` in scripts. Credentials flow through the `pass` module.
+
+- [ ] `datatwist connect` — interactive TUI wizard for setting up data sources
+- [ ] Source type registry: each connector declares its required fields (host, port, db, auth, etc.)
+- [ ] Connection testing: verify connectivity before saving profile
+- [ ] Profile storage: save/load connection profiles (location TBD — `~/.datatwist/connections/` or project-local)
+- [ ] `datatwist connect list` — show saved profiles
+- [ ] `datatwist connect test <profile>` — re-test a saved connection
+- [ ] File source wizard: interactive file picker for CSV/JSON/Parquet, detect format and schema
+- [ ] `connect "profile-name"` in scripts — resolve saved profile, return connection object
+
 ---
 
 ## P1 — High Priority
