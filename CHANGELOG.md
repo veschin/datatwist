@@ -1,5 +1,23 @@
 # DataTwist Changelog
 
+## DATATWIST-12: Design Session — Language Features & Architecture
+- `0cace8f` Design decisions: connectors, nREPL (CIDER), async (sample-centric), credentials, errors, HTTP, strings, cache
+- `026baaf` `#p"..."` string pattern destructuring — three-tier design (simple/typed/full), PRD + BACKLOG
+- `9faeef2` Regex alternatives research — 8 approaches analyzed, three-tier recommendation
+- `1f008c7` Namespace model: `env` (OS), `pass` (secrets), `dtw` (config/connections/vpn/proxy)
+- `9360d73` `pass` module: directory path returns object, enables destructuring
+- `7310fc9` CLI subcommands (run/repl/fmt/lint/test/webui/creds), Docker/K8s sources
+- `81b810c` Smart connect wizard — interactive TUI for data source setup
+- `e8e2814` Documentation system + autodoc — runtime type inference from samples
+- `105c1db` Source-driven development — `datatwist fmt` + `fmt --doc` auto-generates `@doc`
+- `2f33d8b` DataTwist daemon concept (needs architecture research)
+- `589b958` `#s"..."` string interpolation reader macro
+
+## DATATWIST-11: Implementation Waves 1–4
+- `f9fcfeb` Waves 1–3: research (lazy eval, GraalVM, errors, IDE tooling), BDD + tests, audit
+- `f97bc50` Wave 4: lazy eval phase 1 (lazy stdlib), error reporting (DT-XXXX codes, Elm/Rust renderer), demo runner rework
+- `18fdc74` PRD + BACKLOG update: locked design decisions (comments `;`, `force!`, `autotap!`, `(comment ...)`)
+
 ## DATATWIST-10: Backlog & Orchestration
 - `bf7ca9d` Backlog: async execution, credentials/VPN, git cleanup plan, orchestration rules
 - `e3f7a1e` Add CHANGELOG.md, feature branch rule in orchestration
