@@ -38,11 +38,15 @@ Design doc: `docs/lazy-eval-design.md`
 - **Laziness is invisible to user**: lazy seqs auto-materialize at any user-facing boundary (REPL, str, save!, tap!, `=`). User NEVER sees `LazySeq@...`. Laziness only exists between pipeline steps for performance.
 - **Remove**: `inspect`, `log!`, `print`, `collect` from pipeline vocabulary
 - **`force!`** is the only materialization function (not `collect`)
-- **`tap!`** syntax: `tap! _data_ "format %s" (args)` — print before data, passthrough. No lambda needed.
+- **`tap!`** is fully safe, never mutates data. Output is redirectable (console, file, IDE, custom). Format: `tap! "format %s" (args)`. Output format: first line is function label `[fn]`, second line is sample data.
+- **`autotap!`** placed at start of pipeline, wraps every subsequent step with `tap!` output (function-label on first line + sample on second line)
 - **Reified pipeline**: `|>` builds a DTPipeline record that remembers steps + caches samples per step
-- **Full introspection**: cursor on ANY expression → sample result. Cursor on ANY variable (e.g. `x` in `[x -> x > 1]`) → sample of that variable's values. On-demand computation.
-- **Conditional sampling**: `#sample {name: "Alex"}` — predicate-based sample filtering (like `#dbg` in Clojure)
-- **Bi-directional traversal**: step forward/backward through pipeline computations
+- **Full introspection**: cursor on ANY expression → sample result. Cursor on ANY variable (e.g. `x` in `[x -> x > 1]`) → sample of that variable's values. On-demand computation. No re-execution — cached.
+- **Sub-step introspection**: inspect not just step results but steps within steps (nested pipelines, lambda internals)
+- **Conditional sampling**: `#sample {predicate}` reader macro — filter sample data. `SAMPLE_ATTEMPTS` controls retries. Can set sample size to zero.
+- **Bi-directional traversal**: step forward/backward through pipeline computations, drill into collections
+- **Cache management**: everything cached by default. `invalidate-cache!` for explicit reset. Cache at end of pipeline → whole pipeline re-executes.
+- **No blocking ever**: streaming-first, notification when sample ready for inspection
 - **Compression + batching + streaming**: real data can be huge, design for it from day 1
 - **Constants**: `SAMPLE_SIZE`, `MAX_COLLECT_ROWS`, `DESCRIBE_SAMPLE_SIZE` — uppercase symbols, mutable config values
 - **Auto-materialize contexts**: REPL output, `str`/concat, `tap!`, `save!`, `=` comparison, error messages — all auto-force with configurable limit
@@ -61,12 +65,18 @@ Design doc: `docs/pushdown-design.md`. Blocked: gap analysis after lazy eval.
 - [ ] Aggregation pushdown: sum/count/avg → SQL aggregates
 - [ ] Join between pushed sources
 
-### Module System & Connectors `⏳ waiting`
+### Module System & Connectors `🔬 research`
 
-Needs design decisions on module resolution strategy. Blocked: needs user.
+**Decision (locked)**: Clojure-style namespaces + require.
+```
+require math              // everything under math namespace
+require math.{sin cos}    // specific functions
+math/sin 3.14             // qualified access
+```
 
-- [ ] Module resolution (file-based, classpath, registry)
-- [ ] Module caching, circular dependency detection
+- [ ] Namespace resolution (file-based, classpath, registry)
+- [ ] `require` with qualified access and selective import
+- [ ] Namespace caching, circular dependency detection
 - [ ] Connector interface: `connect`, `query`, `close`, schema introspection
 - [ ] Built-in connectors: postgres, sqlite, http, fs, csv
 - [ ] Connector + Pushdown integration
@@ -90,18 +100,17 @@ Target: CIDER-like experience for DataTwist. Plugins live in `plugins/` (future 
 - [ ] `datatwist-mode` for Emacs — CIDER-like package (nREPL connection, eval, inspect, overlay results)
 - [ ] Inline result display — result next to expression (CIDER overlays style)
 
-### Async & Parallel Execution `⏳ waiting`
+### Async & Parallel Execution `🔬 research`
 
-Needs design decisions (explicit vs implicit). Blocked: needs user.
+**Decision (locked)**: NO BLOCKING EVER. Stream or wait. Notification system when sample is ready. The unit of the language is a sample — get/transform/save data.
 
-- [ ] Async call syntax: fire-and-forget or await-based
+- [ ] Streaming-first: data arrives as stream, never blocks
+- [ ] Notification system: "sample ready" events for IDE/REPL
 - [ ] Parallel map/filter: automatic parallelization of collection operations
-- [ ] Data dependency resolution: transparent blocking when data not ready
 - [ ] Pipeline-level parallelism: independent branches execute concurrently
 - [ ] Error propagation across async boundaries
 - [ ] Backpressure and resource limits (thread pool, connection pool)
 - [ ] Integration with JVM virtual threads (Project Loom)
-- [ ] Design: explicit opt-in vs implicit runtime parallelism
 
 ---
 
@@ -163,6 +172,30 @@ Needs design decisions. Blocked: needs user.
 
 ## P3 — Future
 
+### Reader Macros
+
+**Decision (locked)**: `#` prefix like Clojure for reader macros.
+
+- [ ] `#sample {predicate}` — conditional sampling: filter what data enters sample. Re-samples if predicate doesn't match. `SAMPLE_ATTEMPTS` controls max retries. Can set sample size to zero.
+- [ ] Reader macro dispatch system (extensible `#name` syntax)
+- [ ] `#dbg`-style debugging support
+
+### HTTP Sources & Web Data
+
+- [ ] `http! "url"` — fetch web pages as data source
+- [ ] Response formats: json, markdown, html, text
+- [ ] Parse fetched content, extract data from it
+- [ ] Pipeline integration: `http! "api.com/users" |> parse-json |> filter _.active`
+
+### Regex Alternatives / Pattern Language
+
+Research needed: simpler interface for text pattern matching than regex.
+
+- [ ] Research: verbal expressions, Rosie Pattern Language, PEG for user-facing patterns
+- [ ] Goal: describe what you want in words/structured syntax, not `[a-zA-Z]+\d{3}`
+- [ ] Maybe: `match "starts with 'Hello' then any word then a number"`
+- [ ] Regex still available as escape hatch
+
 ### Language Extensions
 
 - [ ] String interpolation: `"Hello {name}"`
@@ -170,12 +203,29 @@ Needs design decisions. Blocked: needs user.
 - [ ] Date/time literals and operations
 - [ ] Spread operator in objects: `{...base, name: "new"}`
 - [ ] Optional type annotations for tooling
-- [ ] Block comments: `(comment ...)` form — parsed but not evaluated
-- [ ] Line comments with `;;` (in addition to `//`)
+- [x] Line comments with `;` (replacing `//`) — locked design decision
+- [x] Block comments: `(comment ...)` form — parsed but not evaluated — locked design decision
 - [ ] Built-in formatter (`datatwist fmt`): opinionated auto-format (indentation, line width, pipeline alignment, guard alignment)
+
+### Cache Management
+
+- [ ] `invalidate-cache!` — reset cached samples for an expression/pipeline
+- [ ] Per-expression cache invalidation
+- [ ] Pipeline-level invalidation (invalidate end → whole pipeline re-executes)
+- [ ] Cache size limits and eviction policy
+
+### tap! Output Channels
+
+**Decision (locked)**: `tap!` output is redirectable like Clojure's `*out*`.
+
+- [ ] Default: console/REPL
+- [ ] `with-tap-out "file.log" [-> pipeline]` — redirect to file
+- [ ] IDE channel: send to overlay instead of console
+- [ ] Custom: `dtw/set! TAP_OUT [data -> send-to-slack data]`
 
 ### Editor Quick Wins
 
-- [ ] Debugger / step-through evaluation
+- [ ] Bi-directional traversal through pipeline steps (forward/backward with cached data)
+- [ ] Sub-step introspection: inspect steps within steps (nested pipelines)
 - [ ] Notebook mode — scratch buffer with persistent results (like Org-babel)
 - [ ] Data visualization in REPL — tables, charts for collection data

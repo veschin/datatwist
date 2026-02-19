@@ -23,14 +23,14 @@ The power of Clojure without the parentheses, purpose-built for data pipelines.
 | Default case | `_` | Not `otherwise` |
 | Wildcard `_` | Context-overloaded | Pipeline current element / pattern default / destruct skip |
 | Side effects `!` | Passthrough (doto) | `log! data "msg"` returns data. `!` = side-effect only |
-| Materialization | `force!` | Materializes lazy pipeline. `count`, `collect` are regular functions |
+| Materialization | `force!` | Materializes lazy pipeline. `count` is a regular function |
 | Strings | Plain + `format` | No interpolation |
 | Errors | try-catch | Classical approach |
 | Destructuring | Clojure parity | `&` for rest, `?` for defaults, `as` for whole binding |
 | Pattern matching | Context-based | `\| {pattern}` = structural, `\| expr` = guard |
 | Pipe semantics | Pipe-first (Elixir) | `data \|> f` = `f(data, ...)` |
 | Nil tolerance | Yes | Missing field access = nil, not error |
-| Comments | `//` | Universal, no conflict with language constructs |
+| Comments | `;` and `(comment ...)` | Single-line `;`, block `(comment ...)` form — parsed but not evaluated |
 | Nil coalescing | `??` | `value ?? default` -- triggers on nil only |
 | Nil in arithmetic | Coercion to identity | `nil + 5` = `5`, `nil + ""` = `""` |
 | Object field ops | `+`/`-` prefixes | `{+field: expr}` adds, `{-field}` removes |
@@ -39,23 +39,23 @@ The power of Clojure without the parentheses, purpose-built for data pipelines.
 | Lazy transparency | Auto-materialize at boundaries | User never sees `LazySeq@...`. Laziness is internal optimization only |
 | Pipeline debug probe | `tap!` only | `inspect`, `log!`, `print`/`println` are NOT pipeline debug tools. `tap!` is the only probe |
 | Reified pipeline | `DTPipeline` record | `\|>` builds a record with steps (label, code string, transform fn). Each step auto-caches its sample |
-| Pipeline terminals | `collect`, `count`, `first`, `reduce`, `force!` | Only these trigger evaluation. Building the pipeline is always lazy |
+| Pipeline terminals | `count`, `first`, `reduce`, `force!` | Only these trigger evaluation. Building the pipeline is always lazy |
 | System constants | Uppercase symbols | `SAMPLE_SIZE`, `MAX_COLLECT_ROWS`, `DESCRIBE_SAMPLE_SIZE`, `PRINT_WIDTH`. Set via `dtw/set!`, get via `dtw/get` |
 | IDE step inspection | nREPL op `inspect-pipeline-step` | Returns cached sample for a step by index. No re-evaluation needed |
 | Plugin directory | `plugins/` in repo | `plugins/lsp/`, `plugins/tree-sitter-datatwist/`, `plugins/datatwist-emacs/`, `plugins/datatwist-nrepl/`, `plugins/datatwist-vscode/` |
-| Demo runner | `.dt` files in `resources/examples/` | `// @section Title` and `// @expect value` annotations. Expression-by-expression eval with shared env |
+| Demo runner | `.dt` files in `resources/examples/` | `; @section Title` and `; @expect value` annotations. Expression-by-expression eval with shared env |
 
 ## Feature Areas
 
 ### 1. Literals, Types & Operators
 
 ```
-42              // integer (Long)
-3.14            // float (Double)
--10             // negative
-"hello world"   // string
-true false      // boolean
-nil             // nil/null
+42              ; integer (Long)
+3.14            ; float (Double)
+-10             ; negative
+"hello world"   ; string
+true false      ; boolean
+nil             ; nil/null
 ```
 
 **Arithmetic:** `+`, `-`, `*`, `/`, `%`
@@ -87,29 +87,29 @@ empty is []
 
 **Field access (dot notation, nil-tolerant):**
 ```
-user.name                     // "Alice"
-user.profile.address.city     // "Moscow"
-user.nonexistent              // nil
-user.nonexistent.deep.chain   // nil (not error)
+user.name                     ; "Alice"
+user.profile.address.city     ; "Moscow"
+user.nonexistent              ; nil
+user.nonexistent.deep.chain   ; nil (not error)
 ```
 
 **Dynamic access:** `get user key-name`
 
 **Object field operations (in pipeline `map`):**
 ```
-// Add/update fields (keeps existing)
+; Add/update fields (keeps existing)
 users |> map {+score: _.points * 2}
-users |> map {+tax: _.price * 0.1  +total: _.price + tax}  // forward-referencing
+users |> map {+tax: _.price * 0.1  +total: _.price + tax}  ; forward-referencing
 
-// Remove fields
+; Remove fields
 users |> map {-internal-id  -tmp}
 
-// Shorthand (in pipeline context)
+; Shorthand (in pipeline context)
 users |> map {name, age, city: _.address.city}
-// equivalent to: {name: _.name  age: _.age  city: _.address.city}
+; equivalent to: {name: _.name  age: _.age  city: _.address.city}
 
-// Plain object = new structure (no + prefix)
-users |> map {name: _.name  age: _.age}  // only these fields
+; Plain object = new structure (no + prefix)
+users |> map {name: _.name  age: _.age}  ; only these fields
 ```
 
 Under the hood: `+` compiles to `assoc`, `-` compiles to `dissoc`. No commas. Space/newline separated. Objects = Clojure maps with keyword keys, lists = Clojure vectors.
@@ -143,17 +143,17 @@ The core abstraction. Not syntax sugar -- a first-class runtime object.
 **Pipe-first semantics:** `data |> f args` = `f(data, args)`
 
 ```
-// Multi-line
+; Multi-line
 users
 |> filter _.age > 18
 |> map {name: _.name age: _.age}
 |> sort-by _.age
 |> take 10
 
-// Inline
+; Inline
 users |> filter _.active |> count
 
-// Nested
+; Nested
 users
 |> map {
   name: _.name
@@ -163,9 +163,9 @@ users
 
 **`_` as current element:**
 ```
-users |> filter _.age > 18      // _.age = field access
-users |> filter _ != nil         // _ = whole element
-numbers |> filter [n -> n > 5]   // explicit function (same thing)
+users |> filter _.age > 18      ; _.age = field access
+users |> filter _ != nil         ; _ = whole element
+numbers |> filter [n -> n > 5]   ; explicit function (same thing)
 ```
 
 Each `|>` creates a new scope for `_`. Inner pipes shadow outer `_`.
@@ -173,27 +173,27 @@ Each `|>` creates a new scope for `_`. Inner pipes shadow outer `_`.
 ### 5. Binding & Destructuring (`is`)
 
 ```
-// Simple
+; Simple
 x is 42
 result is users |> filter _.active |> count
 
-// Object destructuring
+; Object destructuring
 {name age} is user
-{name: n  age: a} is user            // rename
-{name ? "anon"  age ? 0} is user     // defaults (missing key only)
-{address: {city country}} is user     // nested
-{name age} as u is user               // whole binding
+{name: n  age: a} is user            ; rename
+{name ? "anon"  age ? 0} is user     ; defaults (missing key only)
+{address: {city country}} is user     ; nested
+{name age} as u is user               ; whole binding
 
-// List destructuring
+; List destructuring
 [a b c] is [1 2 3]
-[first & rest] is [1 2 3 4 5]        // & for rest
-[_ _ third] is [1 2 3]                // skip with _
-[head & tail] as all is items          // & + as
+[first & rest] is [1 2 3 4 5]        ; & for rest
+[_ _ third] is [1 2 3]                ; skip with _
+[head & tail] as all is items          ; & + as
 
-// Combined
+; Combined
 {name  scores: [best & rest]} is player
 
-// In function params
+; In function params
 add-ages is [{age: a1} {age: a2} -> a1 + a2]
 ```
 
@@ -250,9 +250,9 @@ str/upper-case "hello"
 
 **Java interop:**
 ```
-.method object          // instance method
-Class/staticMethod args // static method
-ClassName. args         // constructor
+.method object          ; instance method
+Class/staticMethod args ; static method
+ClassName. args         ; constructor
 ```
 
 **Keywords:** `:keyword` syntax supported for interop. Object keys are keywords under the hood.
@@ -263,7 +263,7 @@ data is try
   read-csv "data.csv"
 catch err -> []
 
-// Typed catch
+; Typed catch
 try
   risky-operation
 catch java.io.FileNotFoundException e -> "not found"
@@ -286,28 +286,46 @@ bucket is connect "s3://my-bucket/"
 
 **Lazy pipelines:**
 ```
-// Instant -- only builds execution plan
+; Instant -- only builds execution plan
 active is users |> filter _.active |> sort-by _.score
 
-// REPL auto-shows sample (~100 rows)
-// => lazy<active> ~7,500 rows
-// => | name  | score |
-// => | Alice | 95    |
-// => | ...   |       |
+; REPL auto-shows sample (~100 rows)
+; => lazy<active> ~7,500 rows
+; => | name  | score |
+; => | Alice | 95    |
+; => | ...   |       |
 ```
 
 **`tap!` — the only pipeline debug probe (three modes):**
 ```
 users
 |> filter _.active
-|> tap!                                          // print sample of current data
+|> tap!                                          ; print sample of current data
 |> map {name: _.name}
-|> tap! "after map"                              // print with label
+|> tap! "after map"                              ; print with label
 |> sort-by _.name
-|> tap! [d -> format "found %s items" (count d)] // lambda for custom formatting
+|> tap! [d -> format "found %s items" (count d)] ; lambda for custom formatting
 ```
 
 `tap!` is passthrough (returns input unchanged). `inspect`, `log!`, `print`/`println` are NOT pipeline debug tools.
+
+Output format: first line is the function label `[fn]`, second line is the sample data.
+
+**`autotap!` — wrap every pipeline step automatically:**
+
+Place `autotap!` first in the pipeline. It wraps every subsequent step with `tap!` output. Each step prints:
+1. Function label on first line: `[fn]`
+2. Sample data on second line
+
+```
+users
+|> autotap!
+|> filter _.active
+|> map {name: _.name}
+|> sort-by _.name
+```
+
+The above is equivalent to inserting a `tap!` before each step. `autotap!` is a pipeline-level debug tool — place it once at the start to instrument all steps.
 
 **Auto-materialization at user-facing boundaries:**
 
@@ -322,16 +340,15 @@ The user never sees `LazySeq@...`.
 
 **Materialization (terminal operations — trigger evaluation):**
 ```
-data |> force!              // materialize lazy pipeline, return data
-data |> collect             // all into memory (vector)
-data |> count               // exact count
-data |> first               // first element
-data |> reduce f init       // fold
-data |> save! "out.json"    // write to file (side-effect, returns data)
-data |> into! db "results"  // write to DB (side-effect, returns data)
+data |> force!              ; materialize lazy pipeline, return data
+data |> count               ; exact count (terminal — triggers evaluation)
+data |> first               ; first element
+data |> reduce f init       ; fold
+data |> save! "out.json"    ; write to file (side-effect, returns data)
+data |> into! db "results"  ; write to DB (side-effect, returns data)
 ```
 
-Note: `save!` and `into!` have `!` because they are side-effects (passthrough -- return data). `collect`, `count`, `first`, `reduce` are regular functions (return results, no `!`).
+Note: `save!` and `into!` have `!` because they are side-effects (passthrough -- return data). `count`, `first`, `reduce` are regular functions (return results, no `!`). `count` triggers full evaluation — it is a terminal operation.
 
 **Reified pipeline (`DTPipeline` record):**
 
@@ -347,26 +364,26 @@ Each step auto-caches its sample after execution (~150KB for 11 steps with 100-r
 
 **System constants (mutable configuration):**
 ```
-dtw/set! SAMPLE_SIZE 200          // set how many rows to sample
-dtw/get  SAMPLE_SIZE              // get current value
+dtw/set! SAMPLE_SIZE 200          ; set how many rows to sample
+dtw/get  SAMPLE_SIZE              ; get current value
 ```
 
 Constants: `SAMPLE_SIZE` (default 100), `MAX_COLLECT_ROWS`, `DESCRIBE_SAMPLE_SIZE`, `PRINT_WIDTH`. Uppercase symbols, no string keys.
 
 **Explore/describe:**
 ```
-data |> describe            // field statistics
-data |> sample 20           // 20 random rows
-data |> histogram _.age     // ASCII histogram
-data |> freq _.status       // frequency table
-data |> explain             // show execution plan
+data |> describe            ; field statistics
+data |> sample 20           ; 20 random rows
+data |> histogram _.age     ; ASCII histogram
+data |> freq _.status       ; frequency table
+data |> explain             ; show execution plan
 ```
 
 **Performance model:**
 - REPL: micro-sampling (~100-1000 elements) for instant preview
 - DB sources: push-down (filter/sort -> WHERE/ORDER BY in SQL)
 - File sources: streaming (never load entire file into memory)
-- `force!` materializes the full pipeline; `collect` returns as vector
+- `force!` materializes the full pipeline
 
 ### 9. Error Reporting
 
@@ -411,7 +428,7 @@ No Java/Clojure stack traces -- all errors mapped to DataTwist source positions.
 
 Compilation target:
 ```clojure
-// users |> filter _.active |> map _.name |> sort-by _
+; users |> filter _.active |> map _.name |> sort-by _
 (dtw/pipeline
   {:source users :loc {:line 1 :col 1}}
   [(dtw/step filter-fn {:loc {:line 2} :label "filter _.active"})
@@ -430,10 +447,10 @@ Properties:
 
 **IDE Inspection (primary UX):**
 ```
-users                          // inspect: raw users (10,000 rows)
-|> filter _.status = "active"  // inspect: 7,500 rows
-|> map {name: _.name}          // inspect: 7,500 rows, 1 column
-|> sort-by _.name              // inspect: sorted, 7,500 rows
+users                          ; inspect: raw users (10,000 rows)
+|> filter _.status = "active"  ; inspect: 7,500 rows
+|> map {name: _.name}          ; inspect: 7,500 rows, 1 column
+|> sort-by _.name              ; inspect: sorted, 7,500 rows
 ```
 
 **nREPL op `inspect-pipeline-step`:**
@@ -481,30 +498,44 @@ Truthiness: only `nil` and `false` are falsy. `0`, `""`, `[]`, `{}` are truthy (
 A DataTwist program is a sequence of top-level forms:
 
 ```
-// Imports
+; Imports
 require clojure.string as str
 
-// Bindings
+; Bindings
 db is connect "postgres://localhost/mydb"
 users is db |> table "users"
 
-// Processing (bindings with pipelines)
+; Processing (bindings with pipelines)
 active is users |> filter _.active |> sort-by _.score
 
-// Side effects
+; Side effects
 active |> save! "active-users.json"
 
-// Last expression = program result
+; Last expression = program result
 active |> count
 ```
 
 **Top-level forms:** `require`, `name is expr`, bare expressions.
+
+**Comments:**
+```
+; single-line comment — rest of line ignored
+
+(comment
+  this entire block is parsed but not evaluated
+  x is 42
+  users |> filter _.active
+)
+```
+
+Single-line `;` comments are stripped at parse time. The `(comment ...)` block form is parsed as a node in the AST but produces no value — useful for disabled code blocks and documentation.
+
 **Function bodies:** sequential `is` bindings + final expression (implicit `let`):
 ```
 process is [data ->
   filtered is data |> filter _.active
   total is filtered |> count
-  {items: filtered  total: total}  // return value
+  {items: filtered  total: total}  ; return value
 ]
 ```
 
@@ -558,17 +589,17 @@ Demo files: `.dt` files in `resources/examples/`. The runner evaluates them expr
 
 **Annotation syntax:**
 ```
-// @section Loading Data
+; @section Loading Data
 data is read-csv "sales.csv"
 
-// @section Filtering
-// @expect 42
+; @section Filtering
+; @expect 42
 active is data |> filter _.active |> count
 active
 ```
 
-- `// @section Title` — marks a section boundary (for structured output)
-- `// @expect value` — asserts the next expression evaluates to `value`
+- `; @section Title` — marks a section boundary (for structured output)
+- `; @expect value` — asserts the next expression evaluates to `value`
 - Expressions share a single environment (bindings persist across sections)
 
 ## BDD Feature Files
