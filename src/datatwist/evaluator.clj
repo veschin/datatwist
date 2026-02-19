@@ -35,13 +35,72 @@
   (apply f args))
 
 ;; ---------------------------------------------------------------------------
+;; Levenshtein distance for did-you-mean suggestions
+;; ---------------------------------------------------------------------------
+
+(defn- levenshtein
+  "Compute the Levenshtein edit distance between strings a and b."
+  [a b]
+  (let [la (count a)
+        lb (count b)]
+    (cond
+      (zero? la) lb
+      (zero? lb) la
+      :else
+      (let [row (int-array (range (inc lb)))]
+        (doseq [i (range la)]
+          (let [prev-diag (aget row 0)]
+            (aset row 0 (inc i))
+            (loop [j 0 prev prev-diag]
+              (when (< j lb)
+                (let [cost     (if (= (.charAt a i) (.charAt b j)) 0 1)
+                      new-val  (min (inc (aget row (inc j)))
+                                    (inc (aget row j))
+                                    (+ prev cost))]
+                  (let [old (aget row (inc j))]
+                    (aset row (inc j) new-val)
+                    (recur (inc j) old)))))))
+        (aget row lb)))))
+
+(defn- levenshtein-suggest
+  "Given an unknown name, find the closest name in the environment.
+   Returns nil if no close match (threshold: max(2, floor(len/3)))."
+  [name env-names]
+  (let [threshold (max 2 (quot (count name) 3))
+        ;; Only consider user-visible names (exclude internal __aliases__ etc.)
+        candidates (filter #(not (clojure.string/starts-with? % "__")) env-names)
+        best       (when (seq candidates)
+                     (apply min-key #(levenshtein name %) candidates))]
+    (when (and best (<= (levenshtein name best) threshold))
+      best)))
+
+;; ---------------------------------------------------------------------------
+;; Human-readable type names for error messages
+;; ---------------------------------------------------------------------------
+
+(defn- dt-type-name
+  "Return a human-readable DataTwist type name for a value."
+  [v]
+  (cond
+    (nil? v)     "nil"
+    (string? v)  "string"
+    (integer? v) "integer"
+    (float? v)   "float"
+    (number? v)  "number"
+    (boolean? v) "boolean"
+    (map? v)     "object"
+    (vector? v)  "list"
+    (fn? v)      "function"
+    :else        (.getSimpleName (class v))))
+
+;; ---------------------------------------------------------------------------
 ;; Transparent wrappers
 ;; ---------------------------------------------------------------------------
 
 (def ^:private transparent-tags
   #{:Expr :CodeExpr :PipeExpr :PipeAtom :OrExpr :AndExpr :NotExpr :NilCoalesce
     :CompExpr :InExpr :AddExpr :MulExpr :UnaryExpr :FnCallExpr
-    :FieldAccess :Atom})
+    :FieldAccess :NegFieldAccess :Atom})
 
 ;; ---------------------------------------------------------------------------
 ;; Wildcard detection
@@ -174,11 +233,24 @@
         (= :Keyword tag)
         (keyword (subs (first children) 1))
 
+        (= :Regex tag)
+        (re-pattern (first children))
+
         (= :Wildcard tag)
         (env/lookup env "_")
 
         (= :Identifier tag)
-        (env/lookup env (first children))
+        (let [id-name (first children)
+              val     (env/lookup env id-name)]
+          (if (and (nil? val) (not (contains? env id-name)))
+            (let [env-names   (keys env)
+                  suggestion  (levenshtein-suggest id-name env-names)]
+              (throw (ex-info (str "Undefined identifier: " id-name
+                                   (when suggestion (str ". Did you mean '" suggestion "'?")))
+                              {:code "DT-R001"
+                               :name id-name
+                               :suggestion suggestion})))
+            val))
 
         (= :ParenExpr tag)
         (eval-node (first children) env)
@@ -323,7 +395,11 @@
                         (or (nil? l) (nil? r)) nil
                         (both-numbers? l r)    (cmp-fn l r)
                         (both-strings? l r)    (cmp-fn (compare l r) 0)
-                        :else (throw (ex-info "Cannot compare" {:left l :right r}))))]
+                        :else (throw (ex-info (str "Cannot compare " (dt-type-name l) " with " (dt-type-name r))
+                                              {:code "DT-T002"
+                                               :hint (str "Comparison operators require compatible types. "
+                                                          "Got " (dt-type-name l) " and " (dt-type-name r) ".")
+                                               :left l :right r}))))]
               (case op
                 "="  (numeric-equal left right)
                 "!=" (not (numeric-equal left right))
@@ -348,13 +424,21 @@
                                 (nil? right) left
                                 (and (string? left) (string? right)) (str left right)
                                 (and (number? left) (number? right)) (+' left right)
-                                :else (throw (ex-info "Cannot add" {:left left :right right})))
+                                :else (throw (ex-info (str "Cannot add " (dt-type-name left) " and " (dt-type-name right))
+                                                      {:code "DT-T001"
+                                                       :hint (str "The + operator works on two numbers or two strings. "
+                                                                  "Got " (dt-type-name left) " and " (dt-type-name right) ".")
+                                                       :left left :right right})))
                           "-" (cond
                                 (and (nil? left) (nil? right)) 0
                                 (nil? left)  (-' right)
                                 (nil? right) left
                                 (and (number? left) (number? right)) (-' left right)
-                                :else (throw (ex-info "Cannot subtract" {:left left :right right}))))))
+                                :else (throw (ex-info (str "Cannot subtract " (dt-type-name right) " from " (dt-type-name left))
+                                                      {:code "DT-T001"
+                                                       :hint (str "The - operator requires numbers. "
+                                                                  "Got " (dt-type-name left) " and " (dt-type-name right) ".")
+                                                       :left left :right right}))))))
                     init
                     pairs)))
 
@@ -374,10 +458,15 @@
                                 (let [other (if (nil? left) right left)]
                                   (if (float? other) 0.0 0))
                                 (and (number? left) (number? right)) (*' left right)
-                                :else (throw (ex-info "Cannot multiply" {:left left :right right})))
+                                :else (throw (ex-info (str "Cannot multiply " (dt-type-name left) " and " (dt-type-name right))
+                                                      {:code "DT-T001"
+                                                       :hint (str "The * operator requires numbers. "
+                                                                  "Got " (dt-type-name left) " and " (dt-type-name right) ".")
+                                                       :left left :right right})))
                           "/" (let [l-raw (if (nil? left) 0 left)
                                     r-raw (if (nil? right) 0 right)]
                                 ;; Integer zero divisor throws ArithmeticException
+                                ;; (literals-test requires this exact type)
                                 (if (and (integer? r-raw) (zero? r-raw))
                                   (throw (ArithmeticException. "Divide by zero"))
                                   ;; Division always returns Double
@@ -393,6 +482,14 @@
         (if (= 1 (count children))
           (eval-node (first children) env)
           ;; ["-" FnCallExpr]
+          (let [val (eval-node (second children) env)]
+            (if (nil? val) 0 (-' val))))
+
+        ;; --- NegFieldAccess: unary minus on FieldAccess (used in List/CallArg) ---
+        (= :NegFieldAccess tag)
+        (if (= 1 (count children))
+          (eval-node (first children) env)
+          ;; ["-" FieldAccess]
           (let [val (eval-node (second children) env)]
             (if (nil? val) 0 (-' val))))
 
@@ -601,6 +698,9 @@
 (defn- bind-destruct-obj
   "Bind object destructuring pattern to val. Returns updated env."
   [pattern-node val env]
+  (when (and (some? val) (not (map? val)) (not (sequential? val)))
+    (throw (ex-info (str "Object destructuring expects an object, got " (type val))
+                    {:value val})))
   (let [fields (rest pattern-node)]
     (reduce (fn [e field]
               (let [field-tag      (first field)
@@ -1077,12 +1177,20 @@
                         [(not (or (nil? lit) (false? lit))) env]))
 
                     ;; Boolean expression guard: evaluate the inner expression
+                    ;; Undefined identifiers in guard conditions are nil-tolerant
+                    ;; (they evaluate to nil/false, causing the arm to be skipped).
                     :else
-                    [(eval-node guard-inner env) env])
+                    (try
+                      [(eval-node guard-inner env) env]
+                      (catch clojure.lang.ExceptionInfo e
+                        (if (= "DT-R001" (:code (ex-data e)))
+                          [nil env]
+                          (throw e)))))
 
                   when-ok?
-                  (or (nil? when-node)
-                      (eval-node when-node match-env))]
+                  (when matches?
+                    (or (nil? when-node)
+                        (eval-node when-node match-env)))]
               (if (and matches? when-ok?)
                 (eval-node result-node match-env)
                 (recur (rest remaining))))))))))
@@ -1393,11 +1501,12 @@
     (clojure.string/blank? stripped)))
 
 (defn evaluate
-  "Parse and evaluate DataTwist source code. Returns the result."
+  "Parse and evaluate DataTwist source code. Returns the result.
+   Returns nil for parse failures instead of throwing, so callers can
+   use parse-error? to check syntax separately."
   [input]
   ;; A comment-only or whitespace-only program produces no form → nil.
   (when-not (comment-or-whitespace-only? input)
     (let [ast (parser/parse input)]
-      (when (insta/failure? ast)
-        (throw (ex-info "Parse error" {:input input :failure ast})))
-      (eval-node ast (stdlib/default-env)))))
+      (when-not (insta/failure? ast)
+        (eval-node ast (stdlib/default-env))))))
