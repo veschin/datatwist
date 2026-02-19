@@ -1,65 +1,174 @@
-(* DataTwist Grammar - Prototype *)
-(* Covers: literals, identifiers, operators, precedence *)
-(* Uses :auto-whitespace :standard *)
+(* =====================================================
+   DataTwist Grammar — Manual whitespace, no auto-whitespace
+   Start rule must be first!
+   ===================================================== *)
 
-Program = Expr+
+(* --- Program: one or more expressions --- *)
+Program = _ Expr (_ Expr)* _
 
-<Expr> = OrExpr
+(* --- Expression --- *)
+Expr = Require / TryCatch / Binding / PipeExpr
 
-(* Operator precedence via nesting: lowest to highest *)
+(* --- Require --- *)
+Require = <KW-REQUIRE> __ DotName __ <KW-AS> __ Identifier
 
-OrExpr = AndExpr (<'or'> AndExpr)+
-       | AndExpr
+(* --- Try-Catch --- *)
+TryCatch = <KW-TRY> _ Expr (_ CatchClause)+ (_ FinallyClause)?
+CatchClause = <KW-CATCH> __ CatchTarget _ <'->'> _ Expr
+CatchTarget = DotName __ Identifier / Identifier / Wildcard
+FinallyClause = <KW-FINALLY> _ Expr
 
-AndExpr = NilCoalesce (<'and'> NilCoalesce)+
-        | NilCoalesce
+(* --- Binding: name is value --- *)
+Binding = Identifier _ <KW-IS> _ MultiArityFn
+        / Identifier _ <KW-IS> _ TryCatch
+        / Identifier _ <KW-IS> _ PipeExpr
+        / DestructPattern _ <KW-IS> _ PipeExpr
+MultiArityFn = FnDef (_ FnDef)+
 
-NilCoalesce = NotExpr (<'??'> NotExpr)+
-            | NotExpr
+(* --- Pipeline --- *)
+PipeExpr = Pipeline / SourcelessPipeline / Compose / GuardBlock / OrExpr
+Pipeline = PipeAtom (_ <'|>'> _ PipeAtom)+
+SourcelessPipeline = <'|>'> _ PipeAtom (_ <'|>'> _ PipeAtom)*
+PipeAtom = GuardBlock / OrExpr
 
-NotExpr = <'not'> CompExpr
-        | CompExpr
+(* --- Composition --- *)
+Compose = OrExpr (_ ComposeOp _ OrExpr)+
+ComposeOp = '>>' / '<<'
 
-CompExpr = InExpr CompOp InExpr
-         | InExpr
+(* --- Guards / Pattern Matching --- *)
+GuardBlock = GuardArm (_ GuardArm)+
+GuardArm = <'|'> _ GuardPattern (_ <KW-WHEN> _ OrExpr)? _ <'->'> _ OrExpr
+GuardPattern = DestructListPattern / DestructObjPattern / OrExpr
 
-InExpr = AddExpr <'in'> AddExpr
-       | AddExpr
+(* --- Logical OR --- *)
+OrExpr = AndExpr (_ <KW-OR> _ AndExpr)*
 
-AddExpr = MulExpr (AddOp MulExpr)+
-        | MulExpr
+(* --- Logical AND --- *)
+AndExpr = NotExpr (_ <KW-AND> _ NotExpr)*
 
-MulExpr = UnaryExpr (MulOp UnaryExpr)+
-        | UnaryExpr
+(* --- Logical NOT — 'not' kept visible in AST --- *)
+NotExpr = KW-NOT __ NotExpr / NilCoalesce
 
-UnaryExpr = <'-'> Atom
-          | Atom
+(* --- Nil coalescing ?? --- *)
+NilCoalesce = CompExpr (_ <'??'> _ CompExpr)*
 
-<Atom> = Float
-       | Integer
-       | String
-       | Boolean
-       | Nil
-       | Identifier
-       | Wildcard
-       | <'('> Expr <')'>
+(* --- Comparison: non-associative (0 or 1 operator) --- *)
+CompExpr = InExpr (_ CompOp _ InExpr)?
+CompOp = '>=' / '<=' / '!=' / '>' / '<' / '='
 
-(* Operator tokens - kept visible for AST *)
-AddOp = '+' | '-'
-MulOp = '*' | '/' | '%'
-CompOp = '>=' | '<=' | '!=' | '=' | '>' | '<'
+(* --- In operator --- *)
+InExpr = AddExpr (__ <KW-IN> __ AddExpr)?
 
-(* Literals *)
-Float = #'[0-9]+\.[0-9]+'
+(* --- Addition / Subtraction: REQUIRED whitespace around +/- --- *)
+AddExpr = MulExpr (__ AddOp __ MulExpr)*
+AddOp = '+' / '-'
+
+(* --- Multiplication / Division / Modulo --- *)
+MulExpr = UnaryExpr (_ MulOp _ UnaryExpr)*
+MulOp = '*' / '/' / '%'
+
+(* --- Unary minus: NO space between - and operand --- *)
+UnaryExpr = #'-(?=\S)' FnCallExpr / FnCallExpr
+
+(* --- Function call: juxtaposition or parens --- *)
+FnCallExpr = FnCall / Recur / FieldAccess
+FnCall = CallTarget <'('> _ <')'> / CallTarget __ CallArg (__ CallArg)*
+Recur = <KW-RECUR> __ CallArg (__ CallArg)*
+CallTarget = FieldAccess
+CallArg = FieldAccess
+
+(* --- Field access: dot notation, NO spaces around dot --- *)
+FieldAccess = Atom (<'.'> FieldName)*
+FieldName = #'[a-zA-Z][a-zA-Z0-9_\-]*[?!]?'
+
+(* --- Atom --- *)
+Atom = Float / Integer / String / Boolean / Nil / Keyword
+     / Object / FnDef / List
+     / InstanceMethod / Constructor / QualifiedName
+     / Wildcard / Identifier / ParenExpr
+
+(* --- Parenthesized expression --- *)
+ParenExpr = <'('> _ Expr _ <')'>
+
+(* --- Object: keep '{' visible so the Object node never collapses in simplify --- *)
+Object = '{' _ <'}'>
+       / '{' _ ObjectContent _ <'}'>
+ObjectContent = ShorthandContent / StandardContent
+ShorthandContent = Identifier (<','> _ ShorthandEntry)+
+ShorthandEntry = Identifier <':'> _ PipeExpr / Identifier
+StandardContent = StandardEntry (_ StandardEntry)*
+StandardEntry = AddField / RemoveField / Identifier <':'> _ PipeExpr
+AddField = <'+'> Identifier <':'> _ PipeExpr
+RemoveField = <'-'> Identifier
+
+(* --- Function definition: [params -> body] --- *)
+(* Non-zero-param FnDef has FnParams+FnBody = 2 children; never collapses.
+   Zero-param FnDef keeps '->' visible so it always has 2 children. *)
+FnDef = <'['> _ FnParams <'->'> _ FnBody _ <']'>
+      / <'['> _ '->' _ FnBody _ <']'>
+FnParams = FnParam (_ FnParam)* _
+FnParam = DestructObjPattern / DestructListPattern / RestParam / Wildcard / Identifier
+RestParam = <'&'> _ Identifier
+FnBody = Expr (_ Expr)*
+
+(* --- List: elements are FieldAccess (not full PipeExpr) to prevent
+   juxtaposition function call ambiguity inside brackets.
+   Keep '[' visible so even single-element lists don't collapse. --- *)
+List = '[' _ <']'>
+     / '[' _ FieldAccess (_ FieldAccess)* _ <']'>
+
+(* --- Destructuring patterns --- *)
+DestructPattern = DestructObjPattern (_ <KW-AS> _ Identifier)?
+                / DestructListPattern (_ <KW-AS> _ Identifier)?
+
+DestructObjPattern = <'{'> _ DestructObjField (_ DestructObjField)* _ <'}'>
+DestructObjField = Identifier <':'> _ DestructSubPattern
+                 / Identifier _ <'?'> _ OrExpr
+                 / Identifier
+DestructSubPattern = DestructObjPattern / DestructListPattern / Identifier
+
+DestructListPattern = <'['> _ DestructListElems _ <']'>
+DestructListElems = DestructListElem (_ DestructListElem)* (_ RestBinding)?
+                  / RestBinding
+DestructListElem = DestructObjPattern / Wildcard / Identifier
+RestBinding = <'&'> _ (Identifier / Wildcard)
+
+(* --- Literals --- *)
+Float   = #'[0-9]+\.[0-9]+'
 Integer = #'[0-9]+'
-String = <'"'> #'[^"\\]*(?:\\.[^"\\]*)*' <'"'>
-Boolean = 'true' | 'false'
-Nil = 'nil'
+String  = <'"'> #'(?:[^"\\]|\\.)*' <'"'>
+Boolean = #'(true|false)(?![a-zA-Z0-9_?!\-])'
+Nil     = #'nil(?![a-zA-Z0-9_?!\-])'
+Keyword = #':[a-zA-Z][a-zA-Z0-9_\-]*'
 
-(* Identifiers and wildcard *)
-Identifier = !ReservedWord #'[a-zA-Z][a-zA-Z0-9_-]*[?!]?'
+(* --- Interop --- *)
+InstanceMethod = #'\.[a-zA-Z][a-zA-Z0-9_\-]*'
+Constructor = #'[A-Z][a-zA-Z0-9]*\.'
+QualifiedName = #'[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)*\/[a-zA-Z][a-zA-Z0-9_\-]*'
+
+(* --- Dotted name: module names and Java class names (no slash required) --- *)
+DotName = #'[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)*'
+
+(* --- Wildcard _ --- *)
 Wildcard = '_'
-ReservedWord = ('true' | 'false' | 'nil' | 'and' | 'or' | 'not' | 'is' | 'in') !#'[a-zA-Z0-9_-]'
 
-(* Comments - consumed but not in AST *)
-Comment = <'//'> <#'[^\r\n]*'>
+(* --- Identifier --- *)
+Identifier = #'(?!(?:true|false|nil|is|and|or|not|in|when|as|try|catch|finally|recur|require)(?![a-zA-Z0-9_?!\-]))[a-zA-Z][a-zA-Z0-9_\-]*[?!]?'
+
+(* --- Keywords with word boundaries (hidden except NOT) --- *)
+<KW-IS>      = #'is(?![a-zA-Z0-9_?!\-])'
+<KW-AND>     = #'and(?![a-zA-Z0-9_?!\-])'
+<KW-OR>      = #'or(?![a-zA-Z0-9_?!\-])'
+<KW-NOT>      = #'not(?![a-zA-Z0-9_?!\-])'
+<KW-IN>      = #'in(?![a-zA-Z0-9_?!\-])'
+<KW-WHEN>    = #'when(?![a-zA-Z0-9_?!\-])'
+<KW-AS>      = #'as(?![a-zA-Z0-9_?!\-])'
+<KW-TRY>     = #'try(?![a-zA-Z0-9_?!\-])'
+<KW-CATCH>   = #'catch(?![a-zA-Z0-9_?!\-])'
+<KW-FINALLY> = #'finally(?![a-zA-Z0-9_?!\-])'
+<KW-RECUR>   = #'recur(?![a-zA-Z0-9_?!\-])'
+<KW-REQUIRE> = #'require(?![a-zA-Z0-9_?!\-])'
+
+(* --- Whitespace: optional and required (hidden) --- *)
+<_>  = <#'(\s|//[^\n]*)*'>
+<__> = <#'(\s|//[^\n]*)+'>

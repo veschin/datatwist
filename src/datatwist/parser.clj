@@ -4,8 +4,7 @@
 
 (def parser
   (insta/parser
-   (io/resource "datatwist.grammar")
-   :auto-whitespace :standard))
+   (io/resource "datatwist.grammar")))
 
 (defn parse
   "Parse DataTwist source code. Returns parse tree or instaparse failure."
