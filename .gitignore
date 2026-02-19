@@ -1,0 +1,40 @@
+# Clojure
+*.class
+*.jar
+*.war
+*.ear
+target/
+lib/
+classes/
+*.clj~
+*.cljs~
+
+# Caching
+.cpcache/
+.lsp/.cache/
+
+# Linting
+.clj-kondo/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+test-results.log
+
+# Temporary files
+*.tmp
+*.bak
+.cache/
+
+# Dependencies
+node_modules/
