@@ -1,6 +1,6 @@
 # DataTwist Makefile
 
-.PHONY: test lint clean demo demo-glow help
+.PHONY: test lint clean demo demo-glow changelog help
 
 # Default target - run all tests
 test:
@@ -25,6 +25,9 @@ clean:
 	@echo "=== Cleaning cache ==="
 	rm -rf .cpcache/
 	rm -rf .lsp/.cache/
+
+changelog:  ## Generate changelog entry: make changelog TITLE="Feature Name" COMMITS="abc..def"
+	@./scripts/changelog-entry.sh "$(TITLE)" $(COMMITS)
 
 # Show help
 help:
