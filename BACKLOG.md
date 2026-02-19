@@ -250,15 +250,19 @@ Research doc: `docs/error-reporting-research.md`
 - **Two separate modules**: `env` for OS environment + DataTwist settings, `pass` for secrets.
 - **`env` module**: `env.HOME` accesses OS environment variables. `env.SAMPLE_SIZE` accesses DataTwist settings. Both live in the same `env` namespace; DataTwist settings take precedence over OS env when names collide.
 - **`pass` module**: `pass.myproject.db-host` maps to `pass show datatwist/myproject/db-host`. Flat structure — one value per key, returns a string. Integrates with the standard Unix `pass` (password-store).
+- **Leaf path returns string, directory path returns object**: Accessing a leaf key returns a single string value. Accessing a directory path (non-leaf) returns an object with all keys as fields. Enables standard destructuring.
 
 ```
 ; Environment and settings
 env.HOME              ; => "/home/user"
 env.SAMPLE_SIZE       ; => 10
 
-; Secrets via pass
+; Single value
 host is pass.myproject.db-host    ; => "db.prod.com"
-token is pass.myproject.api-token ; => "sk-abc123"
+
+; Directory as object — destructure
+{db-host, db-pass} is pass.myproject
+; pass.myproject => {db-host: "db.prod.com", db-pass: "secret123", api-token: "sk-abc..."}
 ```
 
 - [ ] `pass` module — resolve credentials via `pass show datatwist/<project>/<key>`, flat key/value, returns string
