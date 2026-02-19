@@ -6,6 +6,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 When spawning subagents via Task tool, almost always use Sonnet (`model: "sonnet"`). Reserve Opus for review or complex architectural decisions.
 
+### Agent orchestration patterns
+
+**Research/Design** — Opus agent, run in background. Reads codebase + PRD, writes a design doc to `docs/`. Examples: LSP architecture, pushdown optimization.
+
+**Code review** — Sonnet agents in parallel, one per feature area. Each reads PRD + BDD + evaluator, outputs structured report (implemented/deviations/missing/bugs). Do NOT modify files.
+
+**Implementation** — Sonnet agent with a concrete task list. Must use targeted test runs (`clj -M -e "(require ...)"`) not `make test`. Fix one issue → verify → next.
+
+**BDD + test writing** — Sonnet agents in parallel, one per BDD feature file. PRD is the ONLY source of truth, no invented features. One `deftest` per BDD scenario.
+
+**Key principles:**
+- Opus is the orchestrator: minimize own actions, conserve context window. Never read/edit files manually — delegate to agents. Sonnet agents implement (they are cheaper). Opus agents research (they are smarter). Opus orchestrator only dispatches, reviews results, commits.
+- Parallelize independent work (reviews, BDD features) — one agent per scope
+- Never let an agent run `make test` in a loop — use targeted namespace runs
+- Never read/edit files manually when an agent can do it
+- Stop stuck agents early, launch fresh with clearer instructions
+- After agents finish, Opus reviews results and commits
+
 ## Context Window Rules
 
 - NEVER read large files (>100 lines) in their entirety — they won't fit in context.
@@ -33,15 +51,11 @@ Dependencies are managed via `deps.edn` (Clojure CLI, no Leiningen). The sole ex
 
 ### Parser Pipeline
 
-`src/datatwist/parser.clj` — The single source file. Contains:
-- `parser` — Instaparse parser built from `resources/datatwist.grammar` (EBNF)
-- `parse` — Returns AST (parse tree) or instaparse failure
-- `eval-dt` — **Stub, not implemented** — throws `ex-info`. This is the next major task.
-- `parse-error?` — Returns true if input fails to parse
+- `src/datatwist/parser.clj` — Parser: Instaparse parser, `parse`, `parse-error?`
+- `src/datatwist/evaluator.clj` — Tree-walking evaluator: `eval-dt`, `eval-dt-last`
+- `resources/datatwist.grammar` — Instaparse EBNF grammar (~190 lines)
 
-**Current status:** Grammar is complete (all 68 parser tests pass, 423 assertions). The remaining 339 tests (569 assertions) all depend on `eval-dt` and currently produce 537 errors + 3 failures.
-
-The grammar file (`resources/datatwist.grammar`, 175 lines) defines the full language syntax using Instaparse's EBNF notation with **manual whitespace** (`_` = optional, `__` = required). No `:auto-whitespace` is used. Keywords are hidden via `<>` angle brackets (e.g., `<KW-IS>`) so they don't appear in the AST. Comments use `//`.
+The grammar uses **manual whitespace** (`_` = optional, `__` = required). No `:auto-whitespace`. Keywords are hidden via `<>` angle brackets. Comments use `//`.
 
 ### Test Structure
 
@@ -67,12 +81,11 @@ All other test files use helpers from `test/datatwist/test_helpers.clj`:
 
 ### BDD Specifications
 
-`bdd/` contains 9 Gherkin `.feature` files (numbered 1–9) that serve as the authoritative language specification. Features 7–9 (interop, lazy evaluation, error reporting) do not yet have corresponding test files.
+`bdd/` contains 9 Gherkin `.feature` files (numbered 1–9) that serve as the authoritative language specification.
 
 ## Current Status
 
-**Grammar:** complete — all parser tests pass.
-**Evaluator (`eval-dt`):** not implemented — stub in `parser.clj:14` throws `ex-info`. This causes 537 errors across all non-parser test files. Next task is implementing the evaluator.
+**506 tests, 1188 assertions, 0 failures, 0 errors.** Grammar and evaluator are complete. Features 1–7 fully implemented. Features 8–9 (lazy eval, error reporting) have BDD + test stubs but no evaluator support yet.
 
 ## Key Language Design Decisions
 
