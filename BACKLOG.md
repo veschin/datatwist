@@ -1,8 +1,12 @@
 # DataTwist Backlog
 
+Status legend: `🔬 research` `📝 bdd/tests` `🔍 audit` `🚧 in progress` `✅ done` `⏳ waiting` (blocked/needs user)
+
+---
+
 ## P0 — Critical Path
 
-### GraalVM Native Binary
+### GraalVM Native Binary `🔬 research`
 
 Build DataTwist as a standalone native binary via GraalVM `native-image`. Critical for distribution.
 
@@ -19,18 +23,19 @@ Build DataTwist as a standalone native binary via GraalVM `native-image`. Critic
 
 ## P1 — High Priority
 
-### Lazy Evaluation
+### Lazy Evaluation `🔬 research`
 
 BDD: `bdd/8-lazy-evaluation.feature`, Tests: `test/datatwist/lazy_eval_test.clj` (71 TDD stubs)
+Design doc: `docs/lazy-eval-design.md`
 
 - [ ] Lazy sequences for large collections
 - [ ] Streaming pipelines
 - [ ] Short-circuit evaluation in guards and boolean ops
 - [ ] `take`/`drop` on infinite sequences
 
-### Pushdown Optimization
+### Pushdown Optimization `⏳ waiting`
 
-Design doc: `docs/pushdown-design.md`
+Design doc: `docs/pushdown-design.md`. Blocked: gap analysis after lazy eval.
 
 - [ ] Translate pipeline AST to flat operation list
 - [ ] Classify ops: pushable vs local
@@ -42,7 +47,9 @@ Design doc: `docs/pushdown-design.md`
 - [ ] Aggregation pushdown: sum/count/avg → SQL aggregates
 - [ ] Join between pushed sources
 
-### Module System & Connectors
+### Module System & Connectors `⏳ waiting`
+
+Needs design decisions on module resolution strategy. Blocked: needs user.
 
 - [ ] Module resolution (file-based, classpath, registry)
 - [ ] Module caching, circular dependency detection
@@ -50,7 +57,7 @@ Design doc: `docs/pushdown-design.md`
 - [ ] Built-in connectors: postgres, sqlite, http, fs, csv
 - [ ] Connector + Pushdown integration
 
-### Demo Runner Rework
+### Demo Runner Rework `🔬 research`
 
 - [ ] Demo runner reads and parses `.dt` files from `resources/examples/`
 - [ ] Section markers in `.dt` files via comments (`// @section Pipelines`)
@@ -59,7 +66,19 @@ Design doc: `docs/pushdown-design.md`
 - [ ] Remove hardcoded demo data from `demo_runner.clj`
 - [ ] Remove `demo-glow` Makefile target
 
-### Async & Parallel Execution
+### nREPL & Editor Integration `🔬 research`
+
+Target: CIDER-like experience for DataTwist. Plugins live in `plugins/` (future separate repos).
+
+- [ ] nREPL server — middleware for DataTwist eval on top of Clojure nREPL
+- [ ] Eval sub-expression — parse sub-expr at cursor position, eval in current context
+- [ ] Inspector — drill-down into nested objects/lists (like CIDER inspector)
+- [ ] `datatwist-mode` for Emacs — CIDER-like package (nREPL connection, eval, inspect, overlay results)
+- [ ] Inline result display — result next to expression (CIDER overlays style)
+
+### Async & Parallel Execution `⏳ waiting`
+
+Needs design decisions (explicit vs implicit). Blocked: needs user.
 
 - [ ] Async call syntax: fire-and-forget or await-based
 - [ ] Parallel map/filter: automatic parallelization of collection operations
@@ -74,7 +93,9 @@ Design doc: `docs/pushdown-design.md`
 
 ## P2 — Medium Priority
 
-### REPL & Developer Experience
+### REPL & Developer Experience `⏳ waiting`
+
+Depends on nREPL & Editor Integration research.
 
 - [ ] Interactive REPL with readline support
 - [ ] REPL history and tab completion
@@ -82,19 +103,22 @@ Design doc: `docs/pushdown-design.md`
 - [ ] `--watch` mode: re-run script on file change
 - [ ] Error messages with source locations and suggestions
 
-### LSP / Editor Support
+### LSP / Editor Support `🔬 research`
 
-Design doc: `docs/lsp-tree-sitter-design.md`
+Design doc: `docs/lsp-tree-sitter-design.md`. Plugins live in `plugins/lsp/`.
 
 - [ ] Tree-sitter grammar (`grammar.js` from Instaparse EBNF)
 - [ ] LSP server (TypeScript + Tree-sitter WASM)
+- [ ] TextMate grammar — quick-win syntax highlighting for VS Code/Sublime/GitHub
 - [ ] Function signature hints with tab-stops
 - [ ] Hover documentation, context-aware autocomplete
 - [ ] Go-to-definition for `is`-bindings and `require`-aliases
+- [ ] Eldoc-style function signatures in Emacs
 
-### Error Reporting
+### Error Reporting `🔬 research`
 
 BDD: `bdd/9-error-reporting.feature`, Tests: `test/datatwist/error_reporting_test.clj` (42 TDD stubs)
+Research doc: `docs/error-reporting-research.md`
 
 - [ ] Error code system: `DT-PXXX` / `DT-TXXX` / `DT-RXXX`
 - [ ] Elm/Rust-style messages with source snippets and hints
@@ -103,13 +127,15 @@ BDD: `bdd/9-error-reporting.feature`, Tests: `test/datatwist/error_reporting_tes
 - [ ] JSON error output: `{:code "DT-T001" :message "..." :hint "..." :line N :col N}`
 - [ ] Error code registry (`docs/error-codes.md`): catalog of all codes with descriptions, examples, fix suggestions
 
-### Performance & Streaming
+### Performance & Streaming `⏳ waiting`
 
 - [ ] Benchmark suite
 - [ ] Memory profiling
 - [ ] Parallel `map`/`filter` via virtual threads
 
-### Credentials & Network Configuration
+### Credentials & Network Configuration `⏳ waiting`
+
+Needs design decisions. Blocked: needs user.
 
 - [ ] Credential store: encrypted local config (`.datatwist/credentials`) or native `pass` integration
 - [ ] Connection profiles: named configs (`work-db`, `prod-api`) with host, port, auth, proxy settings
@@ -133,3 +159,9 @@ BDD: `bdd/9-error-reporting.feature`, Tests: `test/datatwist/error_reporting_tes
 - [ ] Block comments: `(comment ...)` form — parsed but not evaluated
 - [ ] Line comments with `;;` (in addition to `//`)
 - [ ] Built-in formatter (`datatwist fmt`): opinionated auto-format (indentation, line width, pipeline alignment, guard alignment)
+
+### Editor Quick Wins
+
+- [ ] Debugger / step-through evaluation
+- [ ] Notebook mode — scratch buffer with persistent results (like Org-babel)
+- [ ] Data visualization in REPL — tables, charts for collection data

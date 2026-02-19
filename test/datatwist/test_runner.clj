@@ -8,7 +8,9 @@
             [datatwist.binding-test]
             [datatwist.pattern-matching-test]
             [datatwist.interop-test]
-            [datatwist.error-reporting-test]))
+            [datatwist.error-reporting-test]
+            [datatwist.lazy-eval-test]
+            [datatwist.demo-runner-test]))
 
 (defn -main [& _args]
   (let [result (run-tests
@@ -20,7 +22,9 @@
                 'datatwist.binding-test
                 'datatwist.pattern-matching-test
                 'datatwist.interop-test
-                'datatwist.error-reporting-test)]
+                'datatwist.error-reporting-test
+                'datatwist.lazy-eval-test
+                'datatwist.demo-runner-test)]
     (System/exit (if (and (zero? (:fail result))
                           (zero? (:error result)))
                    0

@@ -303,6 +303,13 @@ Feature: Error Reporting
     Then a warning is produced
     But the pipeline still returns results (nil warning does not halt execution)
 
+  Scenario: Data warning - nil warning pipeline returns a sequential result
+    Given the DataTwist source "[{city: \"Paris\"} {city: nil} {city: \"Berlin\"}] |> map _.city"
+    When it is evaluated
+    Then no error is thrown
+    And the result is a list
+    And the nil city entry in the result is nil (not an error)
+
   Scenario: Data warning - nil in sort-by key
     Given the DataTwist source "result is users |> sort-by _.age"
     When it is evaluated and some users have nil age
@@ -382,3 +389,58 @@ Feature: Error Reporting
     When it is evaluated and some users have nil address
     Then a warning is produced
     And execution continues and a result is returned
+
+  # ===========================================================================
+  # SECTION 10: Additional Runtime Error Coverage (Gap fill)
+  # Covers error codes DT-P001, DT-R002, DT-R003, DT-R004, DT-R005 from the
+  # impl plan taxonomy that had no BDD scenario.
+  # Source: docs/plans/2026-02-19-error-reporting-impl-plan.md section 3
+  # ===========================================================================
+
+  Scenario: Parse error - completely unrecognised token (generic fallback DT-P001)
+    Given the DataTwist source "@ 42"
+    When it is parsed
+    Then a parse error is produced
+    And the error code starts with "DT-P"
+    # This exercises the generic DT-P001 fallback path when no common-mistake
+    # pattern matches the input.
+
+  Scenario: Runtime error - pipeline step is not a function (DT-R002)
+    Given the DataTwist source "result is 42 |> 99"
+    When it is evaluated
+    Then a runtime error is produced
+    And the error code starts with "DT-R"
+    And the error message mentions that the pipeline step is not a function
+    And the error output does not contain Java or Clojure exception class names
+
+  Scenario: Runtime error - cannot call nil as a function (DT-R003)
+    Given the DataTwist source "result is nil 42"
+    When it is evaluated
+    Then a runtime error is produced
+    And the error code starts with "DT-R"
+    And the error message contains "nil" and indicates it cannot be called as a function
+    And the error output does not contain "NullPointerException"
+
+  Scenario: Runtime error - calling a non-function value (DT-R004)
+    Given the DataTwist source:
+      """
+      n is 5
+      result is n 10
+      """
+    When it is evaluated
+    Then a runtime error is produced
+    And the error code starts with "DT-R"
+    And the error message indicates that the value is not callable
+    And the error output does not contain Java or Clojure exception class names
+
+  Scenario: Runtime error - no matching arity (DT-R005)
+    Given the DataTwist source:
+      """
+      add is [x -> x + 1]
+      result is add 1 2
+      """
+    When it is evaluated
+    Then a runtime error is produced
+    And the error code starts with "DT-R"
+    And the error message mentions arity or the wrong number of arguments
+    And the error output does not contain Java or Clojure exception class names

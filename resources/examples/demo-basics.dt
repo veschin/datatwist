@@ -1,0 +1,137 @@
+// DataTwist Demo — Basics
+// Illustrates core language features with @section markers and @expect annotations.
+// Used by the demo runner (make demo) as the primary showcase file.
+
+// @section Literals & Operators
+
+// @expect 14
+2 + 3 * 4
+
+// @expect 42
+nil ?? 42
+
+// @expect "hello, world"
+"hello" + ", " + "world"
+
+// @expect true
+true and not false
+
+// @expect false
+true and false
+
+// @expect 0.5
+1.0 / 2.0
+
+// @section Data Structures
+
+// Setup: objects and lists
+alice is {name: "Alice" age: 25 department: "Engineering" active: true}
+bob is {name: "Bob" age: 17 department: "Intern" active: false}
+
+// @expect "Alice"
+alice.name
+
+// @expect 25
+alice.age
+
+// @expect nil
+alice.address.city
+
+scores is [95 82 67 91 55 78 88]
+
+// @expect 7
+scores |> count
+
+// @section Functions & Closures
+
+double is [x -> x * 2]
+
+// @expect 14
+double 7
+
+add is [x y -> x + y]
+
+// @expect 9
+add 4 5
+
+clamp is [lo hi x ->
+  | x < lo -> lo
+  | x > hi -> hi
+  | _ -> x
+]
+
+// @expect 10
+clamp 0 10 10
+
+// @expect 0
+clamp 0 10 -5
+
+// @expect 7
+clamp 0 10 7
+
+// @section Pipelines
+
+// @expect 3
+[1 2 3 4 5] |> filter _ > 2 |> count
+
+// @expect [2 4 6 8 10]
+[1 2 3 4 5] |> map _ * 2
+
+// @expect [1 2 3 4 5]
+[5 3 1 4 2] |> sort
+
+// @expect 15
+[1 2 3 4 5] |> reduce [acc x -> acc + x] 0
+
+users is [
+  {name: "Bob"   score: 70}
+  {name: "Alice" score: 90}
+  {name: "Carol" score: 80}
+]
+
+// @expect ["Alice" "Carol" "Bob"]
+users |> sort-by _.score |> reverse |> map _.name
+
+// @section Binding & Destructuring
+
+total is 3 + 4
+
+// @expect 7
+total
+
+{name age} is alice
+
+// @expect "Alice"
+name
+
+// @expect 25
+age
+
+[first-score second-score] is scores
+
+// @expect 95
+first-score
+
+// @expect 82
+second-score
+
+// @section Pattern Matching
+
+classify-score is [s ->
+  | s >= 90 -> "A"
+  | s >= 80 -> "B"
+  | s >= 70 -> "C"
+  | _ -> "F"
+]
+
+// @expect "A"
+classify-score 92
+
+// @expect "B"
+classify-score 85
+
+// @expect "C"
+classify-score 73
+
+// @expect "F"
+classify-score 55

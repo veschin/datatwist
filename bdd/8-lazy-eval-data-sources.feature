@@ -849,3 +849,58 @@ Feature: Lazy Evaluation, Data Sources & REPL Micro-sampling
     Then both a and b are successfully materialized
     And the file is re-read for each materialization (not cached from first traversal)
     And a and b contain independently filtered results
+
+  # ===========================================================================
+  # SECTION 12: INFINITE SEQUENCE GENERATORS AND CONFIGURATION
+  # ===========================================================================
+  #
+  # repeat, iterate, cycle produce infinite lazy sequences.
+  # dtw/set! and dtw/get configure the global runtime (sample sizes, etc.).
+  # All are source generators or configuration -- they are NOT pipeline steps.
+  # ===========================================================================
+
+  Scenario: repeat with count produces a bounded lazy sequence
+    Given the source code:
+      """
+      xs is repeat 5 "x"
+      result is xs |> collect
+      """
+    Then result is ["x" "x" "x" "x" "x"]
+    And result has exactly 5 elements
+
+  Scenario: repeat without count produces an infinite lazy sequence
+    Given the source code:
+      """
+      xs is repeat "hello"
+      result is xs |> take 3 |> collect
+      """
+    Then xs is a lazy (infinite) sequence
+    And result is ["hello" "hello" "hello"]
+
+  Scenario: iterate builds an infinite sequence by applying a function repeatedly
+    Given the source code:
+      """
+      powers is iterate [n -> n * 2] 1
+      result is powers |> take 5 |> collect
+      """
+    Then result is [1 2 4 8 16]
+    And powers is an infinite lazy sequence starting at 1 and doubling each step
+
+  Scenario: cycle produces an infinite repeating sequence from a collection
+    Given the source code:
+      """
+      xs is cycle [1 2 3]
+      result is xs |> take 7 |> collect
+      """
+    Then result is [1 2 3 1 2 3 1]
+    And xs is an infinite lazy sequence cycling through [1 2 3]
+
+  Scenario: dtw/set! and dtw/get configure global runtime settings
+    Given the source code:
+      """
+      dtw/set! "sample-size" 200
+      n is dtw/get "sample-size"
+      """
+    Then n is 200
+    And the sample-size setting is updated globally
+    And dtw/set! returns the value that was set

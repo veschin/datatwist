@@ -680,3 +680,49 @@ db |> table \"orders\"
              "b")]
       (is (= [{:x 2 :y 20} {:x 3 :y 30}] a))
       (is (= [{:x 2 :y 20} {:x 3 :y 30}] b)))))
+
+;; ---------------------------------------------------------------------------
+;; SECTION 12: INFINITE SEQUENCE GENERATORS AND CONFIGURATION
+;; ---------------------------------------------------------------------------
+;; repeat, iterate, cycle: source generators for infinite lazy sequences.
+;; dtw/set! and dtw/get: global runtime configuration.
+;; These functions are added to stdlib in Phase 1 (Step 1.5) and Phase 2
+;; (Step 2.2-2.3) but had no BDD scenarios or tests until now.
+
+(deftest repeat-with-count-produces-bounded-lazy-sequence
+  (testing "Scenario: repeat with count produces a bounded lazy sequence"
+    (let [result (eval-dt-last
+                  "xs is repeat 5 \"x\""
+                  "xs |> collect")]
+      (is (= ["x" "x" "x" "x" "x"] result))
+      (is (= 5 (count result))))))
+
+(deftest repeat-without-count-produces-infinite-lazy-sequence
+  (testing "Scenario: repeat without count produces an infinite lazy sequence"
+    (let [result (eval-dt-last
+                  "xs is repeat \"hello\""
+                  "xs |> take 3 |> collect")]
+      ;; Infinite repeat -- only take 3 to avoid blocking
+      (is (= ["hello" "hello" "hello"] result)))))
+
+(deftest iterate-builds-infinite-sequence-by-applying-function-repeatedly
+  (testing "Scenario: iterate builds an infinite sequence by applying a function repeatedly"
+    (let [result (eval-dt-last
+                  "powers is iterate [n -> n * 2] 1"
+                  "powers |> take 5 |> collect")]
+      (is (= [1 2 4 8 16] result)))))
+
+(deftest cycle-produces-infinite-repeating-sequence-from-collection
+  (testing "Scenario: cycle produces an infinite repeating sequence from a collection"
+    (let [result (eval-dt-last
+                  "xs is cycle [1 2 3]"
+                  "xs |> take 7 |> collect")]
+      (is (= [1 2 3 1 2 3 1] result)))))
+
+(deftest dtw-set-and-get-configure-global-runtime-settings
+  (testing "Scenario: dtw/set! and dtw/get configure global runtime settings"
+    ;; dtw/set! returns the value set; dtw/get retrieves it
+    (let [result (eval-dt-last
+                  "dtw/set! \"sample-size\" 200"
+                  "dtw/get \"sample-size\"")]
+      (is (= 200 result)))))
