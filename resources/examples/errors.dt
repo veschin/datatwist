@@ -1,0 +1,50 @@
+// DataTwist Error Demonstrations
+// Each expression below produces a runtime or parse error
+
+// ============================================================
+// 1. Undefined identifier
+// ============================================================
+// Accessing a name that was never bound
+nonexistent-variable
+
+// ============================================================
+// 2. Did-you-mean suggestion
+// ============================================================
+// A typo close enough to trigger a suggestion
+user is {name: "Alice"}
+users.name    // Undefined: 'users'. Did you mean 'user'?
+
+// ============================================================
+// 3. Type error: string + number
+// ============================================================
+// Arithmetic between incompatible types
+"hello" + 5   // Cannot add string and integer
+
+// ============================================================
+// 4. Map over non-collection
+// ============================================================
+// Applying map to a scalar value
+42 |> map _ * 2   // Cannot map over Long: expected a list or object
+
+// ============================================================
+// 5. Object destructuring of non-object
+// ============================================================
+// Trying to destructure a number as an object
+{name} is 42   // Object destructuring expects an object, got Long
+
+// ============================================================
+// 6. Division by zero (integer)
+// ============================================================
+5 / 0   // Divide by zero
+
+// ============================================================
+// 7. Calling a non-function
+// ============================================================
+x is 42
+x 5   // Not a function
+
+// ============================================================
+// 8. Parse error (invalid syntax)
+// ============================================================
+// Missing arrow in function literal
+[x  x * 2]   // Parse error: expected '->'
