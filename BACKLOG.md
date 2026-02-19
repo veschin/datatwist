@@ -1,9 +1,19 @@
 # DataTwist Backlog
 
-## Current
+## Current — Grammar Fixes
 
-- [ ] Fix remaining evaluator test failures (4 failures + 14 errors)
-- [ ] Grammar fixes: negative numbers in lists/args, chained comparisons, semicolons as separators
+Evaluator complete. Remaining 4 failures + 14 errors are all grammar/test issues:
+
+- [ ] Semicolons `;` as statement separators in function bodies (3 errors)
+- [ ] Negative number literals in lists and function args: `[-10 50]`, `nth items -1` (3 errors)
+- [ ] `_` as binding target: `_ is {active: false}` (2 errors)
+- [ ] Chained comparisons: `1 < 2 < 3` (1 error)
+- [ ] Underscore number separators: `1_000_000` (1 error)
+- [ ] Sourceless pipeline inside list context (1 error)
+- [ ] `clj/` qualified names with multiple slashes (1 error)
+- [ ] Regex literal `#","` not in grammar (1 error)
+- [ ] Pipeline operator precedence: `sum > 100` inside pipe step (1 error)
+- [ ] Test expectation mismatches: division Double vs Integer, typos (3 failures)
 
 ---
 
