@@ -315,35 +315,22 @@
                       (if (both-numbers? l r)
                         (== l r)
                         (= l r)))
-                    (coerce-nil-for-ordering [l r]
-                      ;; Nil coerces to 0 (numbers) or "" (strings) in ordering comparisons
+                    (ordering-compare [l r cmp-fn]
+                      ;; Three-valued logic: nil in ordering → nil (unknown)
+                      ;; Like SQL NULL: nil > 5 = nil, nil < 5 = nil
+                      ;; nil is falsy, so filter _.age > 18 drops nil ages
                       (cond
-                        ;; Both nil → compare as 0 vs 0
-                        (and (nil? l) (nil? r)) [0 0]
-                        ;; One nil, other is number → nil becomes 0
-                        (and (nil? l) (number? r)) [0 r]
-                        (and (number? l) (nil? r)) [l 0]
-                        ;; One nil, other is string → nil becomes ""
-                        (and (nil? l) (string? r)) ["" r]
-                        (and (string? l) (nil? r)) [l ""]
-                        ;; Both nil but no type hint → default to 0
-                        (nil? l) [0 (or r 0)]
-                        (nil? r) [(or l 0) 0]
-                        ;; Normal case
-                        :else [l r]))
-                    (do-compare [l r cmp-fn]
-                      (let [[cl cr] (coerce-nil-for-ordering l r)]
-                        (cond
-                          (both-numbers? cl cr) (cmp-fn cl cr)
-                          (both-strings? cl cr) (cmp-fn (compare cl cr) 0)
-                          :else (throw (ex-info "Cannot compare" {:left l :right r})))))]
+                        (or (nil? l) (nil? r)) nil
+                        (both-numbers? l r)    (cmp-fn l r)
+                        (both-strings? l r)    (cmp-fn (compare l r) 0)
+                        :else (throw (ex-info "Cannot compare" {:left l :right r}))))]
               (case op
                 "="  (numeric-equal left right)
                 "!=" (not (numeric-equal left right))
-                ">"  (do-compare left right >)
-                "<"  (do-compare left right <)
-                ">=" (do-compare left right >=)
-                "<=" (do-compare left right <=)))))
+                ">"  (ordering-compare left right >)
+                "<"  (ordering-compare left right <)
+                ">=" (ordering-compare left right >=)
+                "<=" (ordering-compare left right <=)))))
 
 ;; --- AddExpr ---
         (= :AddExpr tag)
