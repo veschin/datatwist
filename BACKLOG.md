@@ -371,7 +371,28 @@ Docstrings, inline documentation, and automatic type inference from runtime data
 - [ ] Optional type annotations for tooling
 - [x] Line comments with `;` (replacing `//`) — locked design decision
 - [x] Block comments: `(comment ...)` form — parsed but not evaluated — locked design decision
-- [ ] Built-in formatter (`datatwist fmt`): opinionated auto-format (indentation, line width, pipeline alignment, guard alignment)
+
+#### Source-Driven Development: Code as Living Document
+
+The language can modify its own source files — auto-formatting, function ranking, and auto-updating documentation. DataTwist owns its source.
+
+#### Design decisions (locked)
+
+- **Code as living document**: DataTwist owns its source files. `datatwist fmt` is not optional — the canonical format is enforced. Like `gofmt` but going further.
+- **Three levels of source modification**:
+  1. `datatwist fmt` — opinionated formatting: indentation, pipeline alignment, line width, function ordering. One style, no config.
+  2. `datatwist fmt --doc` — run samples through functions, infer types, write `@doc` annotations back into source code. Auto-generated docs from runtime observation.
+  3. IDE on-save — format + doc update automatically. File always in canonical form.
+- **`@doc` auto-generation**: evaluator runs sample data through each function, observes input/output types, writes signature as `@doc "Number -> Number"` annotation.
+
+#### Tasks
+
+- [x] Built-in formatter (`datatwist fmt`): opinionated auto-format — locked design decision
+- [ ] Formatter: indentation, line width, pipeline alignment, guard alignment
+- [ ] Formatter: function ordering/ranking (by dependency? alphabetical?)
+- [ ] `datatwist fmt --doc`: auto-generate `@doc` annotations from sample type inference
+- [ ] IDE integration: format + doc on save
+- [ ] Source file round-trip: parse → AST → format → write back without losing comments or structure
 
 ### Cache Management
 
