@@ -143,6 +143,31 @@ Target: CIDER-like experience for DataTwist. Plugins live in `plugins/` (future 
 - [ ] Backpressure and resource limits (thread pool, connection pool)
 - [ ] Integration with JVM virtual threads (Project Loom)
 
+### DataTwist Daemon `🔬 research`
+
+Persistent background server that IDE, CLI, and tools connect to. Eliminates JVM startup cost, holds project state, caches, samples.
+
+#### Design decisions (locked)
+
+- **Two-tier architecture**:
+  - **Global daemon** (cross-project): always running, instant REPL access from any project, handles eval requests, doc queries, formatting. One per user.
+  - **Project process**: spawned per-project, knows project context — loaded files, connection profiles, sample caches, autodoc type data. Managed by the global daemon.
+- **IDE connects to daemon**: no JVM startup per eval. nREPL/LSP talk to the daemon.
+- **`datatwist daemon start/stop/status`** CLI subcommands
+- **Hot reload**: daemon watches project files, reloads on change
+- **Autodoc via daemon**: `fmt --doc` queries the project process for runtime type info from cached samples
+
+#### Tasks
+
+- [ ] Daemon architecture: global daemon + per-project process model
+- [ ] `datatwist daemon start` / `stop` / `status` CLI subcommands
+- [ ] Socket/port management — daemon listens on Unix socket or TCP
+- [ ] Project process lifecycle: spawn on first access, idle timeout, restart
+- [ ] nREPL server integration — daemon hosts nREPL endpoint
+- [ ] File watcher — hot reload on source changes
+- [ ] Sample/cache persistence across daemon restarts
+- [ ] `fmt --doc` integration — query daemon for type inference data
+
 ---
 
 ## P2 — Medium Priority
@@ -384,6 +409,7 @@ The language can modify its own source files — auto-formatting, function ranki
   2. `datatwist fmt --doc` — run samples through functions, infer types, write `@doc` annotations back into source code. Auto-generated docs from runtime observation.
   3. IDE on-save — format + doc update automatically. File always in canonical form.
 - **`@doc` auto-generation**: evaluator runs sample data through each function, observes input/output types, writes signature as `@doc "Number -> Number"` annotation.
+- **Formatter rules are future work**: specific rules (line length limits, vector formatting, map indentation, pipeline alignment) will be designed later. The principle is locked: opinionated, one canonical style, zero configuration.
 
 #### Tasks
 
