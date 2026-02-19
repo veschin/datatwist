@@ -404,10 +404,10 @@ IDE plugin shows table inline on click/hover.
 | `nil = nil` | `true` | Identity |
 | `nil = 0` | `false` | nil is only equal to nil |
 | `nil != 5` | `true` | Not equal |
-| `nil > 5` | `false` | Nil coerces to 0 in numeric comparison |
-| `nil < 5` | `true` | Nil coerces to 0 in numeric comparison |
-| `nil >= 0` | `true` | Nil coerces to 0 |
-| `nil > "a"` | `false` | Nil coerces to "" in string comparison |
+| `nil > 5` | `nil` | Three-valued: unknown ordering → nil |
+| `nil < 5` | `nil` | Three-valued: unknown ordering → nil |
+| `nil >= 0` | `nil` | Three-valued: unknown ordering → nil |
+| `5 > nil` | `nil` | Three-valued: unknown ordering → nil |
 | `nil and x` | `nil` | Short-circuit (Clojure) |
 | `nil or x` | `x` | Short-circuit (Clojure) |
 | `value ?? default` | `default` if value is nil | Nil coalescing |
@@ -418,7 +418,11 @@ IDE plugin shows table inline on click/hover.
 | `nil / 5` | `0.0` | Nil coerces to 0, division always Double |
 | `nil \|> filter _` | `[]` | Nil source = empty collection |
 
-**Nil coercion rule:** nil acts as the identity/zero element of its context — `0` for numbers, `""` for strings, `false` for booleans. This applies to arithmetic AND comparisons. Nil is only equal to itself (`nil = nil`), but in ordering comparisons (`>`, `<`, `>=`, `<=`) it coerces to the zero element.
+**Nil semantics split:** Arithmetic and comparisons treat nil differently:
+- **Arithmetic**: nil coerces to identity element — `0` for numbers, `""` for strings. Useful for aggregation (`sum [1 nil 3]` = 4).
+- **Ordering comparisons** (`>`, `<`, `>=`, `<=`): three-valued logic (like SQL NULL). `nil > 5` = `nil` (unknown). Nil is falsy, so `filter _.age > 18` naturally drops nil ages without misinformation.
+- **Equality** (`=`, `!=`): nil equals only itself. `nil = 0` is `false`.
+- **Explicit coercion**: use `??` to choose a default: `_.age ?? 0 > 18`.
 
 Truthiness: only `nil` and `false` are falsy. `0`, `""`, `[]`, `{}` are truthy (Clojure semantics).
 

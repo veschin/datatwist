@@ -316,21 +316,21 @@
   (testing "Scenario: Value equals nil is false"
     (is (= false (eval-dt "5 = nil")))))
 
-(deftest nil-greater-than-value-is-false
-  (testing "Scenario: Nil greater-than a value is false"
-    (is (= false (eval-dt "nil > 5")))))
+(deftest nil-greater-than-value-is-nil
+  (testing "Scenario: Nil greater-than a value — three-valued, nil (unknown)"
+    (is (nil? (eval-dt "nil > 5")))))
 
-(deftest nil-less-than-value-is-true
-  (testing "Scenario: Nil less-than a value — nil coerces to 0"
-    (is (= true (eval-dt "nil < 5")))))
+(deftest nil-less-than-value-is-nil
+  (testing "Scenario: Nil less-than a value — three-valued, nil (unknown)"
+    (is (nil? (eval-dt "nil < 5")))))
 
-(deftest nil-greater-or-equal-zero-is-true
-  (testing "Scenario: Nil greater-or-equal zero — nil coerces to 0"
-    (is (= true (eval-dt "nil >= 0")))))
+(deftest nil-greater-or-equal-is-nil
+  (testing "Scenario: Nil greater-or-equal — three-valued, nil (unknown)"
+    (is (nil? (eval-dt "nil >= 0")))))
 
-(deftest nil-less-or-equal-zero-is-true
-  (testing "Scenario: Nil less-or-equal zero — nil coerces to 0"
-    (is (= true (eval-dt "nil <= 0")))))
+(deftest nil-less-or-equal-is-nil
+  (testing "Scenario: Nil less-or-equal — three-valued, nil (unknown)"
+    (is (nil? (eval-dt "nil <= 0")))))
 
 ;; --- 4D: Nil in logical operators ---
 
