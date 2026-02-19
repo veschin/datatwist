@@ -353,6 +353,34 @@ db is connect dtw.connections.prod-db dtw.proxy.prod-proxy
 - [ ] Keyring integration: macOS Keychain, Linux secret-service, Windows Credential Manager (lower priority than pass)
 - [ ] Design: config format (TOML, EDN, or DataTwist syntax?), encryption strategy (GPG vs OS keyring)
 
+### Configuration System `🔬 research`
+
+How DataTwist settings, project config, and runtime options are defined, stored, loaded, and overridden.
+
+#### Questions to resolve
+
+- Where does config live? `~/.datatwist/config.dt` (global), `.datatwist/config.dt` (project), or both with merge?
+- Config file format: DataTwist syntax (`.dt`), EDN, TOML?
+- Layering/priority: CLI flags > env vars > project config > global config > defaults?
+- How does `dtw.*` namespace load its values? From config files? Hardcoded defaults?
+- Project discovery: how does DataTwist know which project it's in? (`.datatwist/` directory marker?)
+- Runtime mutability: can scripts change config via `dtw/set!`? Persisted or session-only?
+- Validation: schema for config values? Type checking? Error on unknown keys?
+
+#### Tasks
+
+- [ ] Config file format and location design (`~/.datatwist/` global, `.datatwist/` project)
+- [ ] Config layering: defaults → global → project → env vars → CLI flags
+- [ ] `dtw.*` namespace backed by config system — reads from config files at startup
+- [ ] `dtw/set!` — runtime config override (session-only by default)
+- [ ] `dtw/set! --persist` or `datatwist config set KEY VALUE` — write back to config file
+- [ ] Project discovery: `.datatwist/` directory as project root marker
+- [ ] `datatwist init` CLI command — create `.datatwist/` with default config
+- [ ] `datatwist config list` — show effective config with source (default/global/project/env/cli)
+- [ ] Config schema + validation: known keys, types, ranges
+- [ ] Integration with `pass` module: config can reference `pass.*` for secrets
+- [ ] Integration with `env` module: config can reference `env.*` for OS values
+
 ### Docker & Kubernetes Sources `🔬 research`
 
 Query Docker containers and Kubernetes resources as data sources, like database tables.
