@@ -270,12 +270,10 @@ Feature: Error Reporting
     And the error code starts with "DT-R"
     And the error message mentions that map expects a collection
 
-  Scenario: Runtime error - list destructuring with not enough values
+  Scenario: List destructuring with not enough values binds missing positions to nil
     Given the DataTwist source "[a b c] is [1 2]"
     When it is evaluated
-    Then a runtime error is produced
-    And the error code starts with "DT-R"
-    And the error message mentions the mismatch between pattern size and value count
+    Then c is nil
 
   Scenario: Runtime error - object destructuring of non-object
     Given the DataTwist source "{name age} is \"not an object\""

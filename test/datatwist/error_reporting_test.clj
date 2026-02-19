@@ -290,11 +290,9 @@
       (is (no-java-names? (error-msg "result is \"hello\" |> map _.name"))))))
 
 (deftest runtime-error-list-destructuring-not-enough-values
-  (testing "Scenario: Runtime error - list destructuring with not enough values"
-    (testing "[a b c] is [1 2] throws because pattern expects 3 values, only 2 given"
-      (is (throws? "[a b c] is [1 2]")))
-    (testing "error message does not expose Java class names"
-      (is (no-java-names? (error-msg "[a b c] is [1 2]"))))))
+  (testing "Scenario: List destructuring with not enough values binds missing to nil"
+    (testing "[a b c] is [1 2] — missing positions bind to nil (nil-tolerant)"
+      (is (nil? (eval-dt-last "[a b c] is [1 2]" "c"))))))
 
 (deftest runtime-error-object-destructuring-of-non-object
   (testing "Scenario: Runtime error - object destructuring of non-object"

@@ -105,9 +105,17 @@
 
 (defn- dt-sort-by
   "Sort a collection by a key function. Data-first: (coll, f)
-   Nil-tolerant: when key fn returns nil, falls back to element itself as key."
+   Nil-tolerant: nil keys sort last; when both keys are nil, falls back to comparing elements."
   [coll f]
-  (vec (sort-by (fn [x] (let [k (f x)] (if (nil? k) x k))) coll)))
+  (let [entries (mapv (fn [x] [x (f x)]) coll)]
+    (vec (map first
+              (sort (fn [[ax ak] [bx bk]]
+                      (cond
+                        (and (nil? ak) (nil? bk)) (try (compare ax bx) (catch Exception _ 0))
+                        (nil? ak) 1
+                        (nil? bk) -1
+                        :else (compare ak bk)))
+                    entries)))))
 
 (defn- dt-take
   "Take first n elements. Data-first: (coll, n)"
@@ -126,11 +134,15 @@
 
 (defn- dt-map
   "Map a function over a collection. Data-first: (coll, f)
-   When coll is a map (e.g. from group-by), iterates over entries as {:key k :value v}."
+   When coll is a map (e.g. from group-by), iterates over entries as {:key k :value v}.
+   Throws for non-collection inputs."
   [coll f]
-  (if (map? coll)
-    (vec (map (fn [[k v]] (f {:key k :value v})) coll))
-    (vec (map f coll))))
+  (cond
+    (nil? coll)        []
+    (map? coll)        (vec (map (fn [[k v]] (f {:key k :value v})) coll))
+    (sequential? coll) (vec (map f coll))
+    :else (throw (ex-info (str "Cannot map over " (type coll) ": expected a list or object")
+                          {:value coll}))))
 
 (defn- dt-reduce
   "Reduce a collection. (coll, f) or (coll, f, init)"
