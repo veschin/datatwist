@@ -76,12 +76,15 @@ math/sin 3.14             // qualified access
 
 **Decision (preliminary)**: Connector interface — minimal, 5 functions: `connect`, `query`, `close!`, `tables`, `schema`. Not ready to go deeper yet.
 
+**Connection pool (preliminary)**: `connect` creates a connection pool internally (HikariCP). User doesn't manage the pool explicitly. Default pool size configurable via `env.POOL_SIZE` (default: 5). Transparent — simple interface, complexity hidden inside.
+
 - [ ] Namespace resolution (file-based, classpath, registry)
 - [ ] `require` with qualified access and selective import
 - [ ] Namespace caching, circular dependency detection
 - [ ] Connector interface: `connect`, `query`, `close!`, `tables`, `schema`
 - [ ] Built-in connectors: postgres, sqlite, http, fs, csv
 - [ ] Connector + Pushdown integration
+- [ ] Connection pool management (HikariCP) — transparent, configurable via `env.POOL_SIZE`
 
 ### Demo Runner Rework `🔬 research`
 
@@ -244,12 +247,22 @@ Research doc: `docs/error-reporting-research.md`
 
 #### Design decisions (locked)
 
-- **Separate module** for credentials, not bundled into connectors.
-- **`pass` integration**: uses `pass` (password-store) as the credential backend. DataTwist namespace per project in the pass store (e.g. `datatwist/myproject/db-password`).
-- **ENV module integration**: works alongside the ENV module for environment variable access. Secrets resolved from pass; non-secret config from ENV.
+- **Two separate modules**: `env` for OS environment + DataTwist settings, `pass` for secrets.
+- **`env` module**: `env.HOME` accesses OS environment variables. `env.SAMPLE_SIZE` accesses DataTwist settings. Both live in the same `env` namespace; DataTwist settings take precedence over OS env when names collide.
+- **`pass` module**: `pass.myproject.db-host` maps to `pass show datatwist/myproject/db-host`. Flat structure — one value per key, returns a string. Integrates with the standard Unix `pass` (password-store).
 
-- [ ] `pass` integration — resolve credentials via password-store with `datatwist/<project>/<key>` namespace convention
-- [ ] ENV module — environment variable access, works alongside `pass`
+```
+; Environment and settings
+env.HOME              ; => "/home/user"
+env.SAMPLE_SIZE       ; => 10
+
+; Secrets via pass
+host is pass.myproject.db-host    ; => "db.prod.com"
+token is pass.myproject.api-token ; => "sk-abc123"
+```
+
+- [ ] `pass` module — resolve credentials via `pass show datatwist/<project>/<key>`, flat key/value, returns string
+- [ ] `env` module — OS environment variable access + DataTwist settings in one namespace, settings take precedence
 - [ ] Connection profiles: named configs (`work-db`, `prod-api`) with host, port, auth, proxy settings
 - [ ] Proxy/VPN-aware connections: per-profile SOCKS5/HTTP proxy
 - [ ] `connect` function uses profiles: resolves creds + proxy automatically

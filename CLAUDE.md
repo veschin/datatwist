@@ -28,6 +28,10 @@ When spawning subagents via Task tool, almost always use Sonnet (`model: "sonnet
 - If a task is too large for one session or an idea needs design work — add it to BACKLOG.md with context, don't lose it
 - Implementation agents work in feature branches (`feat/<name>`), merge to main when verified. Prevents parallel agents from conflicting on the same files.
 
+### Design sessions
+
+When reviewing design decisions with the user, use `AskUserQuestion` with multi-select checkboxes — NOT single-option questions. User prefers the form/checklist format where they can select multiple options and add notes to each. Present 2-4 options per topic with short labels and descriptions. Group up to 4 questions per form.
+
 ## Context Window Rules
 
 - NEVER read large files (>100 lines) in their entirety — they won't fit in context.
