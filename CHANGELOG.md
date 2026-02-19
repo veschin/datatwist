@@ -1,31 +1,42 @@
-# Changelog
+# DataTwist Changelog
 
-All notable changes to DataTwist are documented here.
+## DATATWIST-1: Docs & Infrastructure
+- `4a3c3cc` Legacy foundation: pre-PRD grammar experiments (Oct–Feb 2026)
+- `800cd6f` Add CLAUDE.md project instructions and simplify Makefile
 
-## [Unreleased]
+## DATATWIST-2: Language Specification & BDD
+- `81c815c` Add PRD specification and BDD feature files
 
-### Added
-- **Demo runner** — `make demo` showcases all language features with gum/glow-style terminal UI
-- **Regex literals** — `#","` syntax, compiles to java.util.regex.Pattern
-- **Negative numbers in lists/args** — `[-10 50]` and `nth items -1` work without parentheses
-- **Error reporting module** — 41 tests covering parse errors, type errors, runtime errors
-  - Undefined identifier detection with Levenshtein did-you-mean suggestions
-  - Error codes: DT-R001 (undefined), DT-T001 (type mismatch), DT-T002 (comparison)
-  - Hints in ex-data for actionable fix suggestions
-  - Java/Clojure stack traces hidden from user output
-- **Stdlib guards** — `map` rejects non-collections, `sort-by` handles nil keys gracefully
-- **Object destructuring guard** — throws on non-object input (strings, numbers)
-- **Grammar: `x = 42` rejection** — common assignment mistake detected at parse level
+## DATATWIST-3: Parser & Grammar
+- `5a96683` Replace grammar with Instaparse prototype, implement parse-error?
+- `e19c86f` Add comprehensive parser tests (TDD) — 68 tests, 440 assertions
+- `dc79b04` Fix 7 grammar issues: List/FnCall disambiguation, Object/FnDef collapse, guards, require, catch, binding
+- `1314d4a` Refactor parser tests to structural AST assertions with grammar-aware validation
+- `f4b1432` Update CLAUDE.md: fix whitespace docs, add current status
+- `7941e42` Fix greedy binding bug, clean AST of anti-collapse hacks
 
-### Design docs
-- `docs/error-reporting-research.md` — Elm/Rust/Zig/Gleam error message survey
-- `docs/lazy-eval-design.md` — lazy evaluation architecture, sampling model, transducers
+## DATATWIST-4: Evaluator Implementation
+- `522ae8c` Implement tree-walking evaluator — 407 tests, 4 failures, 14 errors
+- `961bfbd` Remove obsolete IMPLEMENTATION.md, update BACKLOG with detailed grammar issues
+- `5da49a8` Fix evaluator bugs, add BDD/tests for features 7-9, design docs
 
-### Changed
-- Parse errors return nil instead of throwing (separation of concerns)
-- List destructuring remains nil-tolerant for missing positions (bdd/5 spec)
-- Test runner includes error-reporting-test (547 total tests)
+## DATATWIST-5: Nil Semantics
+- `1fd6aa6` Nil coercion in comparisons: nil → 0 (numbers), "" (strings)
+- `e974bc3` Three-valued nil in comparisons: nil > x = nil (unknown)
 
-### Infrastructure
-- BACKLOG updated: async/parallel execution, credentials/VPN, git cleanup plan
-- CLAUDE.md updated: orchestration rules, model selection guide
+## DATATWIST-6: Grammar Edge-Case Fixes
+- `611b1a6` Grammar fixes: negative numbers in lists/args, regex literals, reject x = 42
+
+## DATATWIST-7: Error Reporting
+- `bb710c7` Error reporting: undefined identifiers, type error codes, stdlib guards
+- `e70ebe8` Docs: error reporting research, backlog update, orchestration rules
+
+## DATATWIST-8: Demo & DX
+- `ef1ad38` Demo runner: gum/glow-style showcase with make demo
+
+## DATATWIST-9: Lazy Evaluation Design
+- `0e0e32f` Design doc: lazy evaluation — sampling, transducers, Spark/Polars patterns
+
+## DATATWIST-10: Backlog & Orchestration
+- `bf7ca9d` Backlog: async execution, credentials/VPN, git cleanup plan, orchestration rules
+- `e3f7a1e` Add CHANGELOG.md, feature branch rule in orchestration
