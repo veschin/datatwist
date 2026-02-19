@@ -14,8 +14,8 @@
 (defn eval-dt
   "Parse and evaluate DataTwist source code. Returns the result."
   [input]
-  ;; TODO: implement parser + evaluator
-  (throw (ex-info "DataTwist eval not implemented yet" {:input input})))
+  ;; Require lazily to avoid circular deps at load time
+  ((requiring-resolve 'datatwist.evaluator/evaluate) input))
 
 (defn parse-error?
   "Returns true if the input fails to parse."
