@@ -64,9 +64,16 @@ for line in "${commit_lines[@]}"; do
     subject="${line#* }"
     block+="\n- \`${hash}\` ${subject}"
 done
+block+="\n"
 
-# Append to CHANGELOG.md
-printf "%b\n" "$block" >> "$CHANGELOG"
+# Insert after the header line (# DataTwist Changelog)
+# Read the entire file, then write header + blank line + new block + rest of file
+{
+    head -2 "$CHANGELOG"
+    printf "%b" "$block"
+    tail -n +3 "$CHANGELOG"
+} > "$CHANGELOG.tmp"
+mv "$CHANGELOG.tmp" "$CHANGELOG"
 
 # Print to stdout for review
 printf "%b\n" "$block"
