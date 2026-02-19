@@ -1,131 +1,171 @@
 # DataTwist Backlog
 
-## Current — Grammar Fixes
+## Current — Grammar Fixes `DONE`
 
-Evaluator complete. Remaining 4 failures + 14 errors are all grammar/test issues:
+506 tests, 0 failures, 0 errors.
 
-- [ ] Fix 3 tests using `;` — replace with `\n` (BDD spec says "Semicolons: NOT used")
-- [ ] Negative number literals in lists and function args: `[-10 50]`, `nth items -1` (3 errors)
-- [ ] `_` as binding target: `_ is {active: false}` (2 errors)
-- [ ] Chained comparisons: `1 < 2 < 3` (1 error)
-- [ ] Underscore number separators: `1_000_000` (1 error)
-- [ ] Sourceless pipeline inside list context (1 error)
-- [ ] `clj/` qualified names with multiple slashes (1 error)
-- [ ] Regex literal `#","` not in grammar (1 error)
-- [ ] Pipeline operator precedence: `sum > 100` inside pipe step (1 error)
-- [ ] Test expectation mismatches: division Double vs Integer, typos (3 failures)
+- [x] Fix 3 tests using `;` — replaced with `\n`
+- [x] `_` as binding target — tests rewritten to use pipeline
+- [x] Test expectation mismatches — division Double, typos, lowercase
+- [x] Negative number literals in lists and function args: `[-10 50]`, `nth items -1` — NegFieldAccess rule
+- [x] Regex literal `#","` — added Regex rule + evaluator (compiles to java.util.regex.Pattern)
+- [x] Pipeline operator precedence: `sum > 100` inside pipe step — already works, verified
+- ~Chained comparisons `1 < 2 < 3`~ — NOT supported by design (BDD decision)
+- ~Underscore number separators `1_000_000`~ — NOT supported in v1 (BDD decision)
+- ~Sourceless pipeline inside list `[|> f]`~ — deferred, only needed for `tee` (v2)
 
 ---
 
-## P0 — GraalVM Native Binary
+## Evaluator `DONE`
 
-Build DataTwist as a standalone native binary via GraalVM `native-image`. This is critical for distribution and adoption — users shouldn't need a JVM installed.
+- [x] Phase 1: Literals + Operators + Simple Binding
+- [x] Phase 2: Data Structures + Field Access
+- [x] Phase 3: Functions + Closures
+- [x] Phase 4: Pipelines
+- [x] Phase 5: Destructuring
+- [x] Phase 6: Pattern Matching + Guards
+- [x] Phase 7: Advanced (recur, compose, try/catch, require, interop)
+- [x] Nil semantics: three-valued comparisons, arithmetic coercion
+- [x] `require` + namespace aliases
+- [x] Java static fields/methods, constructors, exception field access
+- [x] Guard truthiness in standalone context
 
-- [ ] Add GraalVM native-image build config (`native-image.properties`, reflection config)
+---
+
+## BDD & Tests `DONE`
+
+- [x] Features 1-6: BDD scenarios + test files (407 tests)
+- [x] Feature 7: Interop — BDD rewritten to PRD, 95 tests
+- [x] Feature 8: Lazy Eval — BDD rewritten to PRD, 71 tests (TDD stubs)
+- [x] Feature 9: Error Reporting — BDD rewritten to PRD, 42 tests (TDD stubs)
+
+---
+
+## Design Docs `DONE`
+
+- [x] `docs/lsp-tree-sitter-design.md` — LSP + Tree-sitter architecture
+- [x] `docs/pushdown-design.md` — Pushdown optimization research
+
+---
+
+## P0 — GraalVM Native Binary `NOT STARTED`
+
+Build DataTwist as a standalone native binary via GraalVM `native-image`. Critical for distribution.
+
 - [ ] Create CLI entry point (`-main` with arg parsing: file input, REPL, `--eval`)
-- [ ] Handle Instaparse reflection hints for GraalVM (Instaparse uses `eval` internally — may need AOT or workaround)
+- [ ] Add GraalVM native-image build config (`native-image.properties`, reflection config)
+- [ ] Handle Instaparse reflection hints for GraalVM
 - [ ] Add `make native` build target
 - [ ] CI pipeline for building linux/macos/windows binaries
 - [ ] Investigate startup time — target <50ms for CLI feel
-- [ ] Consider shipping as uberjar fallback for platforms without native-image support
+- [ ] Consider shipping as uberjar fallback
 
 **Risks:** Instaparse relies on `clojure.core/eval` for parser generation which is problematic for GraalVM. Options: (1) AOT-compile the parser at build time, (2) switch to a GraalVM-compatible parser generator, (3) pre-generate the parser as data and load it.
 
 ---
 
-## P1 — Pushdown Optimization
+## P1 — Pushdown Optimization `DESIGNED`
 
-Push computation closer to data sources. Instead of loading all data into memory and filtering/transforming in DataTwist, push predicates and projections down to the source (database, API, file system).
+Design doc: `docs/pushdown-design.md`
 
-### Phase 1: AST Analysis
-- [ ] Build an AST analyzer that identifies pushdown-eligible operations
-- [ ] Classify operations: filter predicates, field projections, sort, limit/offset, aggregations
-- [ ] Detect pipeline segments that can be pushed down vs. must stay local
+### Phase 1: Pipeline IR + Classification
+- [ ] Translate pipeline AST to flat operation list
+- [ ] Classify ops: pushable vs local
+- [ ] Find pushdown boundary (longest pushable prefix)
 
-### Phase 2: Pushdown Protocol
-- [ ] Define a `Pushdown` protocol/interface that data sources implement
-- [ ] Operations: `:filter`, `:project`, `:sort`, `:limit`, `:aggregate`
-- [ ] Each source declares which operations it supports
-- [ ] Fallback: unsupported operations execute locally (transparent to user)
+### Phase 2: SQL Source
+- [ ] Pushdown protocol (`push-filter`, `push-sort`, `push-limit`, `execute`)
+- [ ] Predicate analysis: `_.age > 18` → `{:op :> :field "age" :value 18}`
+- [ ] SQL generation: filter→WHERE, sort→ORDER BY, take→LIMIT
 
-### Phase 3: Whole-Block Pushdown
-- [ ] Push entire syntactic blocks (pipeline segments, guard blocks) as a unit
-- [ ] Example: `data |> filter _.age > 18 |> sort-by _.name |> take 10` → single query
-- [ ] Detect boundaries where pushdown must stop (user-defined functions, side effects, joins across sources)
+### Phase 3: Projection Pushdown
+- [ ] Analyze which fields are accessed in pipeline
+- [ ] Generate SELECT with specific columns
 
-### Phase 4: Source Implementations
-- [ ] SQL pushdown (generate WHERE, SELECT, ORDER BY, LIMIT)
-- [ ] REST API pushdown (query parameters, pagination)
-- [ ] File system pushdown (glob patterns, streaming line filters)
+### Phase 4: Aggregation + Multi-source
+- [ ] Sum/count/avg → SQL aggregates
+- [ ] Join between pushed sources
 
 ---
 
-## P1 — Module System & Connectors
+## P1 — Module System & Connectors `NOT STARTED`
 
-Extend the language with importable modules and data source connectors. The goal is a plugin ecosystem where connectors can be distributed independently.
-
-### Core Module System
-- [ ] `require` already parses — implement module resolution (file-based, classpath, registry)
-- [ ] Module search paths: `./modules/`, project `deps.edn`, global registry
-- [ ] Module caching: load once, share across requires
-- [ ] Circular dependency detection
-- [ ] Module-level scope: private bindings (not exported) vs public API
-
-### Connector Architecture
-- [ ] Define connector interface: `connect`, `query`, `close`, schema introspection
-- [ ] Connectors register as modules: `require db.postgres as pg`
-- [ ] Connector lifecycle management (connection pooling, cleanup)
-- [ ] Schema-aware autocomplete data for tooling
-
-### Built-in Connectors (candidates)
-- [ ] `db.postgres` — PostgreSQL via JDBC
-- [ ] `db.sqlite` — SQLite (good for local/embedded use)
-- [ ] `http` — HTTP client (GET/POST/PUT/DELETE, JSON auto-parse)
-- [ ] `fs` — File system (read/write CSV, JSON, EDN, line-delimited)
-- [ ] `csv` — CSV parsing with header inference
-
-### Connector + Pushdown Integration
-- [ ] Connectors that support pushdown implement the Pushdown protocol
-- [ ] `pg.query "users" |> filter _.age > 18` → generates `SELECT * FROM users WHERE age > 18`
-- [ ] Mixed pipelines: pushdown what you can, stream the rest
+- [ ] Module resolution (file-based, classpath, registry)
+- [ ] Module caching, circular dependency detection
+- [ ] Connector interface: `connect`, `query`, `close`, schema introspection
+- [ ] Built-in connectors: postgres, sqlite, http, fs, csv
+- [ ] Connector + Pushdown integration
 
 ---
 
-## P2 — REPL & Developer Experience
+## P1 — Async & Parallel Execution `NOT STARTED`
+
+Built-in parallelization and async support. Any call can be made async — the language handles data dependencies automatically.
+
+- [ ] Async call syntax: fire-and-forget or await-based (`async`, `await` or similar)
+- [ ] Parallel map/filter: automatic parallelization of collection operations
+- [ ] Data dependency resolution: if data isn't ready yet, wait transparently
+- [ ] Pipeline-level parallelism: independent pipeline branches execute concurrently
+- [ ] Error propagation across async boundaries
+- [ ] Backpressure and resource limits (thread pool, connection pool)
+- [ ] Integration with JVM virtual threads (Project Loom)
+
+**Design notes:** Requires deep design work. Key questions:
+- What happens when async call needs data that isn't available yet? Block? Return nil? Queue?
+- How to express "run these N things in parallel and collect results"?
+- How does this interact with pipelines and `|>`?
+- Should parallelism be explicit (user opts in) or implicit (runtime decides)?
+
+---
+
+## P2 — REPL & Developer Experience `NOT STARTED`
 
 - [ ] Interactive REPL with readline support
 - [ ] REPL history and tab completion
-- [ ] Pretty-printed output (tables for lists of objects, syntax-highlighted values)
+- [ ] Pretty-printed output (tables for lists of objects)
 - [ ] `--watch` mode: re-run script on file change
 - [ ] Error messages with source locations and suggestions
 
-### Editor SDK / LSP
+### Editor SDK / LSP `DESIGNED`
 
-- [ ] LSP server for editor integration (syntax highlighting, go-to-definition, autocomplete)
-- [ ] **Function signature hints with placeholder values** — при вводе `sort-by` показывать inline hint типа `sort-by ·field· ·asc/desc·`, для `filter` → `filter ·predicate·`, для `take` → `take ·n·`. Каждая stdlib-функция должна иметь metadata с именами параметров и примерами значений.
-- [ ] Snippet-style placeholders: Tab между параметрами, dropdown для enum-like аргументов (asc/desc, true/false)
-- [ ] Hover documentation: описание функции + пример использования + тип аргументов
-- [ ] Autocomplete с контекстом: после `|>` предлагать collection-функции, после `.` предлагать поля из известной структуры
-- [ ] Go-to-definition для `is`-биндингов и `require`-алиасов
+Design doc: `docs/lsp-tree-sitter-design.md`
 
----
-
-## P2 — Performance & Streaming
-
-- [ ] Lazy evaluation for large collections (don't materialize intermediate results)
-- [ ] Streaming pipelines: process elements one-at-a-time where possible
-- [ ] Parallel `map`/`filter` via `pmap` or virtual threads
-- [ ] Benchmark suite with representative workloads
-- [ ] Memory profiling for large datasets
+- [ ] Tree-sitter grammar (grammar.js from Instaparse EBNF)
+- [ ] LSP server (TypeScript + Tree-sitter WASM)
+- [ ] **Function signature hints**: `sort-by ·field· ·asc/desc·` with tab-stops and dropdowns
+- [ ] Hover documentation, context-aware autocomplete
+- [ ] Go-to-definition for `is`-bindings and `require`-aliases
 
 ---
 
-## P3 — Language Extensions
+## P2 — Performance & Streaming `NOT STARTED`
+
+- [ ] Lazy evaluation for large collections
+- [ ] Streaming pipelines
+- [ ] Parallel `map`/`filter` via virtual threads
+- [ ] Benchmark suite
+- [ ] Memory profiling
+
+---
+
+## P2 — Error Reporting `NOT STARTED`
+
+BDD: `bdd/9-error-reporting.feature`, Tests: `test/datatwist/error_reporting_test.clj` (42 TDD stubs)
+
+- [ ] Error code system: `DT-PXXX` / `DT-TXXX` / `DT-RXXX`
+- [ ] Elm/Rust-style messages with source snippets and hints
+- [ ] Suppress Java/Clojure stack traces from user output
+- [ ] Data-aware warnings (nil prevalence, common mistakes)
+- [ ] JSON error output format: structured `{:code "DT-T001" :message "..." :hint "..." :line N :col N}` for tooling/IDE consumption
+- [ ] Error code registry (`docs/error-codes.md`): catalog of all DT-PXXX/TXXX/RXXX/DXXX codes with descriptions, examples, and fix suggestions — single source of truth for renderers
+
+---
+
+## P3 — Language Extensions `NOT STARTED`
 
 - [ ] String interpolation: `"Hello {name}"`
 - [ ] Multi-line strings / heredocs
 - [ ] Date/time literals and operations
 - [ ] Regular expression literals and match
-- [ ] `match` expression (more expressive than guards)
 - [ ] Spread operator in objects: `{...base, name: "new"}`
-- [ ] Optional type annotations for documentation and tooling
+- [ ] Optional type annotations for tooling
