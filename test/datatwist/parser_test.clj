@@ -22,22 +22,24 @@
   [input]
   (parser/parse input))
 
+(def container-tags
+  "Node types that should never collapse even with a single child.
+   These represent semantic containers, not precedence wrappers."
+  #{:List :Object :FnDef})
+
 (defn simplify
   "Collapse single-child wrapper nodes in the AST.
    [:A [:B [:C x]]] -> [:C x] when A and B each have exactly one child.
    Keeps multi-child nodes intact to preserve meaningful structure.
-
-   This relies on semantic nodes (UnaryExpr, NotExpr, FnDef, etc.) having
-   their operator/keyword visible in the AST (e.g. [:UnaryExpr \"-\" [:Integer \"42\"]])
-   so they have 2+ children and won't be collapsed. Pure precedence wrappers
-   (OrExpr, AddExpr, etc.) with a single child are just pass-through."
+   Container nodes (List, Object, FnDef) never collapse."
   [tree]
   (if (not (vector? tree))
     tree
     (let [children (mapv simplify (rest tree))]
       (if (and (= 1 (count children))
                (vector? (first children))
-               (keyword? (ffirst children)))
+               (keyword? (ffirst children))
+               (not (container-tags (first tree))))
         (first children)
         (into [(first tree)] children)))))
 
@@ -616,77 +618,71 @@
 
 (deftest parse-object-with-fields
   (testing "single field"
-    (is (= [:Object "{" [:StandardEntry [:Identifier "name"] [:String "Alice"]]]
+    (is (= [:Object [:StandardEntry [:Identifier "name"] [:String "Alice"]]]
            (parses-to "{name: \"Alice\"}"))))
 
   (testing "multiple space-separated fields"
-    (is (= [:Object "{"
-            [:StandardContent
-             [:StandardEntry [:Identifier "name"] [:String "Alice"]]
-             [:StandardEntry [:Identifier "age"] [:Integer "25"]]
-             [:StandardEntry [:Identifier "active"] [:Boolean "true"]]]]
+    (is (= [:Object
+            [:StandardEntry [:Identifier "name"] [:String "Alice"]]
+            [:StandardEntry [:Identifier "age"] [:Integer "25"]]
+            [:StandardEntry [:Identifier "active"] [:Boolean "true"]]]
            (parses-to "{name: \"Alice\" age: 25 active: true}"))))
 
   (testing "hyphenated keys"
-    (is (= [:Object "{"
-            [:StandardContent
-             [:StandardEntry [:Identifier "first-name"] [:String "Alice"]]
-             [:StandardEntry [:Identifier "last-name"] [:String "Smith"]]]]
+    (is (= [:Object
+            [:StandardEntry [:Identifier "first-name"] [:String "Alice"]]
+            [:StandardEntry [:Identifier "last-name"] [:String "Smith"]]]
            (parses-to "{first-name: \"Alice\" last-name: \"Smith\"}"))))
 
   (testing "keys with underscore"
-    (is (= [:Object "{" [:StandardEntry [:Identifier "user_name"] [:String "Alice"]]]
+    (is (= [:Object [:StandardEntry [:Identifier "user_name"] [:String "Alice"]]]
            (parses-to "{user_name: \"Alice\"}"))))
 
   (testing "keys with digits"
-    (is (= [:Object "{"
-            [:StandardContent
-             [:StandardEntry [:Identifier "level2"] [:String "advanced"]]
-             [:StandardEntry [:Identifier "x1"] [:Integer "10"]]]]
+    (is (= [:Object
+            [:StandardEntry [:Identifier "level2"] [:String "advanced"]]
+            [:StandardEntry [:Identifier "x1"] [:Integer "10"]]]
            (parses-to "{level2: \"advanced\" x1: 10}"))))
 
   (testing "nested objects"
-    (is (= [:Object "{" [:StandardEntry [:Identifier "a"]
-                         [:Object "{" [:StandardEntry [:Identifier "b"]
-                                       [:Object "{" [:StandardEntry [:Identifier "c"] [:Integer "1"]]]]]]]
+    (is (= [:Object [:StandardEntry [:Identifier "a"]
+                     [:Object [:StandardEntry [:Identifier "b"]
+                               [:Object [:StandardEntry [:Identifier "c"] [:Integer "1"]]]]]]]
            (parses-to "{a: {b: {c: 1}}}"))))
 
   (testing "object with nil value"
-    (is (= [:Object "{"
-            [:StandardContent
-             [:StandardEntry [:Identifier "name"] [:String "Alice"]]
-             [:StandardEntry [:Identifier "address"] [:Nil "nil"]]]]
+    (is (= [:Object
+            [:StandardEntry [:Identifier "name"] [:String "Alice"]]
+            [:StandardEntry [:Identifier "address"] [:Nil "nil"]]]
            (parses-to "{name: \"Alice\" address: nil}"))))
 
   (testing "object with expression values"
     (let [tree (parses-to "{doubled: x * 2 name: \"Alice\"}")]
       (is (= :Object (first tree)))
-      (is (= :StandardContent (first (nth tree 2))))))
+      (is (= :StandardEntry (first (nth tree 1))))
+      (is (= :StandardEntry (first (nth tree 2))))))
 
   (testing "function as object value"
     (let [tree (parses-to "{transform: [x -> x * 2]}")]
       (is (= :Object (first tree)))
-      (is (= :FnDef (first (nth (nth tree 2) 2))))))
+      (is (= :FnDef (first (nth (nth tree 1) 2))))))
 
   (testing "multi-line object"
-    (is (= [:Object "{"
-            [:StandardContent
-             [:StandardEntry [:Identifier "name"] [:String "Alice"]]
-             [:StandardEntry [:Identifier "age"] [:Integer "25"]]]]
+    (is (= [:Object
+            [:StandardEntry [:Identifier "name"] [:String "Alice"]]
+            [:StandardEntry [:Identifier "age"] [:Integer "25"]]]
            (parses-to "{\n  name: \"Alice\"\n  age: 25\n}"))))
 
   (testing "extra whitespace inside braces"
-    (is (= [:Object "{"
-            [:StandardContent
-             [:StandardEntry [:Identifier "name"] [:String "Alice"]]
-             [:StandardEntry [:Identifier "age"] [:Integer "25"]]]]
+    (is (= [:Object
+            [:StandardEntry [:Identifier "name"] [:String "Alice"]]
+            [:StandardEntry [:Identifier "age"] [:Integer "25"]]]
            (parses-to "{  name:   \"Alice\"   age:   25  }"))))
 
   (testing "duplicate keys parse successfully (last wins at eval time)"
-    (is (= [:Object "{"
-            [:StandardContent
-             [:StandardEntry [:Identifier "name"] [:String "Alice"]]
-             [:StandardEntry [:Identifier "name"] [:String "Bob"]]]]
+    (is (= [:Object
+            [:StandardEntry [:Identifier "name"] [:String "Alice"]]
+            [:StandardEntry [:Identifier "name"] [:String "Bob"]]]
            (parses-to "{name: \"Alice\" name: \"Bob\"}")))))
 
 (deftest parse-object-negative-cases
@@ -706,45 +702,45 @@
 
 (deftest parse-list-with-elements
   (testing "integer list"
-    (is (= [:List "[" [:Integer "1"] [:Integer "2"] [:Integer "3"] [:Integer "4"] [:Integer "5"]]
+    (is (= [:List [:Integer "1"] [:Integer "2"] [:Integer "3"] [:Integer "4"] [:Integer "5"]]
            (parses-to "[1 2 3 4 5]"))))
 
   (testing "string list"
-    (is (= [:List "[" [:String "Alice"] [:String "Bob"] [:String "Charlie"]]
+    (is (= [:List [:String "Alice"] [:String "Bob"] [:String "Charlie"]]
            (parses-to "[\"Alice\" \"Bob\" \"Charlie\"]"))))
 
   (testing "mixed types"
-    (is (= [:List "[" [:String "Alice"] [:Integer "25"] [:Boolean "true"] [:Nil "nil"]]
+    (is (= [:List [:String "Alice"] [:Integer "25"] [:Boolean "true"] [:Nil "nil"]]
            (parses-to "[\"Alice\" 25 true nil]"))))
 
   (testing "nested lists"
-    (is (= [:List "["
-            [:List "[" [:Integer "1"] [:Integer "2"]]
-            [:List "[" [:Integer "3"] [:Integer "4"]]
-            [:List "[" [:Integer "5"] [:Integer "6"]]]
+    (is (= [:List
+            [:List [:Integer "1"] [:Integer "2"]]
+            [:List [:Integer "3"] [:Integer "4"]]
+            [:List [:Integer "5"] [:Integer "6"]]]
            (parses-to "[[1 2] [3 4] [5 6]]"))))
 
   (testing "list containing objects"
-    (is (= [:List "["
-            [:Object "{" [:StandardEntry [:Identifier "a"] [:Integer "1"]]]
-            [:Object "{" [:StandardEntry [:Identifier "a"] [:Integer "2"]]]
-            [:Object "{" [:StandardEntry [:Identifier "a"] [:Integer "3"]]]]
+    (is (= [:List
+            [:Object [:StandardEntry [:Identifier "a"] [:Integer "1"]]]
+            [:Object [:StandardEntry [:Identifier "a"] [:Integer "2"]]]
+            [:Object [:StandardEntry [:Identifier "a"] [:Integer "3"]]]]
            (parses-to "[{a: 1} {a: 2} {a: 3}]"))))
 
   (testing "multi-line list"
-    (is (= [:List "[" [:Integer "1"] [:Integer "2"] [:Integer "3"]]
+    (is (= [:List [:Integer "1"] [:Integer "2"] [:Integer "3"]]
            (parses-to "[\n  1\n  2\n  3\n]"))))
 
   (testing "extra whitespace"
-    (is (= [:List "[" [:Integer "1"] [:Integer "2"] [:Integer "3"]]
+    (is (= [:List [:Integer "1"] [:Integer "2"] [:Integer "3"]]
            (parses-to "[  1   2   3  ]"))))
 
   (testing "single element"
-    (is (= [:List "[" [:Integer "42"]]
+    (is (= [:List [:Integer "42"]]
            (parses-to "[42]"))))
 
   (testing "deeply nested"
-    (is (= [:List "[" [:List "[" [:List "[" [:Integer "1"]]]]
+    (is (= [:List [:List [:List [:Integer "1"]]]]
            (parses-to "[[[1]]]")))))
 
 (deftest parse-list-negative-cases
@@ -773,7 +769,7 @@
            (parses-to "_.profile.address.city"))))
 
   (testing "field access on literal object"
-    (is (= [:FieldAccess [:Object "{" [:StandardEntry [:Identifier "name"] [:String "Alice"]]] [:FieldName "name"]]
+    (is (= [:FieldAccess [:Object [:StandardEntry [:Identifier "name"] [:String "Alice"]]] [:FieldName "name"]]
            (parses-to "{name: \"Alice\"}.name"))))
 
   (testing "field access on parenthesized expression"
@@ -807,15 +803,14 @@
 
   (testing "bind to object"
     (is (= [:Binding [:Identifier "user"]
-            [:Object "{"
-             [:StandardContent
-              [:StandardEntry [:Identifier "name"] [:String "Alice"]]
-              [:StandardEntry [:Identifier "age"] [:Integer "30"]]]]]
+            [:Object
+             [:StandardEntry [:Identifier "name"] [:String "Alice"]]
+             [:StandardEntry [:Identifier "age"] [:Integer "30"]]]]
            (parses-to "user is {name: \"Alice\" age: 30}"))))
 
   (testing "bind to list"
     (is (= [:Binding [:Identifier "nums"]
-            [:List "[" [:Integer "1"] [:Integer "2"] [:Integer "3"] [:Integer "4"] [:Integer "5"]]]
+            [:List [:Integer "1"] [:Integer "2"] [:Integer "3"] [:Integer "4"] [:Integer "5"]]]
            (parses-to "nums is [1 2 3 4 5]"))))
 
   (testing "bind function"
@@ -868,7 +863,7 @@
            (parses-to "[a b -> a + b]"))))
 
   (testing "zero-parameter function"
-    (is (= [:FnDef "->" [:Integer "42"]]
+    (is (= [:FnDef [:Integer "42"]]
            (parses-to "[-> 42]"))))
 
   (testing "complex body expression"
@@ -898,15 +893,14 @@
 
   (testing "function returning object"
     (is (= [:FnDef [:FnParams [:Identifier "x"] [:Identifier "y"]]
-            [:Object "{"
-             [:StandardContent
-              [:StandardEntry [:Identifier "x"] [:Identifier "x"]]
-              [:StandardEntry [:Identifier "y"] [:Identifier "y"]]]]]
+            [:Object
+             [:StandardEntry [:Identifier "x"] [:Identifier "x"]]
+             [:StandardEntry [:Identifier "y"] [:Identifier "y"]]]]
            (parses-to "[x y -> {x: x y: y}]"))))
 
   (testing "function returning list"
     (is (= [:FnDef [:FnParams [:Identifier "a"] [:Identifier "b"]]
-            [:List "[" [:Identifier "a"] [:Identifier "b"]]]
+            [:List [:Identifier "a"] [:Identifier "b"]]]
            (parses-to "[a b -> [a b]]"))))
 
   (testing "nested function (closure)"
@@ -1016,7 +1010,7 @@
 
 (deftest parse-pipeline
   (testing "single step pipeline"
-    (is (= [:Pipeline [:List "[" [:Integer "1"] [:Integer "2"] [:Integer "3"]] [:Identifier "count"]]
+    (is (= [:Pipeline [:List [:Integer "1"] [:Integer "2"] [:Integer "3"]] [:Identifier "count"]]
            (parses-to "[1 2 3] |> count"))))
 
   (testing "multi-step inline pipeline"
@@ -1330,7 +1324,7 @@
   (testing "simple list destructuring"
     (is (= [:Binding
             [:DestructListElems [:Identifier "a"] [:Identifier "b"] [:Identifier "c"]]
-            [:List "[" [:Integer "1"] [:Integer "2"] [:Integer "3"]]]
+            [:List [:Integer "1"] [:Integer "2"] [:Integer "3"]]]
            (parses-to "[a b c] is [1 2 3]"))))
 
   (testing "list destructuring with rest"
@@ -1387,32 +1381,37 @@
 ;; ==========================================================================
 
 (deftest parse-multi-expression-program
-  ;; NOTE: Binding is currently greedy — it consumes all following expressions
-  ;; as part of its RHS via juxtaposition function calls. These tests verify
-  ;; the grammar parses without errors; structural correctness requires
-  ;; a grammar fix to delimit Binding scope.
-
   (testing "multiple expressions separated by newlines"
     (let [tree (parses-to "x is 42\nx + 1")]
-      (is (= :Binding (first tree)))))
+      (is (= :Program (first tree)))
+      (is (= :Binding (first (nth tree 1))))
+      (is (= :AddExpr (first (nth tree 2))))))
 
   (testing "binding then use"
     (let [tree (parses-to "double is [x -> x * 2]\ndouble 5")]
-      (is (= :Binding (first tree)))))
+      (is (= :Program (first tree)))
+      (is (= :Binding (first (nth tree 1))))
+      (is (= :FnCall (first (nth tree 2))))))
 
   (testing "multiple bindings"
     (let [tree (parses-to "x is 5\ny is 10\nx + y")]
-      (is (or (= :Program (first tree))
-              (= :Binding (first tree))))))
+      (is (= :Program (first tree)))
+      (is (= 3 (dec (count tree))))  ;; 3 expressions
+      (is (= :Binding (first (nth tree 1))))
+      (is (= :Binding (first (nth tree 2))))
+      (is (= :AddExpr (first (nth tree 3))))))
 
   (testing "binding then pipeline"
     (let [tree (parses-to "users is [{name: \"Alice\" age: 30} {name: \"Bob\" age: 17}]\nusers |> filter _.age > 18 |> count")]
-      (is (= :Binding (first tree)))))
+      (is (= :Program (first tree)))
+      (is (= :Binding (first (nth tree 1))))
+      (is (= :Pipeline (first (nth tree 2))))))
 
   (testing "last expression is program result"
     (let [tree (parses-to "x is 42\ny is x + 1\ny")]
-      (is (or (= :Program (first tree))
-              (= :Binding (first tree)))))))
+      (is (= :Program (first tree)))
+      (is (= 3 (dec (count tree))))  ;; 3 expressions
+      (is (= :Identifier (first (nth tree 3)))))))
 
 ;; ==========================================================================
 ;; SECTION 26: Edge Cases and Parse Errors
@@ -1502,7 +1501,7 @@
   ;; FinallyClause has single child → collapses to its body
   (testing "try-catch-finally"
     (is (= [:TryCatch [:Identifier "risky"]
-            [:CatchClause [:Identifier "err"] [:List "["]]
+            [:CatchClause [:Identifier "err"] [:List]]
             [:Identifier "cleanup"]]
            (parses-to "try\n  risky\ncatch err -> []\nfinally\n  cleanup"))))
 
@@ -1557,44 +1556,42 @@
 
 (deftest parse-field-operations
   (testing "add field with + prefix"
-    (is (= [:Object "{" [:AddField [:Identifier "score"]
-                         [:MulExpr [:FieldAccess [:Wildcard "_"] [:FieldName "age"]] [:MulOp "*"] [:Integer "2"]]]]
+    (is (= [:Object [:AddField [:Identifier "score"]
+                     [:MulExpr [:FieldAccess [:Wildcard "_"] [:FieldName "age"]] [:MulOp "*"] [:Integer "2"]]]]
            (parses-to "{+score: _.age * 2}"))))
 
   (testing "remove field with - prefix"
-    (is (= [:Object "{" [:Identifier "tmp"]]
+    (is (= [:Object [:Identifier "tmp"]]
            (parses-to "{-tmp}"))))
 
   (testing "mixed + and -"
-    (is (= [:Object "{"
-            [:StandardContent
-             [:AddField [:Identifier "score"]
-              [:MulExpr [:FieldAccess [:Wildcard "_"] [:FieldName "age"]] [:MulOp "*"] [:Integer "2"]]]
-             [:Identifier "tmp"]]]
+    (is (= [:Object
+            [:AddField [:Identifier "score"]
+             [:MulExpr [:FieldAccess [:Wildcard "_"] [:FieldName "age"]] [:MulOp "*"] [:Integer "2"]]]
+            [:Identifier "tmp"]]
            (parses-to "{+score: _.age * 2 -tmp}"))))
 
   (testing "forward-referencing in field operations"
     (let [tree (parses-to "{+tax: _.price * 0.1 +total: _.price + tax}")]
       (is (= :Object (first tree)))
-      (is (= :StandardContent (first (nth tree 2))))))
+      (is (= :AddField (first (nth tree 1))))))
 
   ;; Shorthand uses commas between bare identifiers (no colons).
   ;; Distinct from commas between key:value pairs which are invalid.
   (testing "object shorthand with commas"
-    (is (= [:Object "{" [:ShorthandContent [:Identifier "name"] [:Identifier "age"]]]
+    (is (= [:Object [:ShorthandContent [:Identifier "name"] [:Identifier "age"]]]
            (parses-to "{name, age}"))))
 
   (testing "shorthand mixed with explicit field"
-    (is (= [:Object "{"
+    (is (= [:Object
             [:ShorthandContent [:Identifier "name"] [:Identifier "age"]
              [:ShorthandEntry [:Identifier "city"] [:FieldAccess [:Wildcard "_"] [:FieldName "address"] [:FieldName "city"]]]]]
            (parses-to "{name, age, city: _.address.city}"))))
 
   (testing "plain object = new structure (no +/- prefix)"
-    (is (= [:Object "{"
-            [:StandardContent
-             [:StandardEntry [:Identifier "name"] [:FieldAccess [:Wildcard "_"] [:FieldName "name"]]]
-             [:StandardEntry [:Identifier "age"] [:FieldAccess [:Wildcard "_"] [:FieldName "age"]]]]]
+    (is (= [:Object
+            [:StandardEntry [:Identifier "name"] [:FieldAccess [:Wildcard "_"] [:FieldName "name"]]]
+            [:StandardEntry [:Identifier "age"] [:FieldAccess [:Wildcard "_"] [:FieldName "age"]]]]
            (parses-to "{name: _.name age: _.age}")))))
 
 ;; ==========================================================================
@@ -1605,7 +1602,7 @@
   (testing "function with two arities"
     (is (= [:Binding [:Identifier "greet"]
             [:MultiArityFn
-             [:FnDef "->" [:String "Hello, World!"]]
+             [:FnDef [:String "Hello, World!"]]
              [:FnDef [:Identifier "name"]
               [:FnCall [:Identifier "format"] [:String "Hello, %s!"] [:Identifier "name"]]]]]
            (parses-to "greet is\n  [-> \"Hello, World!\"]\n  [name -> format \"Hello, %s!\" name]"))))
