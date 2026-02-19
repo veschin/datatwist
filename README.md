@@ -34,18 +34,18 @@ double is [x -> x * 2]
 [10 20 30] |> map double |> take 2   ; => [20 40]
 
 ; object destructuring
-{name, age} is {name: "Alice" age: 28 city: "NYC"}
+{name age} is {name: "Alice" age: 28 city: "NYC"}
 name   ; => "Alice"
 
 ; list destructuring with rest
-[first, &rest] is [1 2 3 4 5]
+[first &rest] is [1 2 3 4 5]
 rest   ; => [2 3 4 5]
 ```
 
 **String pattern destructuring (`#p`):**
 ```
 ; extract structured data from strings
-"alice@example.com" | #p"{user}@{domain}" -> {user, domain}
+"alice@example.com" | #p"{user}@{domain}" -> {user domain}
 ; => {user: "alice" domain: "example.com"}
 
 ; parse logs with named captures
@@ -65,7 +65,7 @@ db |> query "SELECT * FROM users"
    |> map {dept: _.key count: _.value |> length}
 
 ; credentials from pass
-{db-host, db-pass} is pass.myproject
+{db-host db-pass} is pass.myproject
 ```
 
 **String interpolation & tap:**
