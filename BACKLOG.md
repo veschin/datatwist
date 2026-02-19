@@ -23,15 +23,29 @@ Build DataTwist as a standalone native binary via GraalVM `native-image`. Critic
 
 ## P1 — High Priority
 
-### Lazy Evaluation `🔬 research`
+### Lazy Evaluation `🔬 research` — NEEDS RE-RESEARCH
 
-BDD: `bdd/8-lazy-evaluation.feature`, Tests: `test/datatwist/lazy_eval_test.clj` (71 TDD stubs)
+BDD: `bdd/8-lazy-evaluation.feature`, Tests: `test/datatwist/lazy_eval_test.clj` (76 TDD stubs)
 Design doc: `docs/lazy-eval-design.md`
 
 - [ ] Lazy sequences for large collections
 - [ ] Streaming pipelines
 - [ ] Short-circuit evaluation in guards and boolean ops
 - [ ] `take`/`drop` on infinite sequences
+
+#### Design decisions (locked)
+
+- **Laziness is invisible to user**: lazy seqs auto-materialize at any user-facing boundary (REPL, str, save!, tap!, `=`). User NEVER sees `LazySeq@...`. Laziness only exists between pipeline steps for performance.
+- **Remove**: `inspect`, `log!`, `print`, `collect` from pipeline vocabulary
+- **`force!`** is the only materialization function (not `collect`)
+- **`tap!`** syntax: `tap! _data_ "format %s" (args)` — print before data, passthrough. No lambda needed.
+- **Reified pipeline**: `|>` builds a DTPipeline record that remembers steps + caches samples per step
+- **Full introspection**: cursor on ANY expression → sample result. Cursor on ANY variable (e.g. `x` in `[x -> x > 1]`) → sample of that variable's values. On-demand computation.
+- **Conditional sampling**: `#sample {name: "Alex"}` — predicate-based sample filtering (like `#dbg` in Clojure)
+- **Bi-directional traversal**: step forward/backward through pipeline computations
+- **Compression + batching + streaming**: real data can be huge, design for it from day 1
+- **Constants**: `SAMPLE_SIZE`, `MAX_COLLECT_ROWS`, `DESCRIBE_SAMPLE_SIZE` — uppercase symbols, mutable config values
+- **Auto-materialize contexts**: REPL output, `str`/concat, `tap!`, `save!`, `=` comparison, error messages — all auto-force with configurable limit
 
 ### Pushdown Optimization `⏳ waiting`
 

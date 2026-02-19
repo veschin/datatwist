@@ -89,10 +89,10 @@
         (/ (double s) n)))))
 
 (defn- dt-flatten [coll]
-  (vec (apply concat coll)))
+  (apply concat coll))
 
 (defn- dt-distinct [coll]
-  (vec (distinct coll)))
+  (distinct coll))
 
 (defn- dt-reverse [coll]
   (vec (reverse coll)))
@@ -120,17 +120,22 @@
 (defn- dt-take
   "Take first n elements. Data-first: (coll, n)"
   [coll n]
-  (vec (take n coll)))
+  (take n coll))
 
 (defn- dt-drop
   "Drop first n elements. Data-first: (coll, n)"
   [coll n]
-  (vec (drop n coll)))
+  (drop n coll))
 
 (defn- dt-filter
   "Filter a collection with a predicate. Data-first: (coll, pred)"
   [coll pred]
-  (vec (filter pred coll)))
+  (cond
+    (nil? coll)        ()
+    (sequential? coll) (filter pred coll)
+    (map? coll)        (filter pred coll)
+    :else (throw (ex-info (str "Cannot filter over " (type coll) ": expected a list")
+                          {:value coll}))))
 
 (defn- dt-map
   "Map a function over a collection. Data-first: (coll, f)
@@ -139,10 +144,12 @@
   [coll f]
   (cond
     (nil? coll)        []
-    (map? coll)        (vec (map (fn [[k v]] (f {:key k :value v})) coll))
-    (sequential? coll) (vec (map f coll))
-    :else (throw (ex-info (str "Cannot map over " (type coll) ": expected a list or object")
-                          {:value coll}))))
+    (map? coll)        (map (fn [[k v]] (f {:key k :value v})) coll)
+    (sequential? coll) (map f coll)
+    :else (throw (ex-info (str "Cannot map over " (dt-type-of coll) ": expected a list or object")
+                          {:dt/error true :code "DT-R010" :category "TYPE MISMATCH"
+                           :hint "map expects a list or object. Check the type of the value being piped."
+                           :value coll}))))
 
 (defn- dt-reduce
   "Reduce a collection. (coll, f) or (coll, f, init)"
@@ -283,7 +290,7 @@
    "first"       first
    "last"        last
    "nth"         dt-nth
-   "rest"        (comp vec rest)
+   "rest"        rest
    "keys"        dt-keys
    "vals"        dt-vals
    "values"      dt-vals
@@ -370,9 +377,9 @@
    "to-float"    #(if (string? %) (Double/parseDouble %) (double %))
    ;; Collection extras
    "range"       (fn
-                   ([n] (vec (range n)))
-                   ([start end] (vec (range start end)))
-                   ([start end step] (vec (range start end step))))
+                   ([n] (clojure.core/range n))
+                   ([start end] (clojure.core/range start end))
+                   ([start end step] (clojure.core/range start end step)))
    "apply"       (fn [f coll] (apply f coll))
    "zip"         dt-zip
    "partition"   dt-partition
@@ -384,8 +391,45 @@
    "ends-with?"  clojure.string/ends-with?
    "includes?"   clojure.string/includes?
    "substring"   dt-substring
+   ;; Materialization
+   "collect"     (fn [coll] (if (vector? coll) coll (vec coll)))
+   "force!"      (fn [data] (if (vector? data) data (vec data)))
+   ;; Infinite / lazy sequence generators
+   "repeat"      (fn ([v] (clojure.core/repeat v))
+                   ([n v] (clojure.core/repeat n v)))
+   "iterate"     (fn [f init] (clojure.core/iterate f init))
+   "cycle"       (fn [coll] (clojure.core/cycle coll))
    ;; Side-effect builtins (pre-wrapped: return first arg)
    "log!"        (fn [data & msgs] (apply println msgs) data)
-   "tap!"        (fn ([data] (println data) data)
-                   ([data f] (f data) data))
-   "save!"       (fn [data & _args] data)})
+   "tap!"        (fn ([data]
+                      (if (sequential? data)
+                        (println (str "(showing first 5 of lazy seq) " (vec (take 5 data))))
+                        (println data))
+                      data)
+                   ([data label-or-fn]
+                    (if (string? label-or-fn)
+                      (do (println (str "--- " label-or-fn " ---"))
+                          (if (sequential? data)
+                            (println (str "(showing first 5 of lazy seq) " (vec (take 5 data))))
+                            (println data))
+                          data)
+                      ;; label-or-fn is a function -- apply to sample for display only
+                      (let [sample (if (sequential? data) (take 100 data) data)]
+                        (println (label-or-fn sample))
+                        data))))
+   "save!"       (fn [data & _args] data)
+   ;; Data source stubs — throw structured DT-C errors (full impl is Feature 8)
+   "read-csv"    (fn [& args]
+                   (let [path (first args)
+                         f    (java.io.File. (str path))]
+                     (if (.exists f)
+                       (throw (ex-info "read-csv is not yet fully implemented"
+                                       {:dt/error true :code "DT-C001" :category "FILE NOT FOUND"
+                                        :hint "The file exists but read-csv is not yet implemented."}))
+                       (throw (ex-info (str "File not found: " path)
+                                       {:dt/error true :code "DT-C001" :category "FILE NOT FOUND"
+                                        :hint (str "Check the file path: " path)})))))
+   "connect"     (fn [uri]
+                   (throw (ex-info (str "Connection failed: " uri)
+                                   {:dt/error true :code "DT-C002" :category "CONNECTION ERROR"
+                                    :hint "Check that the database is running and the URI is correct."})))})

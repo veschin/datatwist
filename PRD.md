@@ -36,6 +36,14 @@ The power of Clojure without the parentheses, purpose-built for data pipelines.
 | Object field ops | `+`/`-` prefixes | `{+field: expr}` adds, `{-field}` removes |
 | Object shorthand | `{name, age}` | = `{name: _.name age: _.age}` in pipeline |
 | Modules | Deferred | Core language first |
+| Lazy transparency | Auto-materialize at boundaries | User never sees `LazySeq@...`. Laziness is internal optimization only |
+| Pipeline debug probe | `tap!` only | `inspect`, `log!`, `print`/`println` are NOT pipeline debug tools. `tap!` is the only probe |
+| Reified pipeline | `DTPipeline` record | `\|>` builds a record with steps (label, code string, transform fn). Each step auto-caches its sample |
+| Pipeline terminals | `collect`, `count`, `first`, `reduce`, `force!` | Only these trigger evaluation. Building the pipeline is always lazy |
+| System constants | Uppercase symbols | `SAMPLE_SIZE`, `MAX_COLLECT_ROWS`, `DESCRIBE_SAMPLE_SIZE`, `PRINT_WIDTH`. Set via `dtw/set!`, get via `dtw/get` |
+| IDE step inspection | nREPL op `inspect-pipeline-step` | Returns cached sample for a step by index. No re-evaluation needed |
+| Plugin directory | `plugins/` in repo | `plugins/lsp/`, `plugins/tree-sitter-datatwist/`, `plugins/datatwist-emacs/`, `plugins/datatwist-nrepl/`, `plugins/datatwist-vscode/` |
+| Demo runner | `.dt` files in `resources/examples/` | `// @section Title` and `// @expect value` annotations. Expression-by-expression eval with shared env |
 
 ## Feature Areas
 
@@ -122,10 +130,10 @@ greet is [name -> format "Hello, %s!" name]
 
 ```
 data
-|> log! "processing started"
+|> tap! "processing started"
 |> transform
 |> save! "output.json"
-|> log! "done"
+|> tap! "done"
 ```
 
 ### 4. Pipeline (`|>`)
@@ -288,25 +296,62 @@ active is users |> filter _.active |> sort-by _.score
 // => | ...   |       |
 ```
 
-**Audit at any point:**
+**`tap!` — the only pipeline debug probe (three modes):**
 ```
 users
 |> filter _.active
-|> tap!                    // show sample here
+|> tap!                                          // print sample of current data
 |> map {name: _.name}
-|> tap!                    // and here
+|> tap! "after map"                              // print with label
+|> sort-by _.name
+|> tap! [d -> format "found %s items" (count d)] // lambda for custom formatting
 ```
 
-**Materialization:**
+`tap!` is passthrough (returns input unchanged). `inspect`, `log!`, `print`/`println` are NOT pipeline debug tools.
+
+**Auto-materialization at user-facing boundaries:**
+
+Laziness is an internal optimization. The runtime auto-materializes at all user-facing boundaries:
+- REPL output display
+- `str` / string concatenation
+- `tap!` and `save!`
+- `=` comparison
+- Error messages
+
+The user never sees `LazySeq@...`.
+
+**Materialization (terminal operations — trigger evaluation):**
 ```
 data |> force!              // materialize lazy pipeline, return data
 data |> collect             // all into memory (vector)
 data |> count               // exact count
+data |> first               // first element
+data |> reduce f init       // fold
 data |> save! "out.json"    // write to file (side-effect, returns data)
 data |> into! db "results"  // write to DB (side-effect, returns data)
 ```
 
 Note: `save!` and `into!` have `!` because they are side-effects (passthrough -- return data). `collect`, `count`, `first`, `reduce` are regular functions (return results, no `!`).
+
+**Reified pipeline (`DTPipeline` record):**
+
+`|>` builds a `DTPipeline` record, not just a lazy seq. The pipeline remembers its steps:
+```clojure
+;; Internal structure (Clojure)
+{:source  users
+ :steps   [{:label "filter _.active"  :code "filter _.active"  :fn <fn>  :sample nil}
+           {:label "map {name}"       :code "map {name: _.name}" :fn <fn>  :sample nil}]}
+```
+
+Each step auto-caches its sample after execution (~150KB for 11 steps with 100-row samples — no compression needed).
+
+**System constants (mutable configuration):**
+```
+dtw/set! SAMPLE_SIZE 200          // set how many rows to sample
+dtw/get  SAMPLE_SIZE              // get current value
+```
+
+Constants: `SAMPLE_SIZE` (default 100), `MAX_COLLECT_ROWS`, `DESCRIBE_SAMPLE_SIZE`, `PRINT_WIDTH`. Uppercase symbols, no string keys.
 
 **Explore/describe:**
 ```
@@ -391,9 +436,14 @@ users                          // inspect: raw users (10,000 rows)
 |> sort-by _.name              // inspect: sorted, 7,500 rows
 ```
 
-nREPL middleware `dtw/inspect` accepts `{:file :line}`, returns sample data.
-IDE plugin shows table inline on click/hover.
-`tap!` is the programmatic equivalent for scripts/CI.
+**nREPL op `inspect-pipeline-step`:**
+- Accepts `{:file :line :step-index N}`
+- Returns cached sample for that step — no re-evaluation needed
+- Cached after first execution; invalidated when pipeline is re-evaluated
+
+IDE plugin shows an overlay on each `|>` with: step number, code string, row count, sample preview table. Click/hover triggers the nREPL op.
+
+`tap!` is the programmatic equivalent for scripts/CI (no IDE required).
 
 ## Nil Semantics
 
@@ -468,13 +518,58 @@ The syntactic core is small. Everything else is functions in the standard librar
 
 **Data Sources:** `connect`, `table`, `query`, `read-csv`, `read-json`, `read-jsonl`, `read-parquet`, `read-lines`, `close!`
 
-**IO / Side Effects:** `save!`, `into!`, `log!`, `tap!`, `force!`
+**IO / Side Effects:** `save!`, `into!`, `tap!`, `force!`
+- `tap!` is the only pipeline debug probe (passthrough, three modes: bare / labeled / lambda)
+- `log!` is NOT a pipeline debug tool
 
 **Nil Handling:** `fill-nil`, `skip-nil`, `coerce`
 
 **Exploration:** `describe`, `schema`, `sample`, `histogram`, `freq`, `explain`
 
 **Multi-Source:** `join`, `left-join`, `inner-join`, `outer-join`, `define`
+
+## IDE / Editor Tooling
+
+Editor plugins live in the `plugins/` directory of this repo. When stable, each plugin becomes its own repo.
+
+**Plugin structure:**
+```
+plugins/
+  lsp/                        // Language Server Protocol implementation
+  tree-sitter-datatwist/      // Tree-sitter grammar for syntax highlighting
+  datatwist-emacs/            // Emacs major mode
+  datatwist-nrepl/            // nREPL middleware (inspect-pipeline-step op)
+  datatwist-vscode/           // VS Code extension
+```
+
+**nREPL op: `inspect-pipeline-step`**
+- Request: `{:op "inspect-pipeline-step" :file "..." :line N :step-index K}`
+- Response: cached sample data for step K (no re-evaluation)
+- Cached after first pipeline execution; invalidated on re-eval
+
+**IDE overlay (per `|>`):**
+- Step number, source code string, row count, sample preview table
+- Populated from cached step data (instant — no round-trip to evaluator)
+- Click/hover triggers `inspect-pipeline-step` nREPL op
+
+## Demo Runner
+
+Demo files: `.dt` files in `resources/examples/`. The runner evaluates them expression-by-expression with a shared environment.
+
+**Annotation syntax:**
+```
+// @section Loading Data
+data is read-csv "sales.csv"
+
+// @section Filtering
+// @expect 42
+active is data |> filter _.active |> count
+active
+```
+
+- `// @section Title` — marks a section boundary (for structured output)
+- `// @expect value` — asserts the next expression evaluates to `value`
+- Expressions share a single environment (bindings persist across sections)
 
 ## BDD Feature Files
 

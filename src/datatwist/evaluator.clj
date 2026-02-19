@@ -2,7 +2,8 @@
   (:require [instaparse.core :as insta]
             [datatwist.env :as env]
             [datatwist.stdlib :as stdlib]
-            [datatwist.parser :as parser]))
+            [datatwist.parser :as parser]
+            [datatwist.errors :as errors]))
 
 ;; ---------------------------------------------------------------------------
 ;; Forward declarations (all private helpers)
@@ -21,6 +22,10 @@
 ;; When true, Constructor returns a fn; when false, it invokes immediately (0 args).
 (def ^:dynamic *constructor-callable?* false)
 
+;; Dynamic var holding the full source string being evaluated.
+;; Used to attach source context to error messages.
+(def ^:dynamic *source* nil)
+
 ;; ---------------------------------------------------------------------------
 ;; Helper: apply a callable to arguments
 ;; ---------------------------------------------------------------------------
@@ -29,9 +34,15 @@
   "Call f with args. Handles Clojure fns."
   [f args]
   (when (nil? f)
-    (throw (ex-info "Cannot call nil as a function" {:args args})))
+    (throw (ex-info "Cannot call nil as a function"
+                    {:dt/error true :code "DT-R003" :category "RUNTIME ERROR"
+                     :hint "Check that the function value is defined and not nil."
+                     :args args :source *source*})))
   (when-not (fn? f)
-    (throw (ex-info "Not a function" {:value f :type (type f)})))
+    (throw (ex-info "Value is not callable"
+                    {:dt/error true :code "DT-R004" :category "RUNTIME ERROR"
+                     :hint "Only functions can be called. Check the value type."
+                     :value f :source *source*})))
   (apply f args))
 
 ;; ---------------------------------------------------------------------------
@@ -247,9 +258,13 @@
                   suggestion  (levenshtein-suggest id-name env-names)]
               (throw (ex-info (str "Undefined identifier: " id-name
                                    (when suggestion (str ". Did you mean '" suggestion "'?")))
-                              {:code "DT-R001"
+                              {:dt/error true :code "DT-R001" :category "UNDEFINED IDENTIFIER"
+                               :hint (if suggestion
+                                       (str "Did you mean '" suggestion "'?")
+                                       "Check the spelling or define the value with `is`.")
                                :name id-name
-                               :suggestion suggestion})))
+                               :suggestion suggestion
+                               :source *source*})))
             val))
 
         (= :ParenExpr tag)
@@ -396,10 +411,10 @@
                         (both-numbers? l r)    (cmp-fn l r)
                         (both-strings? l r)    (cmp-fn (compare l r) 0)
                         :else (throw (ex-info (str "Cannot compare " (dt-type-name l) " with " (dt-type-name r))
-                                              {:code "DT-T002"
+                                              {:dt/error true :code "DT-T002" :category "TYPE MISMATCH"
                                                :hint (str "Comparison operators require compatible types. "
                                                           "Got " (dt-type-name l) " and " (dt-type-name r) ".")
-                                               :left l :right r}))))]
+                                               :left l :right r :source *source*}))))]
               (case op
                 "="  (numeric-equal left right)
                 "!=" (not (numeric-equal left right))
@@ -425,20 +440,20 @@
                                 (and (string? left) (string? right)) (str left right)
                                 (and (number? left) (number? right)) (+' left right)
                                 :else (throw (ex-info (str "Cannot add " (dt-type-name left) " and " (dt-type-name right))
-                                                      {:code "DT-T001"
+                                                      {:dt/error true :code "DT-T001" :category "TYPE MISMATCH"
                                                        :hint (str "The + operator works on two numbers or two strings. "
                                                                   "Got " (dt-type-name left) " and " (dt-type-name right) ".")
-                                                       :left left :right right})))
+                                                       :left left :right right :source *source*})))
                           "-" (cond
                                 (and (nil? left) (nil? right)) 0
                                 (nil? left)  (-' right)
                                 (nil? right) left
                                 (and (number? left) (number? right)) (-' left right)
                                 :else (throw (ex-info (str "Cannot subtract " (dt-type-name right) " from " (dt-type-name left))
-                                                      {:code "DT-T001"
+                                                      {:dt/error true :code "DT-T001" :category "TYPE MISMATCH"
                                                        :hint (str "The - operator requires numbers. "
                                                                   "Got " (dt-type-name left) " and " (dt-type-name right) ".")
-                                                       :left left :right right}))))))
+                                                       :left left :right right :source *source*}))))))
                     init
                     pairs)))
 
@@ -459,10 +474,10 @@
                                   (if (float? other) 0.0 0))
                                 (and (number? left) (number? right)) (*' left right)
                                 :else (throw (ex-info (str "Cannot multiply " (dt-type-name left) " and " (dt-type-name right))
-                                                      {:code "DT-T001"
+                                                      {:dt/error true :code "DT-T001" :category "TYPE MISMATCH"
                                                        :hint (str "The * operator requires numbers. "
                                                                   "Got " (dt-type-name left) " and " (dt-type-name right) ".")
-                                                       :left left :right right})))
+                                                       :left left :right right :source *source*})))
                           "/" (let [l-raw (if (nil? left) 0 left)
                                     r-raw (if (nil? right) 0 right)]
                                 ;; Integer zero divisor throws ArithmeticException
@@ -699,8 +714,10 @@
   "Bind object destructuring pattern to val. Returns updated env."
   [pattern-node val env]
   (when (and (some? val) (not (map? val)) (not (sequential? val)))
-    (throw (ex-info (str "Object destructuring expects an object, got " (type val))
-                    {:value val})))
+    (throw (ex-info (str "Cannot destructure " (dt-type-name val) " as an object")
+                    {:dt/error true :code "DT-R006" :category "DESTRUCTURING ERROR"
+                     :hint "Object destructuring (`{field}`) requires the value to be an object."
+                     :value val :source *source*})))
   (let [fields (rest pattern-node)]
     (reduce (fn [e field]
               (let [field-tag      (first field)
@@ -908,7 +925,10 @@
                                                   arities)))]
                      (when-not match
                        (throw (ex-info "No matching arity"
-                                       {:args-count n :arities (mapv :fixed arities)})))
+                                       {:dt/error true :code "DT-R005" :category "ARITY ERROR"
+                                        :hint "Check the number of arguments you are passing."
+                                        :args-count n :arities (mapv :fixed arities)
+                                        :source *source*})))
                      (let [{:keys [params body]} match
                            fn-env      (bind-params (or params []) (vec args) closure-env)
                            first-param (first (or params []))
@@ -1341,7 +1361,10 @@
           (fn [data]
             (if (fn? val)
               (apply-fn val [data])
-              (throw (ex-info "Pipeline step is not a function" {:value val}))))))
+              (throw (ex-info "Pipeline step is not a function"
+                              {:dt/error true :code "DT-R002" :category "RUNTIME ERROR"
+                               :hint "Each step in a pipeline must be a function or expression that takes a value."
+                               :value val :source *source*}))))))
       ;; Contains wildcard
       (let [pipeline-fncall (find-pipeline-fncall pipe-atom-node)]
         (if pipeline-fncall
@@ -1503,10 +1526,71 @@
 (defn evaluate
   "Parse and evaluate DataTwist source code. Returns the result.
    Returns nil for parse failures instead of throwing, so callers can
-   use parse-error? to check syntax separately."
+   use parse-error? to check syntax separately.
+   Wraps raw Java exceptions in DataTwist error maps."
   [input]
   ;; A comment-only or whitespace-only program produces no form → nil.
   (when-not (comment-or-whitespace-only? input)
     (let [ast (parser/parse input)]
-      (when-not (insta/failure? ast)
-        (eval-node ast (stdlib/default-env))))))
+      (if (insta/failure? ast)
+        ;; Return nil on parse failure (preserve existing behavior).
+        ;; Callers who want structured errors can call evaluate-strict.
+        nil
+        ;; Evaluation path — bind *source* for error context, catch Java leaks.
+        (binding [*source* input]
+          (try
+            (eval-node ast (stdlib/default-env))
+            (catch clojure.lang.ExceptionInfo e
+              ;; Already a DT error — re-throw as-is
+              (throw e))
+            (catch ArithmeticException e
+              ;; Re-throw as-is to preserve ArithmeticException type for backward compat
+              (throw e))
+            (catch IllegalArgumentException e
+              ;; e.g. filter on non-collection — translate to DT-R010
+              (throw (ex-info (str "Collection operation applied to non-collection value: "
+                                   (.getMessage e))
+                              {:dt/error true :code "DT-R010" :category "TYPE MISMATCH"
+                               :hint "filter and map expect a list. Check the type of the value being piped."
+                               :source input})))
+            (catch ClassCastException e
+              (throw (ex-info (str "Type mismatch: incompatible types in operation")
+                              {:dt/error true :code "DT-T001" :category "TYPE MISMATCH"
+                               :hint "Check that the operands have compatible types."
+                               :source input})))
+            (catch NullPointerException e
+              (throw (ex-info "Nil value where a value was required"
+                              {:dt/error true :code "DT-R020" :category "NIL ERROR"
+                               :hint "A nil propagated through an operation that requires a non-nil value."
+                               :source input})))))))))
+
+(defn evaluate-strict
+  "Like evaluate, but throws a structured DT error on parse failure.
+   Use this when callers need structured error data for parse failures."
+  [input]
+  (when-not (comment-or-whitespace-only? input)
+    (let [ast (parser/parse input)]
+      (if (insta/failure? ast)
+        (throw (errors/parse-failure->dt-error ast input))
+        (binding [*source* input]
+          (try
+            (eval-node ast (stdlib/default-env))
+            (catch clojure.lang.ExceptionInfo e
+              (throw e))
+            (catch ArithmeticException e
+              (throw e))
+            (catch IllegalArgumentException e
+              (throw (ex-info (str "Collection operation applied to non-collection value")
+                              {:dt/error true :code "DT-R010" :category "TYPE MISMATCH"
+                               :hint "filter and map expect a list. Check the type of the value being piped."
+                               :source input})))
+            (catch ClassCastException e
+              (throw (ex-info "Type mismatch: incompatible types in operation"
+                              {:dt/error true :code "DT-T001" :category "TYPE MISMATCH"
+                               :hint "Check that the operands have compatible types."
+                               :source input})))
+            (catch NullPointerException e
+              (throw (ex-info "Nil value where a value was required"
+                              {:dt/error true :code "DT-R020" :category "NIL ERROR"
+                               :hint "A nil propagated through an operation that requires a non-nil value."
+                               :source input})))))))))
