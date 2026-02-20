@@ -66,3 +66,14 @@
     false
     (catch Exception _
       true)))
+
+(defn capture-eval-dt-last
+  "Evaluate multiple DataTwist lines, capturing stdout, and return a map of
+   {:result <last-result> :output <captured-stdout-string>}.
+   Useful for testing side-effect functions like tap! that print to *out*."
+  [& exprs]
+  (let [sw (java.io.StringWriter.)]
+    (binding [*out* sw]
+      (let [result (apply eval-dt-last exprs)]
+        {:result result
+         :output (str sw)}))))

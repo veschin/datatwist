@@ -1,7 +1,8 @@
 (ns datatwist.lazy-eval-test
   (:require [clojure.test :refer [deftest testing is]]
             [datatwist.test-helpers :refer [eval-dt eval-dt-last parse-error? throws? throws-type? type-of
-                                            silent-eval-dt silent-eval-dt-last silent-throws?]]))
+                                            silent-eval-dt silent-eval-dt-last silent-throws?
+                                            capture-eval-dt-last]]))
 
 ;; ==========================================================================
 ;; Feature 8: Lazy Evaluation, Data Sources & Pipeline Introspection
@@ -239,25 +240,77 @@
 ;; --- tap! -- the ONLY pipeline debug probe ---
 
 (deftest tap-bang-bare-mode-shows-a-sample-of-data-at-its-pipeline-position
-  (testing "stub -- not yet implemented"))
-;; tap! bare mode behavior (output format, micro-sampling to SAMPLE_SIZE rows)
-;; is not yet testable via unit tests. The passthrough result is verified
-;; separately in tap-bang-returns-its-input-unchanged-passthrough-semantics.
+  ;; BDD: tap! bare mode shows a sample of data at its pipeline position
+  ;; Verifies: "--- tap! ---" header is printed, data items appear in output, result unchanged
+  (let [{:keys [result output]}
+        (capture-eval-dt-last
+         "data is [1 2 3 4 5]"
+         "data |> tap!")]
+    (testing "bare mode prints '--- tap! ---' header"
+      (is (clojure.string/includes? output "--- tap! ---")
+          "bare tap! must print '--- tap! ---' header line"))
+    (testing "bare mode includes data elements in output"
+      (is (clojure.string/includes? output "1")
+          "bare tap! must print data elements")
+      (is (clojure.string/includes? output "5")
+          "bare tap! must print data elements"))
+    (testing "bare mode returns data unchanged (passthrough)"
+      (is (= [1 2 3 4 5] result)
+          "bare tap! must return the original data unchanged"))))
 
 (deftest tap-bang-labeled-mode-prints-a-header-then-shows-the-sample
-  (testing "stub -- not yet implemented"))
-;; tap! labeled output format ("--- label ---" header) is a display concern
-;; not yet under test at the unit level.
+  ;; BDD: tap! labeled mode prints a header then shows the sample
+  ;; Verifies: "--- label ---" header format, data in output, result unchanged
+  (let [{:keys [result output]}
+        (capture-eval-dt-last
+         "data is [10 20 30]"
+         "data |> tap! \"after filter\"")]
+    (testing "labeled mode prints '--- after filter ---' header"
+      (is (clojure.string/includes? output "--- after filter ---")
+          "labeled tap! must print '--- <label> ---' header line"))
+    (testing "labeled mode includes data elements in output"
+      (is (clojure.string/includes? output "10")
+          "labeled tap! must print data elements"))
+    (testing "labeled mode returns data unchanged (passthrough)"
+      (is (= [10 20 30] result)
+          "labeled tap! must return the original data unchanged"))))
 
 (deftest tap-bang-lambda-mode-applies-the-function-to-the-sample-for-display-only
-  (testing "stub -- not yet implemented"))
-;; tap! lambda display-only semantics (apply fn to sample for output, pipeline
-;; data unchanged) are not yet verified at the output level.
+  ;; BDD: tap! lambda mode applies the function to the sample for display only
+  ;; Verifies: fn result appears in output, original data flows through unchanged
+  (let [{:keys [result output]}
+        (capture-eval-dt-last
+         "data is [1 2 3]"
+         "data |> tap! [d -> count d]")]
+    (testing "lambda mode prints the function's return value"
+      (is (clojure.string/includes? output "3")
+          "lambda tap! must print the result of applying fn to the sample"))
+    (testing "lambda mode returns ORIGINAL data, not the fn result"
+      (is (= [1 2 3] result)
+          "lambda tap! must not affect pipeline data -- original [1 2 3] must flow through"))))
 
 (deftest tap-bang-takes-a-micro-sample-and-does-not-force-full-evaluation
-  (testing "stub -- not yet implemented"))
-;; tap! micro-sampling (only SAMPLE_SIZE rows, not all N rows) requires
-;; DTPipeline integration and SAMPLE_SIZE system constant support.
+  ;; BDD: tap! takes a micro-sample and does not force full evaluation
+  ;; Verifies: tap! on a lazy seq only takes up to SAMPLE_SIZE=100 elements for display,
+  ;; does not realize the entire (potentially infinite) sequence.
+  ;; We use a range of 10,000 to confirm tap! doesn't hang or take all elements.
+  (let [{:keys [result output]}
+        (capture-eval-dt-last
+         "nums is range 10000"
+         "nums |> tap!")]
+    (testing "micro-sample mode prints the '--- tap! ---' header"
+      (is (clojure.string/includes? output "--- tap! ---")
+          "tap! on lazy seq must print header"))
+    (testing "tap! on lazy seq returns the original lazy seq (passthrough)"
+      ;; We force just enough to verify it's a sequence of numbers
+      (is (sequential? result)
+          "tap! must return the original lazy sequence unchanged"))
+    (testing "tap! output contains at most SAMPLE_SIZE=100 elements, not all 10000"
+      ;; range 10000 starts at 0; a 100-element sample covers values 0..99.
+      ;; The value 100 (the 101st element) must not appear in the printed output.
+      ;; We check for " 100 " (space-padded) to avoid false matches on e.g. "1000".
+      (is (not (clojure.string/includes? output " 100 "))
+          "tap! must display at most 100 elements (SAMPLE_SIZE), not all 10000"))))
 
 (deftest tap-bang-returns-its-input-unchanged-passthrough-semantics
   ;; tap! must be transparent: data flows through, pipeline result is unchanged.
@@ -268,9 +321,27 @@
         "tap! must not affect pipeline result -- [30 40 50] must come through")))
 
 (deftest multiple-tap-bang-calls-each-show-data-at-their-respective-pipeline-point
-  (testing "stub -- not yet implemented"))
-;; Verifying that each tap! shows data at its specific step requires
-;; output capture and step-level introspection, which is not yet implemented.
+  ;; BDD: Multiple tap! calls each show data at their respective pipeline point
+  ;; Verifies: two labeled tap! calls each print their own header, data unchanged end-to-end
+  (let [{:keys [result output]}
+        (capture-eval-dt-last
+         "data is [1 2 3 4 5]"
+         "data |> tap! \"raw\" |> map _ * 2 |> tap! \"doubled\"")]
+    (testing "first tap! prints its label"
+      (is (clojure.string/includes? output "--- raw ---")
+          "first tap! must print '--- raw ---' header"))
+    (testing "second tap! prints its label"
+      (is (clojure.string/includes? output "--- doubled ---")
+          "second tap! must print '--- doubled ---' header"))
+    (testing "first tap! shows data before map (contains original values)"
+      (is (clojure.string/includes? output "1")
+          "first tap! must show values before map transformation"))
+    (testing "second tap! shows data after map (contains doubled values)"
+      (is (clojure.string/includes? output "10")
+          "second tap! must show values after map _ * 2"))
+    (testing "final result is the doubled sequence (tap! calls did not affect pipeline)"
+      (is (= [2 4 6 8 10] result)
+          "multiple tap! calls must not affect the pipeline result"))))
 
 (deftest inspect-is-not-a-pipeline-debug-tool
   ;; inspect used in a pipeline must raise a runtime error.

@@ -1,4 +1,5 @@
-(ns datatwist.stdlib)
+(ns datatwist.stdlib
+  (:require [datatwist.errors :as errors]))
 
 ;; ---------------------------------------------------------------------------
 ;; Helper functions used by the stdlib
@@ -140,12 +141,23 @@
 (defn- dt-map
   "Map a function over a collection. Data-first: (coll, f)
    When coll is a map (e.g. from group-by), iterates over entries as {:key k :value v}.
-   Throws for non-collection inputs."
+   Throws for non-collection inputs.
+   Emits DT-D001 warning (or throws in strict mode) when any result is nil."
   [coll f]
   (cond
     (nil? coll)        []
-    (map? coll)        (map (fn [[k v]] (f {:key k :value v})) coll)
-    (sequential? coll) (map f coll)
+    (map? coll)        (let [results (mapv (fn [[k v]] (f {:key k :value v})) coll)]
+                         (when (some nil? results)
+                           (errors/dt-warning {:code    "DT-D001"
+                                               :message "Nil values encountered in map step — some rows had nil at the accessed path."
+                                               :hint    "Some rows had nil at the accessed path. Results may contain nil."}))
+                         results)
+    (sequential? coll) (let [results (mapv f coll)]
+                         (when (some nil? results)
+                           (errors/dt-warning {:code    "DT-D001"
+                                               :message "Nil values encountered in map step — some rows had nil at the accessed path."
+                                               :hint    "Some rows had nil at the accessed path. Results may contain nil."}))
+                         results)
     :else (throw (ex-info (str "Cannot map over " (dt-type-of coll) ": expected a list or object")
                           {:dt/error true :code "DT-R010" :category "TYPE MISMATCH"
                            :hint "map expects a list or object. Check the type of the value being piped."
@@ -563,22 +575,33 @@
    "iterate"     (fn [f init] (clojure.core/iterate f init))
    "cycle"       (fn [coll] (clojure.core/cycle coll))
    ;; Side-effect builtins (pre-wrapped: return first arg)
-   "tap!"        (fn ([data]
-                      (if (sequential? data)
-                        (println (str "(showing first 5 of lazy seq) " (vec (take 5 data))))
-                        (println data))
+   ;; tap! -- the ONLY pipeline debug probe. Always passthrough: returns first arg unchanged.
+   ;; SAMPLE_SIZE is hardcoded at 100 (will be replaced by configurable constant later).
+   ;; Bare mode   : (tap! data)          -- prints "--- tap! ---" header then sample
+   ;; Labeled mode: (tap! data label)    -- prints "--- label ---" header then sample
+   ;; Lambda mode : (tap! data fn)       -- applies fn to sample for display only, returns original data
+   "tap!"        (let [sample-size 100
+                       print-sample (fn [data]
+                                      (if (sequential? data)
+                                        (println (vec (take sample-size data)))
+                                        (println data)))]
+                   (fn
+                     ([data]
+                      ;; Bare mode: print header then sample
+                      (println "--- tap! ---")
+                      (print-sample data)
                       data)
-                   ([data label-or-fn]
-                    (if (string? label-or-fn)
-                      (do (println (str "--- " label-or-fn " ---"))
-                          (if (sequential? data)
-                            (println (str "(showing first 5 of lazy seq) " (vec (take 5 data))))
-                            (println data))
+                     ([data label-or-fn]
+                      (if (string? label-or-fn)
+                        ;; Labeled mode: print "--- label ---" header then sample
+                        (do
+                          (println (str "--- " label-or-fn " ---"))
+                          (print-sample data)
                           data)
-                      ;; label-or-fn is a function -- apply to sample for display only
-                      (let [sample (if (sequential? data) (take 100 data) data)]
-                        (println (label-or-fn sample))
-                        data))))
+                        ;; Lambda mode: apply fn to sample for display only, return original data
+                        (let [sample (if (sequential? data) (vec (take sample-size data)) data)]
+                          (println (label-or-fn sample))
+                          data)))))
    "save!"       (fn [data & _args] data)
    ;; Exploration functions (Feature 8)
    "describe"    dt-describe
