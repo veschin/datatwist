@@ -171,7 +171,7 @@
   coll)
 
 (defn- dt-concat [& colls]
-  (vec (apply concat colls)))
+  (apply concat colls))
 
 (defn- dt-into [target src]
   (if (vector? target)
