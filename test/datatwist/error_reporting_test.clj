@@ -419,10 +419,13 @@
   (testing "Scenario: WARNINGS_AS_ERRORS constant causes warnings to halt execution"
     ;; When WARNINGS_AS_ERRORS is true, any dt-warning in a subsequent pipeline
     ;; step must throw (DT-D code) instead of continuing silently.
+    ;; Trigger: group-by produces a map; map over that map fires DT-D001 when
+    ;; the mapping function returns nil for any entry. The map? branch of dt-map
+    ;; is eager (finite map entries) so the nil check runs immediately.
     (let [src (str "WARNINGS_AS_ERRORS is true\n"
-                   "result is [{address: {city: \"Paris\"}} {address: nil}] |> map _.address.city")]
+                   "result is [1 2 3] |> group-by _ |> map [g -> nil]")]
       (is (throws? src)
-          "strict mode must throw when nil values are encountered in map")
+          "strict mode must throw when nil values are encountered in map over group-by result")
       (let [ex (try (eval-dt-last src)
                     nil
                     (catch clojure.lang.ExceptionInfo e e))]

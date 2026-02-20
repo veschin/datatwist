@@ -142,9 +142,10 @@
 
 (defn- dt-map
   "Map a function over a collection. Data-first: (coll, f)
-   When coll is a map (e.g. from group-by), iterates over entries as {:key k :value v}.
-   Throws for non-collection inputs.
-   Emits DT-D001 warning (or throws in strict mode) when any result is nil."
+   When coll is a map (e.g. from group-by), iterates over entries as {:key k :value v}
+   and emits DT-D001 warning (or throws in strict mode) when any result is nil.
+   When coll is a sequential, returns a lazy seq — no nil scan (preserves laziness).
+   Throws for non-collection inputs."
   [coll f]
   (cond
     (nil? coll)        []
@@ -154,12 +155,7 @@
                                                :message "Nil values encountered in map step — some rows had nil at the accessed path."
                                                :hint    "Some rows had nil at the accessed path. Results may contain nil."}))
                          results)
-    (sequential? coll) (let [results (mapv f coll)]
-                         (when (some nil? results)
-                           (errors/dt-warning {:code    "DT-D001"
-                                               :message "Nil values encountered in map step — some rows had nil at the accessed path."
-                                               :hint    "Some rows had nil at the accessed path. Results may contain nil."}))
-                         results)
+    (sequential? coll) (map f coll)
     :else (throw (ex-info (str "Cannot map over " (dt-type-of coll) ": expected a list or object")
                           {:dt/error true :code "DT-R010" :category "TYPE MISMATCH"
                            :hint "map expects a list or object. Check the type of the value being piped."
@@ -311,9 +307,14 @@
                                         :sum  (reduce + 0.0 numeric)
                                         :mean (/ (reduce + 0.0 numeric) (count numeric)))
                                  (seq non-nil)
-                                 (assoc base
-                                        :min (reduce (fn [a b] (if (neg? (compare a b)) a b)) non-nil)
-                                        :max (reduce (fn [a b] (if (pos? (compare a b)) a b)) non-nil))
+                                 (let [comparable? (and (every? #(instance? Comparable %) non-nil)
+                                                        (let [t (class (first non-nil))]
+                                                          (every? #(instance? t %) non-nil)))]
+                                   (if comparable?
+                                     (assoc base
+                                            :min (reduce (fn [a b] (if (neg? (compare a b)) a b)) non-nil)
+                                            :max (reduce (fn [a b] (if (pos? (compare a b)) a b)) non-nil))
+                                     base))
                                  :else base)]
                  [col-name stats])))))))
 
@@ -570,14 +571,16 @@
    "substring"   dt-substring
    ;; Materialization
    "force!"      (fn [data]
-                   (let [limit  (config/get-config :MAX_COLLECT_ROWS)
-                         result (if (vector? data) data (vec data))]
-                     (if (and limit (> (count result) limit))
-                       (do
-                         (println (str "WARNING: force! result truncated to " limit
-                                       " rows (MAX_COLLECT_ROWS). Source had " (count result) " rows."))
-                         (vec (take limit result)))
-                       result)))
+                   (let [limit (config/get-config :MAX_COLLECT_ROWS)]
+                     (if limit
+                       (let [capped (vec (take (inc limit) data))]
+                         (if (> (count capped) limit)
+                           (do
+                             (println (str "WARNING: Result truncated to " limit
+                                           " rows (MAX_COLLECT_ROWS)"))
+                             (subvec capped 0 limit))
+                           capped))
+                       (if (vector? data) data (vec data)))))
    ;; Infinite / lazy sequence generators
    "repeat"      (fn ([v] (clojure.core/repeat v))
                    ([n v] (clojure.core/repeat n v)))
@@ -600,7 +603,8 @@
                       data))
                    ([data label-or-fn]
                     (let [sample-size (config/get-config :SAMPLE_SIZE)]
-                      (if (string? label-or-fn)
+                      (cond
+                        (string? label-or-fn)
                         ;; Labeled mode: print "--- label ---" header then sample
                         (do
                           (println (str "--- " label-or-fn " ---"))
@@ -608,10 +612,16 @@
                             (println (vec (take sample-size data)))
                             (println data))
                           data)
+                        (fn? label-or-fn)
                         ;; Lambda mode: apply fn to sample for display only, return original data
                         (let [sample (if (sequential? data) (vec (take sample-size data)) data)]
                           (println (label-or-fn sample))
-                          data)))))
+                          data)
+                        :else
+                        (throw (ex-info "tap! second argument must be a string label or function"
+                                        {:dt/error true :code "DT-R010" :category "TYPE MISMATCH"
+                                         :message "tap! expects a string label or function as second argument"
+                                         :hint "Use tap! \"label\" for labeled mode or tap! [d -> expr] for lambda mode"}))))))
    "save!"       (fn [data & _args] data)
    ;; dtw namespace sentinel object — field access reads config dynamically
    ;; e.g. dtw.SAMPLE_SIZE → (config/get-config :SAMPLE_SIZE)
