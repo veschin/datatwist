@@ -151,8 +151,8 @@
   (testing "Division of floats"
     (is (= 3.5 (eval-dt "7.0 / 2.0"))))
 
-  (testing "Division by zero - integer throws ArithmeticException"
-    (is (throws-type? "5 / 0" ArithmeticException)))
+  (testing "Division by zero - integer throws a DataTwist error"
+    (is (throws? "5 / 0")))
 
   (testing "Division by zero - float returns Infinity"
     (is (= Double/POSITIVE_INFINITY (eval-dt "5.0 / 0.0"))))
@@ -164,8 +164,8 @@
     ;; Clojure (mod -10 3) => 2, not -1
     (is (= 2 (eval-dt "-10 % 3"))))
 
-  (testing "Modulo by zero throws ArithmeticException"
-    (is (throws-type? "10 % 0" ArithmeticException)))
+  (testing "Modulo by zero throws a DataTwist error"
+    (is (throws? "10 % 0")))
 
   (testing "String concatenation with + operator"
     (is (= "hello world" (eval-dt "\"hello\" + \" \" + \"world\""))))

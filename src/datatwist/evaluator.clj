@@ -483,10 +483,13 @@
                                                        :left left :right right :source *source*})))
                           "/" (let [l-raw (if (nil? left) 0 left)
                                     r-raw (if (nil? right) 0 right)]
-                                ;; Integer zero divisor throws ArithmeticException
-                                ;; (literals-test requires this exact type)
+                                ;; Integer zero divisor — translate to DT-T003
                                 (if (and (integer? r-raw) (zero? r-raw))
-                                  (throw (ArithmeticException. "Divide by zero"))
+                                  (throw (ex-info "Division by zero"
+                                                  {:dt/error true :code "DT-T003" :category "ARITHMETIC ERROR"
+                                                   :message "Division by zero"
+                                                   :hint "Check that the divisor is not zero before dividing."
+                                                   :source *source*}))
                                   ;; Division always returns Double
                                   (/ (double l-raw) (double r-raw))))
                           "%" (let [l (if (nil? left)  0 left)
@@ -880,6 +883,19 @@
    recur is handled by eval-body directly (TCO without stack growth)."
   [params body-node closure-env]
   (fn [& args]
+    ;; Enforce strict arity for simple lambdas (no rest params).
+    ;; Multi-arity fns are handled separately by eval-multi-arity.
+    (let [ps (or params [])]
+      (when (and (seq ps)
+                 (not (has-rest? ps))
+                 (not= (count args) (count-fixed-params ps)))
+        (throw (ex-info "Wrong number of arguments"
+                        {:dt/error true :code "DT-R005" :category "ARITY ERROR"
+                         :message (str "Function expects " (count-fixed-params ps)
+                                       " argument(s), got " (count args))
+                         :hint "Check the number of arguments you are passing."
+                         :args-count (count args) :expected (count-fixed-params ps)
+                         :source *source*}))))
     (let [fn-env      (bind-params (or params []) (vec args) closure-env)
           first-param (first (or params []))
           fn-env      (if (and first-param
@@ -1544,8 +1560,11 @@
               ;; Already a DT error — re-throw as-is
               (throw e))
             (catch ArithmeticException e
-              ;; Re-throw as-is to preserve ArithmeticException type for backward compat
-              (throw e))
+              ;; Translate to DT-T003 — no raw Java exceptions exposed to users
+              (throw (ex-info (str "Type error: " (.getMessage e))
+                              {:dt/error true :code "DT-T003" :category "ARITHMETIC ERROR"
+                               :message (.getMessage e) :hint "Check for division by zero"
+                               :source input})))
             (catch IllegalArgumentException e
               ;; e.g. filter on non-collection — translate to DT-R010
               (throw (ex-info (str "Collection operation applied to non-collection value: "
@@ -1578,7 +1597,11 @@
             (catch clojure.lang.ExceptionInfo e
               (throw e))
             (catch ArithmeticException e
-              (throw e))
+              ;; Translate to DT-T003 — no raw Java exceptions exposed to users
+              (throw (ex-info (str "Type error: " (.getMessage e))
+                              {:dt/error true :code "DT-T003" :category "ARITHMETIC ERROR"
+                               :message (.getMessage e) :hint "Check for division by zero"
+                               :source input})))
             (catch IllegalArgumentException e
               (throw (ex-info (str "Collection operation applied to non-collection value")
                               {:dt/error true :code "DT-R010" :category "TYPE MISMATCH"
