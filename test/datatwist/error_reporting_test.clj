@@ -417,17 +417,24 @@
 
 (deftest warnings-as-errors-constant-causes-warnings-to-halt-execution
   (testing "Scenario: WARNINGS_AS_ERRORS constant causes warnings to halt execution"
-    ;; WARNINGS_AS_ERRORS strict mode requires the evaluator to detect when
-    ;; the binding `WARNINGS_AS_ERRORS is true` is set in the environment and
-    ;; then thread that state into dt-warning so it throws instead of returning.
-    ;; Implementation plan:
-    ;;   1. Add ^:dynamic *warnings-as-errors* to errors.clj (default false).
-    ;;   2. In the evaluator, after each binding step, check if the name is
-    ;;      "WARNINGS_AS_ERRORS" and bind the dynamic var accordingly.
-    ;;   3. In dt-warning, check *warnings-as-errors* and throw if true.
-    ;; This requires evaluator changes but no grammar changes.
-    ;; Leaving as stub until evaluator threading is implemented.
-    (testing "stub — needs evaluator threading of WARNINGS_AS_ERRORS flag")))
+    ;; When WARNINGS_AS_ERRORS is true, any dt-warning in a subsequent pipeline
+    ;; step must throw (DT-D code) instead of continuing silently.
+    (let [src (str "WARNINGS_AS_ERRORS is true\n"
+                   "result is [{address: {city: \"Paris\"}} {address: nil}] |> map _.address.city")]
+      (is (throws? src)
+          "strict mode must throw when nil values are encountered in map")
+      (let [ex (try (eval-dt-last src)
+                    nil
+                    (catch clojure.lang.ExceptionInfo e e))]
+        (is (some? ex)
+            "an exception must be thrown")
+        (when ex
+          (is (= true (:dt/error (ex-data ex)))
+              "exception must be a DataTwist error")
+          (is (.startsWith ^String (str (:code (ex-data ex))) "DT-D")
+              "error code must start with DT-D")
+          (is (some? (:message (ex-data ex)))
+              "error must include a message mentioning nil values"))))))
 
 (deftest warnings-are-non-blocking-without-warnings-as-errors
   (testing "Scenario: Warnings are non-blocking without WARNINGS_AS_ERRORS"

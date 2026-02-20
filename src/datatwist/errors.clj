@@ -147,12 +147,26 @@
                               {:category category})]
     (throw (ex-info message merged))))
 
+;; ---------------------------------------------------------------------------
+;; Warnings-as-errors strict mode
+;; ---------------------------------------------------------------------------
+
+(def ^:dynamic *warnings-as-errors*
+  "When true, dt-warning throws instead of returning a warning map.
+   Set via `WARNINGS_AS_ERRORS is true` in DataTwist source code."
+  false)
+
 (defn dt-warning
-  "Create a DataTwist warning map. Does NOT throw. Returns the map."
+  "Create a DataTwist warning map. Does NOT throw. Returns the map.
+   When *warnings-as-errors* is true, throws via dt-error instead."
   [{:keys [code] :as data}]
   (let [registry-entry (get error-registry code {})
-        category       (or (:category data) (:category registry-entry) "WARNING")]
-    (merge {:dt/error true :level :warning :category category} data)))
+        category       (or (:category data) (:category registry-entry) "WARNING")
+        warning-map    (merge {:dt/error true :level :warning :category category} data)]
+    (if *warnings-as-errors*
+      (throw (ex-info (str (:message data "Warning treated as error in strict mode"))
+                      (merge warning-map {:level :error})))
+      warning-map)))
 
 ;; ---------------------------------------------------------------------------
 ;; Common mistake detector

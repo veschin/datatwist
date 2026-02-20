@@ -208,10 +208,29 @@
 
         ;; --- Program ---
         (= :Program tag)
-        (let [[val _] (reduce (fn [[_v e] child]
-                                (eval-expr child e))
-                              [nil env]
-                              children)]
+        (let [[val _] (loop [remaining children
+                             v         nil
+                             e         env
+                             strict?   false]
+                        (if (empty? remaining)
+                          [v e]
+                          (let [child             (first remaining)
+                                [child-val new-e] (if strict?
+                                                    (binding [errors/*warnings-as-errors* true]
+                                                      (eval-expr child e))
+                                                    (eval-expr child e))
+                                ;; Detect WARNINGS_AS_ERRORS binding — descend through
+                                ;; transparent wrapper tags (:Expr, :CodeExpr) to find :Binding.
+                                inner-child        (descend-to-inner child)
+                                new-strict?        (or strict?
+                                                       (and (vector? inner-child)
+                                                            (= :Binding (first inner-child))
+                                                            (let [target (second inner-child)]
+                                                              (and (vector? target)
+                                                                   (= :Identifier (first target))
+                                                                   (= "WARNINGS_AS_ERRORS" (second target))
+                                                                   (boolean child-val)))))]
+                            (recur (rest remaining) child-val new-e new-strict?))))]
           val)
 
         ;; --- Transparent wrappers with 1 child ---
@@ -1437,10 +1456,32 @@
           children (vec (rest node))]
       (case tag
         :Program
-        (reduce (fn [[_v e] child]
-                  (eval-expr child e))
-                [nil env]
-                children)
+        ;; Thread bindings through children one at a time.
+        ;; When WARNINGS_AS_ERRORS is bound to a truthy value, activate strict
+        ;; mode for all subsequent statements via the *warnings-as-errors* dynamic var.
+        (loop [remaining children
+               val       nil
+               e         env
+               strict?   false]
+          (if (empty? remaining)
+            [val e]
+            (let [child              (first remaining)
+                  [child-val new-e]  (if strict?
+                                       (binding [errors/*warnings-as-errors* true]
+                                         (eval-expr child e))
+                                       (eval-expr child e))
+                  ;; Check if this statement bound WARNINGS_AS_ERRORS to truthy.
+                  ;; The child may be wrapped in :Expr/:CodeExpr — descend to find :Binding.
+                  inner-child        (descend-to-inner child)
+                  new-strict? (or strict?
+                                  (and (vector? inner-child)
+                                       (= :Binding (first inner-child))
+                                       (let [target (second inner-child)]
+                                         (and (vector? target)
+                                              (= :Identifier (first target))
+                                              (= "WARNINGS_AS_ERRORS" (second target))
+                                              (boolean child-val)))))]
+              (recur (rest remaining) child-val new-e new-strict?))))
 
         :Binding
         (let [target     (first children)
