@@ -43,3 +43,26 @@
     false
     (catch Exception e
       (instance? exception-class e))))
+
+(defn silent-eval-dt
+  "Evaluate a DataTwist expression, suppressing any stdout produced (e.g. by tap!, log!, print)."
+  [expr]
+  (let [sw (java.io.StringWriter.)]
+    (binding [*out* sw]
+      (eval-dt expr))))
+
+(defn silent-eval-dt-last
+  "Evaluate multiple DataTwist lines, suppressing stdout, and return the last result."
+  [& exprs]
+  (let [sw (java.io.StringWriter.)]
+    (binding [*out* sw]
+      (apply eval-dt-last exprs))))
+
+(defn silent-throws?
+  "Returns true if evaluating the DataTwist expression throws an exception, suppressing stdout."
+  [input]
+  (try
+    (silent-eval-dt input)
+    false
+    (catch Exception _
+      true)))

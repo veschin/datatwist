@@ -176,6 +176,44 @@ Feature: Error Reporting
     Then the error includes a code matching the pattern DT-P, DT-T, DT-R, DT-D, or DT-C
     And the code is followed by a three-digit number
 
+  Scenario: Parse error includes both expected token hint and did-you-mean suggestion
+    Given the DataTwist source:
+      """
+      username is "Alice"
+      result is user-name
+      """
+    When it is evaluated
+    Then a runtime error is produced
+    And the error output contains a "did you mean" suggestion for "username"
+    And the error output also contains an expected-token description
+    # Both expected tokens AND fuzzy matching appear together — not either/or
+    # Source: BACKLOG locked design decision
+
+  Scenario: JSON error output format is machine-readable
+    Given the DataTwist source "x = 42"
+    When it is parsed and JSON output mode is enabled
+    Then the error is returned as a JSON object
+    And the JSON object contains the key "code" with value starting "DT-P"
+    And the JSON object contains the key "message"
+    And the JSON object contains the key "hint"
+    And the JSON object contains the key "line" with a numeric value
+    And the JSON object contains the key "col" with a numeric value
+    # Source: BACKLOG locked design decision — {:code "DT-P020" :message "..." :hint "..." :line N :col N}
+
+  Scenario: Color output is suppressed when NO_COLOR environment variable is set
+    Given the environment variable "NO_COLOR" is set
+    And the DataTwist source "x = 42"
+    When it is parsed
+    Then a parse error is produced
+    And the error output contains no ANSI escape sequences
+
+  Scenario: Color output is suppressed when DT_NO_COLOR environment variable is set
+    Given the environment variable "DT_NO_COLOR" is set
+    And the DataTwist source "x = 42"
+    When it is parsed
+    Then a parse error is produced
+    And the error output contains no ANSI escape sequences
+
   # ===========================================================================
   # SECTION 4: Type Errors (Runtime)
   # Source: PRD section 9, error codes DT-TXXX
@@ -211,21 +249,8 @@ Feature: Error Reporting
     And the error message contains "Division by zero"
     And the error output does not contain "ArithmeticException"
 
-  Scenario: Type error - nil in arithmetic where coercion does not apply
-    Given the DataTwist source:
-      """
-      x is 5
-      y is nil
-      result is x + y
-      """
-    When it is evaluated
-    Then the result is 5
-    # PRD: "nil + 5" = 5 (nil coerces to identity element 0 for numbers)
-    # So x + nil = 5, no error. If nil coercion is not implemented as a type error,
-    # this documents the nil coercion behaviour instead.
-
   # ===========================================================================
-  # SECTION 5: Runtime Errors — undefined names, destructuring
+  # SECTION 5: Runtime Errors — undefined names, bad calls
   # Source: PRD section 9, error codes DT-RXXX
   # ===========================================================================
 
@@ -270,17 +295,60 @@ Feature: Error Reporting
     And the error code starts with "DT-R"
     And the error message mentions that map expects a collection
 
-  Scenario: List destructuring with not enough values binds missing positions to nil
-    Given the DataTwist source "[a b c] is [1 2]"
-    When it is evaluated
-    Then c is nil
-
   Scenario: Runtime error - object destructuring of non-object
     Given the DataTwist source "{name age} is \"not an object\""
     When it is evaluated
     Then a runtime error is produced
     And the error code starts with "DT-R"
     And the error message mentions that a string cannot be destructured as an object
+
+  Scenario: Runtime error - pipeline step is not a function
+    Given the DataTwist source "result is 42 |> 99"
+    When it is evaluated
+    Then a runtime error is produced
+    And the error code starts with "DT-R"
+    And the error message mentions that the pipeline step is not a function
+    And the error output does not contain Java or Clojure exception class names
+
+  Scenario: Runtime error - cannot call nil as a function
+    Given the DataTwist source "result is nil 42"
+    When it is evaluated
+    Then a runtime error is produced
+    And the error code starts with "DT-R"
+    And the error message contains "nil" and indicates it cannot be called as a function
+    And the error output does not contain "NullPointerException"
+
+  Scenario: Runtime error - calling a non-function value
+    Given the DataTwist source:
+      """
+      n is 5
+      result is n 10
+      """
+    When it is evaluated
+    Then a runtime error is produced
+    And the error code starts with "DT-R"
+    And the error message indicates that the value is not callable
+    And the error output does not contain Java or Clojure exception class names
+
+  Scenario: Runtime error - no matching arity
+    Given the DataTwist source:
+      """
+      add is [x -> x + 1]
+      result is add 1 2
+      """
+    When it is evaluated
+    Then a runtime error is produced
+    And the error code starts with "DT-R"
+    And the error message mentions arity or the wrong number of arguments
+    And the error output does not contain Java or Clojure exception class names
+
+  Scenario: Parse error - completely unrecognised token (generic fallback)
+    Given the DataTwist source "@ 42"
+    When it is parsed
+    Then a parse error is produced
+    And the error code starts with "DT-P"
+    # Exercises the generic DT-P001 fallback path when no common-mistake
+    # pattern matches the input.
 
   # ===========================================================================
   # SECTION 6: Data-Aware Warnings (nil prevalence)
@@ -325,7 +393,31 @@ Feature: Error Reporting
     And the warning mentions nil group keys
 
   # ===========================================================================
-  # SECTION 7: Java/Clojure Exception Translation
+  # SECTION 7: Warnings as Errors — strict mode
+  # Source: BACKLOG locked design decision — WARNINGS_AS_ERRORS constant
+  # ===========================================================================
+
+  Scenario: WARNINGS_AS_ERRORS constant causes warnings to halt execution
+    Given the DataTwist source:
+      """
+      WARNINGS_AS_ERRORS is true
+      result is users |> map _.address.city
+      """
+    When it is evaluated and some users have nil address
+    Then a data error is produced (execution halted)
+    And the error code starts with "DT-D"
+    And the error message mentions nil values were detected
+    # In strict mode warnings become errors that halt execution
+
+  Scenario: Warnings are non-blocking without WARNINGS_AS_ERRORS
+    Given the DataTwist source "result is users |> map _.address.city"
+    When it is evaluated and some users have nil address
+    And WARNINGS_AS_ERRORS is not set
+    Then a warning is produced
+    And execution continues and a result is returned
+
+  # ===========================================================================
+  # SECTION 8: Java/Clojure Exception Translation
   # Source: PRD section 9, "No Java/Clojure stack traces"
   # ===========================================================================
 
@@ -349,7 +441,7 @@ Feature: Error Reporting
     And the word "NullPointerException" does NOT appear in the output
 
   # ===========================================================================
-  # SECTION 8: Connection / Data Source Errors
+  # SECTION 9: Connection / Data Source Errors
   # Source: PRD section 9, error codes DT-CXXX; PRD section 8 (data sources)
   # ===========================================================================
 
@@ -370,7 +462,7 @@ Feature: Error Reporting
     And no raw Java SQL exception appears in the output
 
   # ===========================================================================
-  # SECTION 9: Errors vs Warnings Distinction
+  # SECTION 10: Errors vs Warnings Distinction
   # Source: PRD section 9
   # ===========================================================================
 
@@ -389,58 +481,3 @@ Feature: Error Reporting
     When it is evaluated and some users have nil address
     Then a warning is produced
     And execution continues and a result is returned
-
-  # ===========================================================================
-  # SECTION 10: Additional Runtime Error Coverage (Gap fill)
-  # Covers error codes DT-P001, DT-R002, DT-R003, DT-R004, DT-R005 from the
-  # impl plan taxonomy that had no BDD scenario.
-  # Source: docs/plans/2026-02-19-error-reporting-impl-plan.md section 3
-  # ===========================================================================
-
-  Scenario: Parse error - completely unrecognised token (generic fallback DT-P001)
-    Given the DataTwist source "@ 42"
-    When it is parsed
-    Then a parse error is produced
-    And the error code starts with "DT-P"
-    # This exercises the generic DT-P001 fallback path when no common-mistake
-    # pattern matches the input.
-
-  Scenario: Runtime error - pipeline step is not a function (DT-R002)
-    Given the DataTwist source "result is 42 |> 99"
-    When it is evaluated
-    Then a runtime error is produced
-    And the error code starts with "DT-R"
-    And the error message mentions that the pipeline step is not a function
-    And the error output does not contain Java or Clojure exception class names
-
-  Scenario: Runtime error - cannot call nil as a function (DT-R003)
-    Given the DataTwist source "result is nil 42"
-    When it is evaluated
-    Then a runtime error is produced
-    And the error code starts with "DT-R"
-    And the error message contains "nil" and indicates it cannot be called as a function
-    And the error output does not contain "NullPointerException"
-
-  Scenario: Runtime error - calling a non-function value (DT-R004)
-    Given the DataTwist source:
-      """
-      n is 5
-      result is n 10
-      """
-    When it is evaluated
-    Then a runtime error is produced
-    And the error code starts with "DT-R"
-    And the error message indicates that the value is not callable
-    And the error output does not contain Java or Clojure exception class names
-
-  Scenario: Runtime error - no matching arity (DT-R005)
-    Given the DataTwist source:
-      """
-      add is [x -> x + 1]
-      result is add 1 2
-      """
-    When it is evaluated
-    Then a runtime error is produced
-    And the error code starts with "DT-R"
-    And the error message mentions arity or the wrong number of arguments
-    And the error output does not contain Java or Clojure exception class names

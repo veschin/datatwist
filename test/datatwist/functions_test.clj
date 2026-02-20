@@ -1,6 +1,7 @@
 (ns datatwist.functions-test
   (:require [clojure.test :refer [deftest is testing]]
-            [datatwist.test-helpers :refer [eval-dt eval-dt-last parse-error? type-of throws?]]))
+            [datatwist.test-helpers :refer [eval-dt eval-dt-last parse-error? type-of throws?
+                                            silent-eval-dt silent-eval-dt-last silent-throws?]]))
 
 ;; ==========================================================================
 ;; Feature 3: Functions & Closures
@@ -95,33 +96,33 @@
 (deftest side-effect-function-returns-first-argument
   (testing "Scenario: Side-effect function returns first argument (passthrough)"
     (testing "log! returns its first argument (data) after side-effect"
-      (is (= 42 (eval-dt-last "log! is [data msg -> print msg]"
-                              "log! 42 \"value\""))))))
+      (is (= 42 (silent-eval-dt-last "log! is [data msg -> print msg]"
+                                     "log! 42 \"value\""))))))
 
 (deftest side-effect-function-in-pipeline-preserves-data-flow
   (testing "Scenario: Side-effect function in pipeline preserves data flow"
     (testing "each ! function in pipeline passes data through unchanged"
       ;; The pipeline result is the output of transform, since ! fns return first arg
       (is (= 20
-             (eval-dt-last "transform is [x -> x * 2]"
-                           "log! is [data msg -> print msg]"
-                           "10 |> transform |> log! \"after transform\""))))))
+             (silent-eval-dt-last "transform is [x -> x * 2]"
+                                  "log! is [data msg -> print msg]"
+                                  "10 |> transform |> log! \"after transform\""))))))
 
 (deftest bang-function-with-pipe-first-argument-ordering
   (testing "Scenario: Bang function with pipe-first argument ordering"
     (testing "data |> log! \"msg\" is equivalent to log! data \"msg\""
       (is (= 42
-             (eval-dt-last "log! is [data msg -> print msg]"
-                           "42 |> log! \"msg\""))))))
+             (silent-eval-dt-last "log! is [data msg -> print msg]"
+                                  "42 |> log! \"msg\""))))))
 
 (deftest bang-function-called-directly
   (testing "Scenario: Bang function called directly (not in pipeline)"
     (testing "result is log! my-data \"processing\" binds result to my-data"
       (is (= 99
-             (eval-dt-last "log! is [data msg -> print msg]"
-                           "my-data is 99"
-                           "result is log! my-data \"processing\""
-                           "result"))))))
+             (silent-eval-dt-last "log! is [data msg -> print msg]"
+                                  "my-data is 99"
+                                  "result is log! my-data \"processing\""
+                                  "result"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Closures and lexical scope
@@ -294,8 +295,8 @@
   (testing "Scenario: Variadic function with leading fixed parameters"
     (testing "[level & messages -> ...] has one fixed and rest variadic"
       ;; We test that the function accepts variable args; side-effect (print) is secondary
-      (is (not (throws? (str "log-all is [level & messages -> messages |> each [m -> print (format \"[%s] %s\" level m)]]\n"
-                             "log-all \"INFO\" \"a\" \"b\" \"c\"")))))))
+      (is (not (silent-throws? (str "log-all is [level & messages -> messages |> each [m -> print (format \"[%s] %s\" level m)]]\n"
+                                  "log-all \"INFO\" \"a\" \"b\" \"c\"")))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Multi-arity functions (arity overloading)

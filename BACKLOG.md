@@ -6,43 +6,28 @@ Status legend: `🔬 research` `📝 bdd/tests` `🔍 audit` `🚧 in progress` 
 
 ## P0 — Critical Path
 
-### GraalVM Native Binary `🔬 research`
+### GraalVM Native Image Build `🔬 research`
 
-Build DataTwist as a standalone native binary via GraalVM `native-image`. Critical for distribution. The binary IS the DataTwist CLI — the main entry point for all user-facing workflows.
+Build DataTwist as a standalone native binary via GraalVM `native-image`. Critical for distribution.
 
-**Decision (preliminary):** The GraalVM native binary is the DataTwist CLI. Subcommands cover the full lifecycle: run scripts, REPL, format, lint, test, web UI, credential management. TUI experience via a gum-style visual framework (charmbracelet/gum or similar). Need to determine which features are available per platform (e.g., `pass` integration is Unix-only, webui may need JVM fallback).
-
-- [ ] Create CLI entry point (`-main` with arg parsing: file input, REPL, `--eval`)
-- [ ] Add GraalVM native-image build config (`native-image.properties`, reflection config)
-- [ ] Handle Instaparse reflection hints for GraalVM
-- [ ] Add `make native` build target
-- [ ] CI pipeline for building linux/macos/windows binaries
+- [ ] Create CLI entry point (`-main` with `:gen-class`)
+- [ ] defparser macro for AOT grammar compilation
+- [ ] Add GraalVM native-image build config (reflection config, resource config)
+- [ ] Add `graal-build-time` dependency
+- [ ] `build.clj` with tools.build
+- [ ] Add `make native` and `make uberjar` build targets
+- [ ] CI pipeline for building linux/macos binaries
 - [ ] Investigate startup time — target <50ms
-- [ ] Consider shipping as uberjar fallback
-- [ ] AOT-compile the parser at build time (Instaparse uses `clojure.core/eval` at parse generation — problematic for GraalVM)
-- [ ] CLI subcommands: `datatwist run`, `datatwist repl`, `datatwist eval`, `datatwist fmt`, `datatwist lint`, `datatwist test`, `datatwist webui`
-- [ ] `datatwist creds add <project> <key>` — add credential to pass store (`datatwist/<project>/<key>`)
-- [ ] `datatwist creds list [project]` — list credentials
-- [ ] `datatwist creds remove <project> <key>` — remove credential
-- [ ] TUI framework (charmbracelet/gum style) — visual interactive prompts, selection, spinners
-- [ ] Platform-specific feature matrix: which subcommands available on linux/macos/windows
-
-**Decision (locked):** `datatwist connect` is an interactive wizard for setting up data source connections. The CLI knows all supported source types (databases, files, APIs, Docker, K8s), guides the user through configuration with TUI prompts (gum-style), tests the connection, and saves it as a named profile. Saved profiles are reusable via `connect "profile-name"` in scripts. Credentials flow through the `pass` module.
-
-- [ ] `datatwist connect` — interactive TUI wizard for setting up data sources
-- [ ] Source type registry: each connector declares its required fields (host, port, db, auth, etc.)
-- [ ] Connection testing: verify connectivity before saving profile
-- [ ] Profile storage: save/load connection profiles (location TBD — `~/.datatwist/connections/` or project-local)
-- [ ] `datatwist connect list` — show saved profiles
-- [ ] `datatwist connect test <profile>` — re-test a saved connection
-- [ ] File source wizard: interactive file picker for CSV/JSON/Parquet, detect format and schema
-- [ ] `connect "profile-name"` in scripts — resolve saved profile, return connection object
+- [ ] Ship uberjar as fallback
+- [ ] Handle Java interop scope for native mode
 
 ---
 
 ## P1 — High Priority
 
-### Lazy Evaluation `🔬 research` — NEEDS RE-RESEARCH
+### Lazy Evaluation `🚧 in progress`
+
+Design locked. Implementation and architecture research needed.
 
 BDD: `bdd/8-lazy-evaluation.feature`, Tests: `test/datatwist/lazy_eval_test.clj` (76 TDD stubs)
 Design doc: `docs/lazy-eval-design.md`
@@ -56,9 +41,12 @@ Design doc: `docs/lazy-eval-design.md`
 
 - **Laziness is invisible to user**: lazy seqs auto-materialize at any user-facing boundary (REPL, str, save!, tap!, `=`). User NEVER sees `LazySeq@...`. Laziness only exists between pipeline steps for performance.
 - **Remove**: `inspect`, `log!`, `print`, `collect` from pipeline vocabulary
+- **`collect` is removed.** `force!` is the sole materialization function. It forces full pipeline execution, ignores sampling, works with all data.
+- **`log!` is removed.** `tap!` is the sole debug/inspection tool for pipelines.
 - **`force!`** is the only materialization function (not `collect`)
-- **`tap!`** is fully safe, never mutates data. Output is redirectable (console, file, IDE, custom). Format: `tap! "format %s" (args)`. Output format: first line is function label `[fn]`, second line is sample data.
-- **`autotap!`** placed at start of pipeline, wraps every subsequent step with `tap!` output (function-label on first line + sample on second line)
+- **Laziness and DTPipeline are orthogonal.** Laziness = execution model (lazy seqs instead of eager vectors). DTPipeline = introspection model (inspectable pipeline steps, cached samples). Implement independently.
+- **`tap!`** is fully safe, never mutates data. Output is redirectable (console, file, IDE, custom). Three modes: bare (`tap!`), labeled (`tap! "label"`), lambda (`tap! [d -> format "found %s items" (count d)]`). Output format: first line is function label `[fn]`, second line is sample data.
+- **`autotap!`** is a macro-like transformation: it wraps every pipeline step with `tap!`. Implementation: runtime transformation at the pipeline level, inserting tap! between each step. Placed at start of pipeline, wraps every subsequent step with `tap!` output (function-label on first line + sample on second line).
 - **Reified pipeline**: `|>` builds a DTPipeline record that remembers steps + caches samples per step
 - **Full introspection**: cursor on ANY expression → sample result. Cursor on ANY variable (e.g. `x` in `[x -> x > 1]`) → sample of that variable's values. On-demand computation. No re-execution — cached.
 - **Sub-step introspection**: inspect not just step results but steps within steps (nested pipelines, lambda internals)
@@ -67,8 +55,16 @@ Design doc: `docs/lazy-eval-design.md`
 - **Cache management**: everything cached by default. `invalidate-cache!` for explicit reset. Cache at end of pipeline → whole pipeline re-executes.
 - **No blocking ever**: streaming-first, notification when sample ready for inspection
 - **Compression + batching + streaming**: real data can be huge, design for it from day 1
-- **Constants**: `SAMPLE_SIZE`, `MAX_COLLECT_ROWS`, `DESCRIBE_SAMPLE_SIZE` — uppercase symbols, mutable config values
+- **Constants**: `SAMPLE_SIZE`, `MAX_COLLECT_ROWS`, `DESCRIBE_SAMPLE_SIZE`, `PRINT_WIDTH` — uppercase symbols, mutable config values
 - **Auto-materialize contexts**: REPL output, `str`/concat, `tap!`, `save!`, `=` comparison, error messages — all auto-force with configurable limit
+
+#### Pipeline as Runtime Object tasks
+
+- [ ] `DTPipeline` record type — reified pipeline with steps and metadata
+- [ ] `dtw/pipeline` and `dtw/step` compiler targets for `|>` operator
+- [ ] `dtw/inspect pipeline step sample-size` — inspect a specific pipeline step
+- [ ] `inspect-pipeline-step` nREPL op: `{:op "inspect-pipeline-step" :file "..." :line N :step-index K}` → cached sample
+- [ ] IDE overlay integration — sample result per `|>` step
 
 ### Pushdown Optimization `⏳ waiting`
 
@@ -105,12 +101,12 @@ math/sin 3.14             // qualified access
 - [ ] Connector + Pushdown integration
 - [ ] Connection pool management (HikariCP) — transparent, configurable via `dtw.POOL_SIZE`
 
-### Demo Runner Rework `🔬 research`
+### Demo Runner Rework `✅ done`
 
 - [ ] Demo runner reads and parses `.dt` files from `resources/examples/`
-- [ ] Section markers in `.dt` files via comments (`// @section Pipelines`)
+- [ ] Section markers in `.dt` files via comments (`; @section Pipelines`)
 - [ ] Expression-by-expression evaluation with formatted output
-- [ ] Support `// @expect result` annotations
+- [ ] Support `; @expect result` annotations
 - [ ] Remove hardcoded demo data from `demo_runner.clj`
 - [ ] Remove `demo-glow` Makefile target
 
@@ -128,6 +124,7 @@ Target: CIDER-like experience for DataTwist. Plugins live in `plugins/` (future 
 - [ ] Inspector — drill-down into nested objects/lists (like CIDER inspector)
 - [ ] `datatwist-mode` for Emacs — CIDER-like package (nREPL connection, eval, inspect, overlay results)
 - [ ] Inline result display — result next to expression (CIDER overlays style)
+- [ ] inspect-pipeline-step nREPL op — request: `{:op "inspect-pipeline-step" :file :line :step-index}`, response: cached sample
 
 ### Async & Parallel Execution `🔬 research`
 
@@ -184,6 +181,25 @@ Requires a thorough analysis: what do we gain from a persistent daemon vs. state
 
 ## P2 — Medium Priority
 
+### CLI Subcommands & TUI `🔬 research`
+
+CLI user-facing commands and TUI experience for the DataTwist binary.
+
+- [ ] CLI subcommands: `datatwist run`, `datatwist repl`, `datatwist eval`, `datatwist fmt`, `datatwist lint`, `datatwist test`, `datatwist webui`
+- [ ] `datatwist creds add <project> <key>` — add credential to pass store (`datatwist/<project>/<key>`)
+- [ ] `datatwist creds list [project]` — list credentials
+- [ ] `datatwist creds remove <project> <key>` — remove credential
+- [ ] TUI framework (charmbracelet/gum style) — visual interactive prompts, selection, spinners
+- [ ] Platform-specific feature matrix: which subcommands available on linux/macos/windows
+- [ ] `datatwist connect` — interactive TUI wizard for setting up data sources
+- [ ] Source type registry: each connector declares its required fields (host, port, db, auth, etc.)
+- [ ] Connection testing: verify connectivity before saving profile
+- [ ] Profile storage: save/load connection profiles (location TBD — `~/.datatwist/connections/` or project-local)
+- [ ] `datatwist connect list` — show saved profiles
+- [ ] `datatwist connect test <profile>` — re-test a saved connection
+- [ ] File source wizard: interactive file picker for CSV/JSON/Parquet, detect format and schema
+- [ ] `connect "profile-name"` in scripts — resolve saved profile, return connection object
+
 ### Benchmarking & Analytics System `🔬 research`
 
 Built-in tools for measuring, profiling, and analyzing data and performance.
@@ -233,8 +249,8 @@ Built-in tools for measuring, profiling, and analyzing data and performance.
 **Integration with existing syntax:**
 ```
 ; Guards
-input | #p"{name}@{domain}" -> {type: "email", name, domain}
-      | #p"{proto}://{host}" -> {type: "url", proto, host}
+input | #p"{name}@{domain}" -> {type: "email" name domain}
+      | #p"{proto}://{host}" -> {type: "url" proto host}
       | _ -> {type: "unknown"}
 
 ; Named patterns via is
@@ -290,7 +306,7 @@ Design doc: `docs/lsp-tree-sitter-design.md`. Plugins live in `plugins/lsp/`.
 - [ ] Go-to-definition for `is`-bindings and `require`-aliases
 - [ ] Eldoc-style function signatures in Emacs
 
-### Error Reporting `🔬 research`
+### Error Reporting `🚧 in progress`
 
 BDD: `bdd/9-error-reporting.feature`, Tests: `test/datatwist/error_reporting_test.clj` (42 TDD stubs)
 Research doc: `docs/error-reporting-research.md`
@@ -301,7 +317,7 @@ Research doc: `docs/error-reporting-research.md`
 - **Warnings are non-blocking**: warnings print but execution continues.
 - **`WARNINGS_AS_ERRORS` constant**: set to enable strict mode where warnings fail execution.
 
-- [ ] Error code system: `DT-PXXX` / `DT-TXXX` / `DT-RXXX`
+- [ ] Error code system: `DT-PXXX` / `DT-TXXX` / `DT-RXXX` / `DT-DXXX` / `DT-CXXX`
 - [ ] Elm/Rust-style messages with source snippets and hints
 - [ ] "Did you mean?" fuzzy matching for identifiers and keywords
 - [ ] Expected token hints in parse errors
@@ -364,7 +380,7 @@ How DataTwist settings, project config, and runtime options are defined, stored,
 - Layering/priority: CLI flags > env vars > project config > global config > defaults?
 - How does `dtw.*` namespace load its values? From config files? Hardcoded defaults?
 - Project discovery: how does DataTwist know which project it's in? (`.datatwist/` directory marker?)
-- Runtime mutability: can scripts change config via `dtw/set!`? Persisted or session-only?
+- Runtime mutability: can scripts change config via `set! dtw.KEY`? Persisted or session-only?
 - Validation: schema for config values? Type checking? Error on unknown keys?
 
 #### Tasks
@@ -372,8 +388,8 @@ How DataTwist settings, project config, and runtime options are defined, stored,
 - [ ] Config file format and location design (`~/.datatwist/` global, `.datatwist/` project)
 - [ ] Config layering: defaults → global → project → env vars → CLI flags
 - [ ] `dtw.*` namespace backed by config system — reads from config files at startup
-- [ ] `dtw/set!` — runtime config override (session-only by default)
-- [ ] `dtw/set! --persist` or `datatwist config set KEY VALUE` — write back to config file
+- [ ] `set! dtw.KEY` — runtime config override (session-only by default)
+- [ ] `set! dtw.KEY --persist` or `datatwist config set KEY VALUE` — write back to config file
 - [ ] Project discovery: `.datatwist/` directory as project root marker
 - [ ] `datatwist init` CLI command — create `.datatwist/` with default config
 - [ ] `datatwist config list` — show effective config with source (default/global/project/env/cli)
@@ -416,6 +432,16 @@ Docstrings, inline documentation, and automatic type inference from runtime data
 - [ ] Integration with nREPL — `doc` operation returns formatted docs to IDE
 - [ ] Integration with LSP — hover documentation, signature hints
 
+### Standard Library Gaps `📝 bdd/tests`
+
+Functions specified in PRD but not yet implemented or tracked:
+
+- [ ] `fill-nil` — fill nil values with a default
+- [ ] `skip-nil` — remove nil entries from collections
+- [ ] `coerce` — type coercion function
+- [ ] `join` / `left-join` / `inner-join` / `outer-join` — multi-source join operations
+- [ ] `define` — user-defined function declaration (PRD stdlib section)
+
 ---
 
 ## P3 — Future
@@ -447,10 +473,10 @@ Docstrings, inline documentation, and automatic type inference from runtime data
 
 - **String interpolation**: `#s"Hello {name}"` reader macro. Concern: scope visibility must be clear (which variables are in scope). Multiline strings — undecided yet.
 
-- [x] String interpolation: `#s"Hello {name}"` reader macro — locked design decision (multiline undecided)
+- [ ] String interpolation: `#s"Hello {name}"` reader macro. Full feature — needs BDD, tests, implementation. `#s"Hello {name}"` reader macro for string interpolation.
 - [ ] Multi-line strings / heredocs (`"""..."""`) — undecided
 - [ ] Date/time literals and operations
-- [ ] Spread operator in objects: `{...base, name: "new"}`
+- [ ] Spread operator in objects: `{...base name: "new"}` — Needs PRD design decision before implementation.
 - [ ] Optional type annotations for tooling
 - [x] Line comments with `;` (replacing `//`) — locked design decision
 - [x] Block comments: `(comment ...)` form — parsed but not evaluated — locked design decision
@@ -495,7 +521,7 @@ The language can modify its own source files — auto-formatting, function ranki
 - [ ] Default: console/REPL
 - [ ] `with-tap-out "file.log" [-> pipeline]` — redirect to file
 - [ ] IDE channel: send to overlay instead of console
-- [ ] Custom: `dtw/set! TAP_OUT [data -> send-to-slack data]`
+- [ ] Custom: `set! dtw.TAP_OUT [data -> send-to-slack data]`
 
 ### Editor Quick Wins
 

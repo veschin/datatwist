@@ -1,6 +1,7 @@
 (ns datatwist.pipeline-test
   (:require [clojure.test :refer [deftest is testing]]
-            [datatwist.test-helpers :refer [eval-dt eval-dt-last parse-error? type-of throws?]]))
+            [datatwist.test-helpers :refer [eval-dt eval-dt-last parse-error? type-of throws?
+                                            silent-eval-dt silent-eval-dt-last]]))
 
 ;; ==========================================================================
 ;; Feature 4: Pipeline operator (|>)
@@ -345,12 +346,12 @@
 
 (deftest side-effect-function-passes-data-through
   (testing "Scenario: Side-effect function passes data through"
-    ;; log! and save! return data unchanged; pipeline continues
+    ;; tap! and save! return data unchanged; pipeline continues
     ;; We test that the pipeline result equals the processed data
-    (is (= 3 (eval-dt-last
+    (is (= 3 (silent-eval-dt-last
               "data is [1 2 3]"
               "data
-|> log! \"start\"
+|> tap! \"start\"
 |> count")))))
 
 (deftest side-effect-function-at-end-of-pipeline
@@ -597,7 +598,7 @@ catch err -> []")))))
   (testing "Scenario: Tee for branching a pipeline into multiple paths"
     ;; tap! runs a side-effect function on data and returns data unchanged
     (is (= [1 2 3]
-           (eval-dt "[1 2 3] |> tap! [d -> d]")))))
+           (silent-eval-dt "[1 2 3] |> tap! [d -> d]")))))
 
 (deftest pipeline-result-used-in-multiple-downstream-bindings
   (testing "Scenario: Pipeline result used in multiple downstream bindings"

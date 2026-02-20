@@ -392,7 +392,6 @@
    "includes?"   clojure.string/includes?
    "substring"   dt-substring
    ;; Materialization
-   "collect"     (fn [coll] (if (vector? coll) coll (vec coll)))
    "force!"      (fn [data] (if (vector? data) data (vec data)))
    ;; Infinite / lazy sequence generators
    "repeat"      (fn ([v] (clojure.core/repeat v))
@@ -400,7 +399,6 @@
    "iterate"     (fn [f init] (clojure.core/iterate f init))
    "cycle"       (fn [coll] (clojure.core/cycle coll))
    ;; Side-effect builtins (pre-wrapped: return first arg)
-   "log!"        (fn [data & msgs] (apply println msgs) data)
    "tap!"        (fn ([data]
                       (if (sequential? data)
                         (println (str "(showing first 5 of lazy seq) " (vec (take 5 data))))

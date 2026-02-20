@@ -24,7 +24,7 @@ The power of Clojure without the parentheses, purpose-built for data pipelines.
 | Wildcard `_` | Context-overloaded | Pipeline current element / pattern default / destruct skip |
 | Side effects `!` | Passthrough (doto) | `log! data "msg"` returns data. `!` = side-effect only |
 | Materialization | `force!` | Materializes lazy pipeline. `count` is a regular function |
-| Strings | Plain + `format` | No interpolation |
+| Strings | Plain + `format` + `#s"..."` | `#s"Hello {name}"` reader macro (P3 -- needs design, BDD, tests, impl) |
 | Errors | try-catch | Classical approach |
 | Destructuring | Clojure parity | `&` for rest, `?` for defaults, `as` for whole binding |
 | Pattern matching | Context-based | `\| {pattern}` = structural, `\| expr` = guard |
@@ -41,7 +41,7 @@ The power of Clojure without the parentheses, purpose-built for data pipelines.
 | Pipeline debug probe | `tap!` only | `inspect`, `log!`, `print`/`println` are NOT pipeline debug tools. `tap!` is the only probe |
 | Reified pipeline | `DTPipeline` record | `\|>` builds a record with steps (label, code string, transform fn). Each step auto-caches its sample |
 | Pipeline terminals | `count`, `first`, `reduce`, `force!` | Only these trigger evaluation. Building the pipeline is always lazy |
-| System constants | Uppercase symbols | `SAMPLE_SIZE`, `MAX_COLLECT_ROWS`, `DESCRIBE_SAMPLE_SIZE`, `PRINT_WIDTH`. Set via `dtw/set!`, get via `dtw/get` |
+| System constants | Uppercase symbols | `SAMPLE_SIZE`, `MAX_COLLECT_ROWS`, `DESCRIBE_SAMPLE_SIZE`, `PRINT_WIDTH`. Set via `set! dtw.CONSTANT value`, read via `dtw.CONSTANT` |
 | IDE step inspection | nREPL op `inspect-pipeline-step` | Returns cached sample for a step by index. No re-evaluation needed |
 | Plugin directory | `plugins/` in repo | `plugins/lsp/`, `plugins/tree-sitter-datatwist/`, `plugins/datatwist-emacs/`, `plugins/datatwist-nrepl/`, `plugins/datatwist-vscode/` |
 | Demo runner | `.dt` files in `resources/examples/` | `; @section Title` and `; @expect value` annotations. Expression-by-expression eval with shared env |
@@ -414,8 +414,8 @@ Each step auto-caches its sample after execution (~150KB for 11 steps with 100-r
 
 **System constants (mutable configuration):**
 ```
-dtw/set! SAMPLE_SIZE 200          ; set how many rows to sample
-dtw/get  SAMPLE_SIZE              ; get current value
+set! dtw.SAMPLE_SIZE 200          ; set how many rows to sample
+dtw.SAMPLE_SIZE                   ; get current value
 ```
 
 Constants: `SAMPLE_SIZE` (default 100), `MAX_COLLECT_ROWS`, `DESCRIBE_SAMPLE_SIZE`, `PRINT_WIDTH`. Uppercase symbols, no string keys.
@@ -664,3 +664,6 @@ Detailed scenarios in `bdd/` directory:
 7. `7-interop-misc.feature` -- 97 scenarios
 8. `8-lazy-eval-data-sources.feature` -- 105 scenarios
 9. `9-error-reporting.feature` -- 89 scenarios
+10. `10-demo-runner.feature` -- 22 scenarios
+11. `11-lsp-editor-support.feature` -- ~30 scenarios
+12. `12-nrepl-integration.feature` -- ~25 scenarios

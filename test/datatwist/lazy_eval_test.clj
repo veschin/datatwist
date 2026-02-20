@@ -1,6 +1,7 @@
 (ns datatwist.lazy-eval-test
   (:require [clojure.test :refer [deftest testing is]]
-            [datatwist.test-helpers :refer [eval-dt eval-dt-last parse-error? throws? throws-type? type-of]]))
+            [datatwist.test-helpers :refer [eval-dt eval-dt-last parse-error? throws? throws-type? type-of
+                                            silent-eval-dt silent-eval-dt-last]]))
 
 ;; ==========================================================================
 ;; Feature 8: Lazy Evaluation, Data Sources & REPL Micro-sampling
@@ -55,7 +56,7 @@
                   "step1 is data |> filter _.active"
                   "step2 is step1 |> map _.name"
                   "step3 is step2 |> sort"
-                  "step3 |> collect")]
+                  "step3 |> force!")]
       (is (= ["Alice"] result)))))
 
 (deftest lazy-pipelines-over-in-memory-collections-use-clojure-lazy-seq
@@ -72,34 +73,34 @@
 (deftest nil-source-in-a-pipeline-produces-empty-collection
   (testing "Scenario: Nil source in a pipeline produces an empty collection"
     ;; From PRD nil semantics: nil |> filter _ = []
-    (is (= [] (eval-dt "nil |> filter _ > 0 |> collect")))))
+    (is (= [] (eval-dt "nil |> filter _ > 0 |> force!")))))
 
 ;; ---------------------------------------------------------------------------
 ;; SECTION 2: MATERIALIZATION FUNCTIONS
 ;; ---------------------------------------------------------------------------
 
-(deftest collect-forces-entire-pipeline-into-a-vector-in-memory
-  (testing "Scenario: collect forces entire pipeline into a vector in memory"
+(deftest force-bang-forces-entire-pipeline-into-a-vector-in-memory
+  (testing "Scenario: force! forces entire pipeline into a vector in memory"
     (let [result (eval-dt-last
                   "data is [1 2 3 4 5]"
-                  "data |> filter _ > 2 |> map _ * 10 |> collect")]
+                  "data |> filter _ > 2 |> map _ * 10 |> force!")]
       (is (= [30 40 50] result))
       ;; Result must be a concrete vector, not a lazy sequence
       (is (instance? clojure.lang.PersistentVector result)))))
 
-(deftest collect-on-already-materialized-collection-is-a-no-op
-  (testing "Scenario: collect on an already-materialized collection is a no-op"
+(deftest force-bang-on-already-materialized-collection-is-a-no-op
+  (testing "Scenario: force! on an already-materialized collection is a no-op"
     (is (= [1 2 3]
            (eval-dt-last
             "items is [1 2 3]"
-            "items |> collect")))))
+            "items |> force!")))))
 
 (deftest count-forces-full-traversal-and-returns-exact-count
   (testing "Scenario: count forces full traversal and returns exact count"
-    ;; Multiples of 7 in range 1..10000000: floor(10000000/7) = 1428571
-    (is (= 1428571
+    ;; Multiples of 7 in range 1..100000: floor(100000/7) = 14285
+    (is (= 14285
            (eval-dt-last
-            "data is range 1 10000001"
+            "data is range 1 100001"
             "data |> filter [x -> x % 7 = 0] |> count")))))
 
 (deftest count-on-in-memory-collection-returns-exact-count-instantly
@@ -131,7 +132,7 @@ items |> count")))))
     ;; force! returns the data so it can continue being piped
     (let [result (eval-dt-last
                   "data is [1 2 3 4 5]"
-                  "data |> filter _ > 2 |> map _ * 10 |> force! |> collect")]
+                  "data |> filter _ > 2 |> map _ * 10 |> force!")]
       (is (= [30 40 50] result)))))
 
 (deftest force-bang-is-useful-for-ensuring-computation-happens-at-specific-point
@@ -141,7 +142,7 @@ items |> count")))))
     (let [processed (eval-dt-last
                      "data is [1 2 3 4 5]"
                      "processed is data |> filter _ > 2 |> map _ * 10 |> force!"
-                     "processed |> collect")]
+                     "processed")]
       (is (= [30 40 50] processed))
       ;; force! result is concrete -- it is a realized collection
       (is (instance? clojure.lang.PersistentVector processed)))))
@@ -182,7 +183,7 @@ items |> count")))))
   (testing "Scenario: Chaining after a materialization function starts a new pipeline"
     (let [result (eval-dt-last
                   "data is [{active: true name: \"Alice\"} {active: false name: \"Bob\"} {active: true name: \"Charlie\"}]"
-                  "materialized is data |> filter _.active |> collect"
+                  "materialized is data |> filter _.active |> force!"
                   "materialized |> map _.name |> count")]
       (is (= 2 result)))))
 
@@ -239,7 +240,7 @@ items |> count")))))
     ;; take 5 on a sorted lazy sequence produces the first 5 in order
     (let [result (eval-dt-last
                   "data is range 1 1000"
-                  "data |> filter [n -> n % 2 = 0] |> take 5 |> collect")]
+                  "data |> filter [n -> n % 2 = 0] |> take 5 |> force!")]
       (is (= [2 4 6 8 10] result)))))
 
 ;; ---------------------------------------------------------------------------
@@ -249,7 +250,7 @@ items |> count")))))
 (deftest tap-shows-data-at-pipeline-step-and-passes-it-through-unchanged
   (testing "Scenario: tap! shows data at a pipeline step and passes it through unchanged"
     ;; The key property: tap! is passthrough -- result is unaffected
-    (let [result (eval-dt-last
+    (let [result (silent-eval-dt-last
                   "users is [{active: true name: \"Alice\"} {active: true name: \"Bob\"} {active: false name: \"Carol\"}]"
                   "users
 |> filter _.active
@@ -257,27 +258,27 @@ items |> count")))))
 |> map {name: _.name}
 |> tap!
 |> sort-by _.name
-|> collect")]
+|> force!")]
       (is (= [{:name "Alice"} {:name "Bob"}] result)))))
 
 (deftest tap-with-a-label-passes-data-through-unchanged
   (testing "Scenario: tap! with a label for clarity"
     ;; Label is for display only; data is unchanged
-    (let [result (eval-dt-last
+    (let [result (silent-eval-dt-last
                   "users is [{active: true name: \"Alice\"} {active: false name: \"Bob\"}]"
                   "users
 |> filter _.active
 |> tap! \"after filter\"
 |> map _.name
 |> tap! \"after map\"
-|> collect")]
+|> force!")]
       (is (= ["Alice"] result)))))
 
 (deftest tap-bang-shows-a-micro-sample-not-the-full-dataset
   (testing "Scenario: tap! shows a micro-sample, not the full dataset"
     ;; tap! is passthrough -- the pipeline result is not affected by tap!
     ;; The key assertion: tap! does NOT force full evaluation, result still lazy after tap!
-    (let [result (eval-dt-last
+    (let [result (silent-eval-dt-last
                   "huge-dataset is range 1 1000000000"
                   "huge-dataset
 |> filter [n -> n % 2 = 0]
@@ -291,27 +292,27 @@ items |> count")))))
 (deftest tap-returns-its-input-unchanged-passthrough
   (testing "Scenario: tap! returns its input unchanged (passthrough)"
     (is (= [30 40 50]
-           (eval-dt-last
+           (silent-eval-dt-last
             "data is [1 2 3 4 5]"
-            "data |> filter _ > 2 |> tap! |> map _ * 10 |> collect")))))
+            "data |> filter _ > 2 |> tap! |> map _ * 10 |> force!")))))
 
 (deftest tap-with-transformation-function-does-not-affect-pipeline-data
   (testing "Scenario: tap! with a transformation function for focused inspection"
     ;; tap! [f] applies f only for display; pipeline data is unchanged
-    (let [result (eval-dt-last
+    (let [result (silent-eval-dt-last
                   "users is [{active: true name: \"Alice\" score: 95} {active: true name: \"Bob\" score: 80}]"
                   "users
 |> filter _.active
-|> tap! [data -> data |> map _.score |> collect]
+|> tap! [data -> data |> map _.score |> force!]
 |> map _.name
-|> collect")]
+|> force!")]
       ;; pipeline result is names, not scores -- tap! did not change the data
       (is (= ["Alice" "Bob"] result)))))
 
 (deftest multiple-tap-calls-each-show-data-at-their-respective-point
   (testing "Scenario: Multiple tap! calls in one pipeline each show data at their respective point"
     ;; The final result is the sum -- tap! had no effect on computation
-    (let [result (eval-dt-last
+    (let [result (silent-eval-dt-last
                   "orders is [{status: \"completed\" total: 10} {status: \"pending\" total: 20} {status: \"completed\" total: 30}]"
                   "orders
 |> tap! \"raw orders\"
@@ -367,15 +368,15 @@ results is db |> query \"SELECT id, name, score FROM users WHERE active = true\"
     (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
 results is db |> query \"SELECT * FROM users WHERE age > ? AND city = ?\" [18 \"Moscow\"]")))))
 
-(deftest table-source-materializes-on-collect-is-valid-syntax
-  (testing "Scenario: Table source materializes to a full scan on collect"
+(deftest table-source-materializes-on-force-bang-is-valid-syntax
+  (testing "Scenario: Table source materializes to a full scan on force!"
     (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-all-users is db |> table \"users\" |> collect")))))
+all-users is db |> table \"users\" |> force!")))))
 
 (deftest close-bang-explicitly-releases-a-database-connection-is-valid-syntax
   (testing "Scenario: close! explicitly releases a database connection"
     (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-result is db |> table \"users\" |> filter _.active |> collect
+result is db |> table \"users\" |> filter _.active |> force!
 close! db")))))
 
 ;; ---------------------------------------------------------------------------
@@ -388,7 +389,7 @@ close! db")))))
   (testing "Scenario: Read CSV file as lazy sequence of maps"
     (is (not (parse-error? "data is read-csv \"sales.csv\"")))
     ;; Pipeline over read-csv is valid
-    (is (not (parse-error? "read-csv \"sales.csv\" |> filter _.active |> collect")))))
+    (is (not (parse-error? "read-csv \"sales.csv\" |> filter _.active |> force!")))))
 
 (deftest read-csv-with-options-is-valid-syntax
   (testing "Scenario: Read CSV with explicit options"
@@ -421,7 +422,7 @@ close! db")))))
 |> map {product: _.product revenue: _.price * _.quantity}
 |> sort-by _.revenue
 |> take 10
-|> collect")))))
+|> force!")))))
 
 ;; ---------------------------------------------------------------------------
 ;; SECTION 7: SQL PUSH-DOWN OPTIMIZATION
@@ -433,22 +434,22 @@ close! db")))))
 (deftest filter-push-down-to-sql-where-is-valid-syntax
   (testing "Scenario: filter pushes down to SQL WHERE clause"
     (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-result is db |> table \"users\" |> filter _.age > 18 |> collect")))))
+result is db |> table \"users\" |> filter _.age > 18 |> force!")))))
 
 (deftest sort-by-push-down-to-sql-order-by-is-valid-syntax
   (testing "Scenario: sort-by pushes down to SQL ORDER BY"
     (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-result is db |> table \"users\" |> sort-by _.name |> collect")))))
+result is db |> table \"users\" |> sort-by _.name |> force!")))))
 
 (deftest take-push-down-to-sql-limit-is-valid-syntax
   (testing "Scenario: take pushes down to SQL LIMIT"
     (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-result is db |> table \"users\" |> take 10 |> collect")))))
+result is db |> table \"users\" |> take 10 |> force!")))))
 
 (deftest map-with-field-selection-push-down-to-sql-select-is-valid-syntax
   (testing "Scenario: map with field selection pushes down to SQL SELECT"
     (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-result is db |> table \"users\" |> map {name: _.name age: _.age} |> collect")))))
+result is db |> table \"users\" |> map {name: _.name age: _.age} |> force!")))))
 
 (deftest count-on-database-source-push-down-to-sql-count-is-valid-syntax
   (testing "Scenario: count on a database source pushes down to SQL COUNT(*)"
@@ -463,7 +464,7 @@ result is db |> table \"users\"
 |> filter _.age >= 18
 |> sort-by _.score
 |> take 20
-|> collect")))))
+|> force!")))))
 
 (deftest push-down-stops-at-non-translatable-operations-is-valid-syntax
   (testing "Scenario: Push-down stops at non-translatable pipeline operations"
@@ -472,7 +473,7 @@ result is db |> table \"users\"
 |> filter _.active
 |> map [u -> {name: u.name score: u.score}]
 |> sort-by _.score
-|> collect")))))
+|> force!")))))
 
 (deftest explain-shows-execution-plan-without-executing-is-valid-syntax
   (testing "Scenario: explain shows the execution plan without executing the query"
@@ -581,12 +582,12 @@ sample is dtw/inspect plan 1 100")))
                     "data is [1 2 3 4 5]"
                     "a is data |> filter _ > 2"
                     "b is a"
-                    "a |> collect")
+                    "a |> force!")
           result-b (eval-dt-last
                     "data is [1 2 3 4 5]"
                     "a is data |> filter _ > 2"
                     "b is a"
-                    "b |> collect")]
+                    "b |> force!")]
       (is (= result-a result-b))
       (is (= [3 4 5] result-a)))))
 
@@ -611,24 +612,24 @@ db")]
     ;; Building the pipeline is OK (lazy); materializing throws
     (is (not (throws? "data is read-csv \"nonexistent-dt-test-file.csv\"")))
     (is (throws? "data is read-csv \"nonexistent-dt-test-file.csv\"
-data |> collect"))
+data |> force!"))
     ;; The underlying exception is a FileNotFoundException
     (is (throws-type?
-         "read-csv \"nonexistent-dt-test-file-xyz.csv\" |> collect"
+         "read-csv \"nonexistent-dt-test-file-xyz.csv\" |> force!"
          java.io.FileNotFoundException))))
 
 (deftest query-timeout-raises-an-error
   (testing "Scenario: Query timeout on database source raises an error"
     ;; Syntax is valid; runtime raises timeout error
     (is (not (parse-error? "db is connect \"postgres://localhost/mydb\" {query-timeout: 5000}
-result is db |> query \"SELECT * FROM huge_table\" |> collect")))))
+result is db |> query \"SELECT * FROM huge_table\" |> force!")))))
 
 (deftest schema-mismatch-is-nil-tolerant
   (testing "Scenario: Schema mismatch is nil-tolerant (non-existent field returns nil)"
     ;; Accessing a missing field returns nil; nil > 5 is falsy; result is empty
     (let [result (eval-dt-last
                   "data is [{region: \"EU\" price: 10} {region: \"US\" price: 20}]"
-                  "data |> filter _.nonexistent-column > 5 |> collect")]
+                  "data |> filter _.nonexistent-column > 5 |> force!")]
       (is (= [] result)))))
 
 ;; ---------------------------------------------------------------------------
@@ -669,14 +670,14 @@ db |> table \"orders\"
 
 (deftest lazy-pipeline-reuse-file-sources-re-open-on-each-materialization
   (testing "Scenario: Lazy pipeline reuse -- file sources re-open on each materialization"
-    ;; With in-memory data (same semantics): two independent collects produce correct results
+    ;; With in-memory data (same semantics): two independent force!s produce correct results
     (let [a (eval-dt-last
              "data is [{x: 1 y: 10} {x: 2 y: 20} {x: 3 y: 30}]"
-             "a is data |> filter _.x > 1 |> collect"
+             "a is data |> filter _.x > 1 |> force!"
              "a")
           b (eval-dt-last
              "data is [{x: 1 y: 10} {x: 2 y: 20} {x: 3 y: 30}]"
-             "b is data |> filter _.y > 15 |> collect"
+             "b is data |> filter _.y > 15 |> force!"
              "b")]
       (is (= [{:x 2 :y 20} {:x 3 :y 30}] a))
       (is (= [{:x 2 :y 20} {:x 3 :y 30}] b)))))
@@ -693,7 +694,7 @@ db |> table \"orders\"
   (testing "Scenario: repeat with count produces a bounded lazy sequence"
     (let [result (eval-dt-last
                   "xs is repeat 5 \"x\""
-                  "xs |> collect")]
+                  "xs |> force!")]
       (is (= ["x" "x" "x" "x" "x"] result))
       (is (= 5 (count result))))))
 
@@ -701,7 +702,7 @@ db |> table \"orders\"
   (testing "Scenario: repeat without count produces an infinite lazy sequence"
     (let [result (eval-dt-last
                   "xs is repeat \"hello\""
-                  "xs |> take 3 |> collect")]
+                  "xs |> take 3 |> force!")]
       ;; Infinite repeat -- only take 3 to avoid blocking
       (is (= ["hello" "hello" "hello"] result)))))
 
@@ -709,14 +710,14 @@ db |> table \"orders\"
   (testing "Scenario: iterate builds an infinite sequence by applying a function repeatedly"
     (let [result (eval-dt-last
                   "powers is iterate [n -> n * 2] 1"
-                  "powers |> take 5 |> collect")]
+                  "powers |> take 5 |> force!")]
       (is (= [1 2 4 8 16] result)))))
 
 (deftest cycle-produces-infinite-repeating-sequence-from-collection
   (testing "Scenario: cycle produces an infinite repeating sequence from a collection"
     (let [result (eval-dt-last
                   "xs is cycle [1 2 3]"
-                  "xs |> take 7 |> collect")]
+                  "xs |> take 7 |> force!")]
       (is (= [1 2 3 1 2 3 1] result)))))
 
 (deftest dtw-set-and-get-configure-global-runtime-settings

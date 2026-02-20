@@ -18,6 +18,9 @@
 (declare eval-pipeline eval-pipe-atom-with-fn-call)
 (declare eval-try-catch)
 
+;; Sentinel record for tail-call recur — avoids exception throw/catch overhead.
+(defrecord Recur [args])
+
 ;; Dynamic flag to indicate Constructor is being evaluated in a callable context.
 ;; When true, Constructor returns a fn; when false, it invokes immediately (0 args).
 (def ^:dynamic *constructor-callable?* false)
@@ -528,7 +531,7 @@
         ;; --- Recur ---
         (= :Recur tag)
         (let [args (mapv #(eval-node (second %) env) children)]
-          (throw (ex-info "::recur" {:args args})))
+          (->Recur args))
 
         ;; --- CallTarget ---
         (= :CallTarget tag)
@@ -846,13 +849,10 @@
     (let [expr (first exprs)]
       (if (= 1 (count exprs))
         ;; Last expression: evaluate and handle recur
-        (let [result
-              (try
-                [:done (let [[val _] (eval-expr expr curr-env)] val)]
-                (catch clojure.lang.ExceptionInfo e
-                  (if (= "::recur" (.getMessage e))
-                    [:recur (:args (ex-data e))]
-                    (throw e))))]
+        (let [[val _] (eval-expr expr curr-env)
+              result  (if (instance? Recur val)
+                        [:recur (.args val)]
+                        [:done val])]
           (if (= :done (first result))
             (second result)
             ;; Recur: restart body with new args — NO new stack frame!
