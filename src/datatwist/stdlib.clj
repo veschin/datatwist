@@ -236,6 +236,168 @@
   ([s start end] (subs s start end)))
 
 ;; ---------------------------------------------------------------------------
+;; Exploration functions (Feature 8)
+;; ---------------------------------------------------------------------------
+
+(def ^:private DESCRIBE_SAMPLE_SIZE 1000)
+(def ^:private SCHEMA_SAMPLE_SIZE   100)
+
+(defn- numeric? [v]
+  (and (some? v) (number? v)))
+
+(defn- infer-type
+  "Infer a DataTwist type string from a sampled column of values."
+  [vals]
+  (let [non-nil (remove nil? vals)]
+    (cond
+      (empty? non-nil)                             "nil"
+      (every? integer? non-nil)                    "Integer"
+      (every? number? non-nil)                     "Number"
+      (every? string? non-nil)                     "String"
+      (every? boolean? non-nil)                    "Boolean"
+      (every? map? non-nil)                        "Object"
+      (every? sequential? non-nil)                 "List"
+      :else                                        "Any")))
+
+(defn- collect-column
+  "Given a seq of maps, return a vector of values for `key` (keyword)."
+  [rows kw]
+  (mapv #(get % kw) rows))
+
+(defn- dt-describe
+  "Statistical summary of a collection. Data-first: (coll) or (coll, sample-size).
+   Returns a map of column-name -> stats map with :count :nil-count :type.
+   For numeric columns also includes :min :max :sum :mean.
+   For comparable non-numeric columns includes :min :max."
+  ([coll] (dt-describe coll DESCRIBE_SAMPLE_SIZE))
+  ([coll sample-size]
+   (let [rows (vec (take sample-size coll))]
+     (when (empty? rows)
+       (throw (ex-info "describe requires a non-empty collection" {:value coll})))
+     (let [first-row (first rows)
+           _ (when-not (map? first-row)
+               (throw (ex-info "describe expects a collection of maps (objects)"
+                               {:dt/error true :code "DT-R010" :category "TYPE MISMATCH"
+                                :hint "describe expects a list of objects. Each element must be an object with fields."
+                                :value first-row})))
+           column-keys (keys first-row)]
+       (into {}
+             (for [kw column-keys]
+               (let [col-name  (name kw)
+                     all-vals  (collect-column rows kw)
+                     nil-count (count (filter nil? all-vals))
+                     non-nil   (vec (remove nil? all-vals))
+                     numeric   (vec (filter numeric? non-nil))
+                     cnt       (count all-vals)
+                     base      {:count cnt :nil-count nil-count :type (infer-type all-vals)}
+                     stats     (cond
+                                 (seq numeric)
+                                 (assoc base
+                                        :min  (apply min numeric)
+                                        :max  (apply max numeric)
+                                        :sum  (reduce + 0.0 numeric)
+                                        :mean (/ (reduce + 0.0 numeric) (count numeric)))
+                                 (seq non-nil)
+                                 (assoc base
+                                        :min (reduce (fn [a b] (if (neg? (compare a b)) a b)) non-nil)
+                                        :max (reduce (fn [a b] (if (pos? (compare a b)) a b)) non-nil))
+                                 :else base)]
+                 [col-name stats])))))))
+
+(defn- dt-schema
+  "Infer column names and types from a sample of the collection.
+   Returns a vector of {name: \"field\" type: \"Number\"} maps."
+  [coll]
+  (let [rows (vec (take SCHEMA_SAMPLE_SIZE coll))]
+    (when (empty? rows)
+      (throw (ex-info "schema requires a non-empty collection" {:value coll})))
+    (let [first-row (first rows)
+          _ (when-not (map? first-row)
+              (throw (ex-info "schema expects a collection of maps (objects)"
+                              {:dt/error true :code "DT-R010" :category "TYPE MISMATCH"
+                               :hint "schema expects a list of objects. Each element must be an object with fields."
+                               :value first-row})))
+          column-keys (keys first-row)]
+      (vec
+       (for [kw column-keys]
+         (let [col-vals  (collect-column rows kw)
+               col-type  (infer-type col-vals)]
+           {:name (name kw) :type col-type}))))))
+
+(defn- dt-sample
+  "Return N randomly-selected elements from a collection. Data-first: (coll) or (coll, n).
+   Default N is 10. Forces partial materialization."
+  ([coll] (dt-sample coll 10))
+  ([coll n]
+   (vec (take n (shuffle (vec coll))))))
+
+(defn- dt-freq
+  "Frequency table for a field. Data-first: (coll, accessor-fn).
+   Returns a vector of {value: X count: N pct: P} sorted by count descending.
+   Forces full evaluation."
+  [coll f]
+  (let [all-vals (mapv f (vec coll))
+        total    (count all-vals)
+        freqs    (frequencies all-vals)]
+    (->> freqs
+         (map (fn [[v c]]
+                {:value v
+                 :count c
+                 :pct   (if (zero? total)
+                          0.0
+                          (* 100.0 (/ (double c) total)))}))
+         (sort-by :count >)
+         vec)))
+
+(defn- dt-histogram
+  "Distribution of a numeric field in a collection. Data-first: (coll, accessor-fn).
+   Returns a map with :bins (list of {from: X to: Y count: N}) and :bin-count.
+   Samples at most DESCRIBE_SAMPLE_SIZE rows."
+  [coll f]
+  (let [rows   (vec (take DESCRIBE_SAMPLE_SIZE coll))
+        vals   (vec (remove nil? (map f rows)))]
+    (if (empty? vals)
+      {:bins [] :bin-count 10}
+      (let [mn        (apply min vals)
+            mx        (apply max vals)
+            bin-count 10
+            range-sz  (- mx mn)
+            bin-width (if (zero? range-sz)
+                        1.0
+                        (/ (double range-sz) bin-count))
+            bin-idx   (fn [v]
+                        (if (zero? range-sz)
+                          0
+                          (min (dec bin-count)
+                               (int (Math/floor (/ (- (double v) mn) bin-width))))))
+            counts    (reduce (fn [acc v]
+                                (let [i (bin-idx v)]
+                                  (update acc i (fnil inc 0))))
+                              {}
+                              vals)
+            bins      (vec
+                       (for [i (range bin-count)]
+                         {:from  (+ mn (* i bin-width))
+                          :to    (+ mn (* (inc i) bin-width))
+                          :count (get counts i 0)}))]
+        {:bins      bins
+         :bin-count bin-count}))))
+
+(defn- dt-explain
+  "Show the pipeline execution plan without accessing data.
+   For concrete collections returns a summary string.
+   For DTPipeline (once implemented) returns a step-by-step plan."
+  [data]
+  (cond
+    (vector? data)
+    (str "Materialized collection of " (count data) " items")
+    (sequential? data)
+    ;; Lazy seq — don't force it; just describe it
+    "Lazy pipeline (plan not yet reified as DTPipeline)"
+    :else
+    (str "Value: " (dt-type-of data))))
+
+;; ---------------------------------------------------------------------------
 ;; QualifiedName resolver — handles clj/some.ns/fn-name interop
 ;; ---------------------------------------------------------------------------
 
@@ -334,7 +496,9 @@
    "upper-case"  clojure.string/upper-case
    "lower-case"  clojure.string/lower-case
    "trim"        clojure.string/trim
-   "str"         str
+   "str"         (fn [v] (if (and (sequential? v) (not (vector? v)))
+                           (str (vec v))
+                           (str v)))
    "int"         int
    "double"      double
    "str?"        string?
@@ -416,6 +580,13 @@
                         (println (label-or-fn sample))
                         data))))
    "save!"       (fn [data & _args] data)
+   ;; Exploration functions (Feature 8)
+   "describe"    dt-describe
+   "schema"      dt-schema
+   "sample"      dt-sample
+   "freq"        dt-freq
+   "histogram"   dt-histogram
+   "explain"     dt-explain
    ;; Data source stubs — throw structured DT-C errors (full impl is Feature 8)
    "read-csv"    (fn [& args]
                    (let [path (first args)

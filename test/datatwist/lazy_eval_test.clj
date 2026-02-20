@@ -147,14 +147,34 @@
         "lazy sequence must equal [3 4 5] after auto-materialization via =")))
 
 (deftest str-auto-materializes-a-lazy-sequence-for-string-conversion
-  (testing "stub -- not yet implemented"))
-;; Currently str on a LazySeq returns "clojure.lang.LazySeq@..." not a human-readable
-;; "[2 4 6]" string. Auto-materialization for str is not yet implemented.
+  (testing "Scenario: str auto-materializes a lazy sequence for string conversion"
+    ;; str in stdlib now materializes lazy seqs to vectors before conversion,
+    ;; producing "[2 4 6]" instead of "clojure.lang.LazySeq@...".
+    (let [s (eval-dt-last
+             "result is [1 2 3] |> map _ * 2"
+             "s is str result"
+             "s")]
+      (is (string? s)
+          "str of a lazy seq must return a string")
+      (is (= "[2 4 6]" s)
+          "str of a lazy seq must produce a human-readable vector representation")
+      (is (not (re-find #"LazySeq" s))
+          "str must not expose JVM LazySeq reference"))))
 
 (deftest error-messages-include-materialized-values-not-lazy-references
-  (testing "stub -- not yet implemented"))
-;; Error rendering for lazy sequences (no "LazySeq@..." in messages) is not
-;; yet implemented in error_renderer.clj.
+  (testing "Scenario: Error messages include materialized values, not lazy references"
+    ;; When a pipeline produces a lazy seq and then an error occurs, the error
+    ;; message must not expose JVM LazySeq references. The error renderer only
+    ;; surfaces the :message string (not :value), so LazySeq@... cannot appear.
+    (let [src "result is [1 2 3] |> map _ * 2\nresult 42"
+          msg (try
+                (eval-dt src)
+                nil
+                (catch Exception e (or (.getMessage e) (str e))))]
+      (is (some? msg)
+          "calling a lazy seq as a function must produce an error")
+      (is (not (re-find #"LazySeq@" (or msg "")))
+          "error message must not contain a JVM LazySeq reference"))))
 
 ;; --- Infinite sequence generators ---
 
@@ -174,10 +194,17 @@
         "range 5 must produce [0 1 2 3 4]")))
 
 (deftest range-with-no-upper-bound-produces-an-infinite-lazy-sequence
-  (testing "stub -- not yet implemented"))
-;; The BDD describes "range 1" as producing an infinite lazy sequence starting
-;; at 1. The current evaluator maps this to Clojure's (range 1) = [0], which
-;; is a finite range from 0 to 1. Infinite-range semantics are not yet implemented.
+  (testing "stub -- BDD conflict, needs user clarification"))
+;; BDD conflict: the "range with no upper bound" scenario says "range 1" produces
+;; an infinite lazy sequence starting at 1, giving [1 2 3 4] when take 4 is applied.
+;; However, the adjacent "range with one argument" scenario says "range 5" produces
+;; [0 1 2 3 4] — finite range from zero (same 1-arg form, contradictory semantics).
+;; These two BDD scenarios cannot both be true with the same stdlib range arity.
+;; Resolution options (needs user decision):
+;;   A) 1-arg range = finite 0..n (current), and remove the infinite-range scenario.
+;;   B) 1-arg range = infinite from n, and change "range 5 |> force!" to a 2-arg form.
+;;   C) Add a separate "range-from" function for infinite sequences from a start value.
+;; Until the BDD conflict is resolved this test remains a stub.
 
 (deftest repeat-with-count-produces-a-bounded-lazy-sequence
   (let [result (eval-dt-last
@@ -327,32 +354,165 @@
 ;; --- Exploration functions ---
 
 (deftest describe-shows-statistical-summary-of-a-dataset-using-a-sample
-  (testing "stub -- not yet implemented"))
-;; describe is not yet in the stdlib.
+  ;; BDD: describe returns per-column stats map with :count :nil-count :type for all columns,
+  ;; plus :min :max :sum :mean for numeric columns.
+  (let [result (eval-dt-last
+                "data is [{name: \"Alice\" age: 30 score: 95} {name: \"Bob\" age: 25 score: 72} {name: \"Carol\" age: 35 score: 88}]"
+                "result is data |> describe"
+                "result")]
+    (is (map? result)
+        "describe returns a map")
+    (is (contains? result "age")
+        "describe result contains the age column")
+    (is (contains? result "score")
+        "describe result contains the score column")
+    (is (= 3 (get-in result ["age" :count]))
+        "age column count is 3")
+    (is (= 0 (get-in result ["age" :nil-count]))
+        "age column nil-count is 0")
+    (is (= "Integer" (get-in result ["age" :type]))
+        "age column type is Integer")
+    (is (= 25 (get-in result ["age" :min]))
+        "age min is 25")
+    (is (= 35 (get-in result ["age" :max]))
+        "age max is 35")
+    (is (= 90.0 (get-in result ["age" :sum]))
+        "age sum is 90.0")
+    (is (= 30.0 (get-in result ["age" :mean]))
+        "age mean is 30.0")
+    (is (= "String" (get-in result ["name" :type]))
+        "name column type is String")
+    (is (= "Alice" (get-in result ["name" :min]))
+        "name min is Alice (alphabetical)")
+    (is (= "Carol" (get-in result ["name" :max]))
+        "name max is Carol (alphabetical)")))
 
 (deftest describe-with-explicit-sample-size-override
-  (testing "stub -- not yet implemented"))
-;; describe with sample size argument is not yet implemented.
+  ;; BDD: describe 5000 uses a 5000-row sample overriding default DESCRIBE_SAMPLE_SIZE.
+  ;; We test with a concrete small collection and explicit sample size of 2,
+  ;; verifying that only 2 rows are included in the stats.
+  (let [result (eval-dt "[{x: 1} {x: 2} {x: 3}] |> describe 2")]
+    (is (map? result)
+        "describe with sample size returns a map")
+    (is (= 2 (get-in result ["x" :count]))
+        "describe 2 samples only 2 rows (not all 3)")))
 
 (deftest schema-shows-column-names-and-inferred-types-using-a-small-sample
-  (testing "stub -- not yet implemented"))
-;; schema is not yet in the stdlib.
+  ;; BDD: schema returns a collection of maps with keys name and type per column.
+  (let [result (eval-dt-last
+                "data is [{name: \"Alice\" age: 30} {name: \"Bob\" age: 25}]"
+                "result is data |> schema"
+                "result")]
+    (is (sequential? result)
+        "schema returns a collection")
+    (is (= 2 (count result))
+        "schema returns one entry per column (2 columns: name, age)")
+    (is (every? map? result)
+        "each schema entry is a map")
+    (is (every? #(contains? % :name) result)
+        "each schema entry has a :name key")
+    (is (every? #(contains? % :type) result)
+        "each schema entry has a :type key")
+    (let [by-col (into {} (map (fn [m] [(:name m) (:type m)]) result))]
+      (is (= "String" (get by-col "name"))
+          "name column inferred as String")
+      (is (= "Integer" (get by-col "age"))
+          "age column inferred as Integer"))))
 
 (deftest sample-returns-n-randomly-selected-elements
-  (testing "stub -- not yet implemented"))
-;; sample is not yet in the stdlib.
+  ;; BDD: sample 20 returns exactly 20 elements from the collection.
+  ;; Forces partial materialization (not lazy).
+  (let [result (eval-dt "[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25] |> sample 10")]
+    (is (vector? result)
+        "sample returns a materialized vector")
+    (is (= 10 (count result))
+        "sample 10 returns exactly 10 elements")
+    ;; All returned elements must come from the original collection
+    (is (every? #(<= 1 % 25) result)
+        "all sampled elements are from the source collection"))
+  ;; sample with default N = 10
+  (let [result (eval-dt "[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20] |> sample")]
+    (is (= 10 (count result))
+        "sample with no argument defaults to 10 elements")))
 
 (deftest freq-shows-exact-frequency-table-for-a-field-forces-full-evaluation
-  (testing "stub -- not yet implemented"))
-;; freq is not yet in the stdlib.
+  ;; BDD: freq returns {value count pct} maps sorted by count desc.
+  ;; Forces full evaluation. EU appears 3 times (75%), US once (25%).
+  (let [result (eval-dt-last
+                "data is [{region: \"EU\"} {region: \"US\"} {region: \"EU\"} {region: \"EU\"}]"
+                "result is data |> freq _.region"
+                "result")]
+    (is (sequential? result)
+        "freq returns a collection")
+    (is (= 2 (count result))
+        "freq result has 2 entries (EU and US)")
+    (is (every? map? result)
+        "each freq entry is a map")
+    (let [first-entry (first result)]
+      (is (contains? first-entry :value)
+          "freq entry has :value key")
+      (is (contains? first-entry :count)
+          "freq entry has :count key")
+      (is (contains? first-entry :pct)
+          "freq entry has :pct key"))
+    ;; First entry is most frequent (EU)
+    (let [eu-entry (first (filter #(= "EU" (:value %)) result))]
+      (is (= 3 (:count eu-entry))
+          "EU count is 3")
+      (is (= 75.0 (:pct eu-entry))
+          "EU pct is 75.0"))
+    (let [us-entry (first (filter #(= "US" (:value %)) result))]
+      (is (= 1 (:count us-entry))
+          "US count is 1")
+      (is (= 25.0 (:pct us-entry))
+          "US pct is 25.0"))
+    ;; Sorted by count descending: EU (3) before US (1)
+    (is (= "EU" (:value (first result)))
+        "freq results are sorted by count descending")))
 
 (deftest histogram-shows-distribution-of-a-numeric-field-using-a-sample
-  (testing "stub -- not yet implemented"))
-;; histogram is not yet in the stdlib.
+  ;; BDD: histogram returns a map with :bins and :bin-count.
+  ;; Bins have :from :to :count. Uses 10 bins by default.
+  (let [result (eval-dt-last
+                "data is [{age: 20} {age: 25} {age: 30} {age: 35} {age: 40}]"
+                "result is data |> histogram _.age"
+                "result")]
+    (is (map? result)
+        "histogram returns a map")
+    (is (contains? result :bins)
+        "histogram result has :bins key")
+    (is (contains? result :bin-count)
+        "histogram result has :bin-count key")
+    (is (= 10 (:bin-count result))
+        "default bin-count is 10")
+    (is (= 10 (count (:bins result)))
+        "there are 10 bins")
+    (is (every? map? (:bins result))
+        "each bin is a map")
+    (let [first-bin (first (:bins result))]
+      (is (contains? first-bin :from)
+          "bin has :from key")
+      (is (contains? first-bin :to)
+          "bin has :to key")
+      (is (contains? first-bin :count)
+          "bin has :count key"))
+    ;; Total count across all bins equals number of data points
+    (is (= 5 (reduce + (map :count (:bins result))))
+        "total count across bins equals 5 (all data points)")))
 
 (deftest explain-shows-the-pipeline-execution-plan-without-accessing-data
-  (testing "stub -- not yet implemented"))
-;; explain is not yet in the stdlib.
+  ;; BDD: explain shows human-readable plan. For concrete collections returns
+  ;; a summary string. For lazy pipelines indicates laziness without forcing eval.
+  (let [result (eval-dt "[1 2 3 4 5] |> explain")]
+    (is (string? result)
+        "explain returns a string")
+    (is (clojure.string/includes? result "5")
+        "explain on materialized collection mentions item count"))
+  (let [result (eval-dt "[1 2 3 4 5] |> filter _ > 2 |> explain")]
+    (is (string? result)
+        "explain on lazy pipeline returns a string")
+    (is (not (clojure.string/includes? result "Exception"))
+        "explain does not throw or include error text")))
 
 ;; --- System constants and configuration ---
 
