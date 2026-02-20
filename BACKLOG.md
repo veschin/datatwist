@@ -1,6 +1,6 @@
 # DataTwist Backlog
 
-Status legend: `🔬 research` `📝 bdd/tests` `🔍 audit` `🚧 in progress` `✅ done` `⏳ waiting` (blocked/needs user)
+Status legend: `🔬 research` `📝 bdd/tests` `🚧 in progress` `⏳ waiting` (blocked/needs user decision)
 
 ---
 
@@ -27,48 +27,53 @@ Build DataTwist as a standalone native binary via GraalVM `native-image`. Critic
 
 ### Lazy Evaluation `🚧 in progress`
 
-Design locked. Implementation and architecture research needed.
+Design locked. BDD and test stubs exist; evaluator support not yet implemented.
 
 BDD: `bdd/8-lazy-evaluation.feature`, Tests: `test/datatwist/lazy_eval_test.clj` (76 TDD stubs)
 Design doc: `docs/lazy-eval-design.md`
 
-- [ ] Lazy sequences for large collections
-- [ ] Streaming pipelines
+Note: basic lazy sequences (map, filter, take, drop, distinct, flatten, concat, range, repeat) are done. The tasks below are the remaining evaluator-level work.
+
+- [ ] Streaming pipelines with backpressure
 - [ ] Short-circuit evaluation in guards and boolean ops
 - [ ] `take`/`drop` on infinite sequences
 
 #### Design decisions (locked)
 
 - **Laziness is invisible to user**: lazy seqs auto-materialize at any user-facing boundary (REPL, str, save!, tap!, `=`). User NEVER sees `LazySeq@...`. Laziness only exists between pipeline steps for performance.
-- **Remove**: `inspect`, `log!`, `print`, `collect` from pipeline vocabulary
-- **`collect` is removed.** `force!` is the sole materialization function. It forces full pipeline execution, ignores sampling, works with all data.
-- **`log!` is removed.** `tap!` is the sole debug/inspection tool for pipelines.
-- **`force!`** is the only materialization function (not `collect`)
-- **Laziness and DTPipeline are orthogonal.** Laziness = execution model (lazy seqs instead of eager vectors). DTPipeline = introspection model (inspectable pipeline steps, cached samples). Implement independently.
-- **`tap!`** is fully safe, never mutates data. Output is redirectable (console, file, IDE, custom). Three modes: bare (`tap!`), labeled (`tap! "label"`), lambda (`tap! [d -> format "found %s items" (count d)]`). Output format: first line is function label `[fn]`, second line is sample data.
-- **`autotap!`** is a macro-like transformation: it wraps every pipeline step with `tap!`. Implementation: runtime transformation at the pipeline level, inserting tap! between each step. Placed at start of pipeline, wraps every subsequent step with `tap!` output (function-label on first line + sample on second line).
-- **Reified pipeline**: `|>` builds a DTPipeline record that remembers steps + caches samples per step
-- **Full introspection**: cursor on ANY expression → sample result. Cursor on ANY variable (e.g. `x` in `[x -> x > 1]`) → sample of that variable's values. On-demand computation. No re-execution — cached.
-- **Sub-step introspection**: inspect not just step results but steps within steps (nested pipelines, lambda internals)
+- **`force!`** is the only explicit materialization function (not `collect`).
+- **`tap!`** is fully safe, never mutates data. Three modes: bare (`tap!`), labeled (`tap! "label"`), lambda (`tap! [d -> format "found %s items" (count d)]`). Output format: first line is function label `[fn]`, second line is sample data.
+- **`autotap!`** is a macro-like transformation: inserts `tap!` between each pipeline step. Implementation: runtime transformation at the pipeline level. Research done → `docs/autotap-impl-plan.md`.
+- **Reified pipeline**: `|>` builds a `DTPipeline` record that remembers steps and caches samples per step.
+- **Full introspection**: cursor on ANY expression → sample result. Cursor on ANY variable → sample of that variable's values. On-demand, cached — no re-execution.
 - **Conditional sampling**: `#sample {predicate}` reader macro — filter sample data. `SAMPLE_ATTEMPTS` controls retries. Can set sample size to zero.
-- **Bi-directional traversal**: step forward/backward through pipeline computations, drill into collections
+- **Bi-directional traversal**: step forward/backward through pipeline computations, drill into collections.
 - **Cache management**: everything cached by default. `invalidate-cache!` for explicit reset. Cache at end of pipeline → whole pipeline re-executes.
-- **No blocking ever**: streaming-first, notification when sample ready for inspection
-- **Compression + batching + streaming**: real data can be huge, design for it from day 1
-- **Constants**: `SAMPLE_SIZE`, `MAX_COLLECT_ROWS`, `DESCRIBE_SAMPLE_SIZE`, `PRINT_WIDTH` — uppercase symbols, mutable config values
-- **Auto-materialize contexts**: REPL output, `str`/concat, `tap!`, `save!`, `=` comparison, error messages — all auto-force with configurable limit
+- **No blocking ever**: streaming-first; notification when sample is ready for inspection.
+- **Auto-materialize contexts**: REPL output, `str`/concat, `tap!`, `save!`, `=` comparison, error messages — all auto-force with configurable limit.
 
-#### Pipeline as Runtime Object tasks
+#### autotap! `📝 bdd/tests`
+
+Research done → `docs/autotap-impl-plan.md`. Ready for BDD and implementation.
+
+- [ ] BDD scenarios for `autotap!` in `bdd/8-lazy-evaluation.feature`
+- [ ] Tests in `test/datatwist/lazy_eval_test.clj`
+- [ ] Evaluator support: runtime pipeline transformation inserting `tap!` between each step
+
+#### DTPipeline Reified Pipeline `📝 bdd/tests`
+
+Research done → `docs/dtpipeline-impl-plan.md`. Ready for BDD and implementation.
 
 - [ ] `DTPipeline` record type — reified pipeline with steps and metadata
 - [ ] `dtw/pipeline` and `dtw/step` compiler targets for `|>` operator
 - [ ] `dtw/inspect pipeline step sample-size` — inspect a specific pipeline step
 - [ ] `inspect-pipeline-step` nREPL op: `{:op "inspect-pipeline-step" :file "..." :line N :step-index K}` → cached sample
 - [ ] IDE overlay integration — sample result per `|>` step
+- [ ] BDD scenarios and tests
 
 ### Pushdown Optimization `⏳ waiting`
 
-Design doc: `docs/pushdown-design.md`. Blocked: gap analysis after lazy eval.
+Blocked on DTPipeline implementation. Design doc: `docs/pushdown-design.md`.
 
 - [ ] Translate pipeline AST to flat operation list
 - [ ] Classify ops: pushable vs local
@@ -82,17 +87,18 @@ Design doc: `docs/pushdown-design.md`. Blocked: gap analysis after lazy eval.
 
 ### Module System & Connectors `🔬 research`
 
-**Decision (locked)**: Clojure-style namespaces + require.
-```
-require math              // everything under math namespace
-require math.{sin cos}    // specific functions
-math/sin 3.14             // qualified access
-```
+#### Design decisions (locked)
 
-**Decision (preliminary)**: Connector interface — minimal, 5 functions: `connect`, `query`, `close!`, `tables`, `schema`. Not ready to go deeper yet.
+- **Clojure-style namespaces + require**:
+  ```
+  require math              // everything under math namespace
+  require math.{sin cos}    // specific functions
+  math/sin 3.14             // qualified access
+  ```
+- **Connector interface** (preliminary): minimal 5 functions — `connect`, `query`, `close!`, `tables`, `schema`. Not ready to go deeper yet.
+- **Connection pool** (preliminary): `connect` creates a connection pool internally (HikariCP). User doesn't manage the pool. Default pool size configurable via `dtw.POOL_SIZE` (default: 5).
 
-**Connection pool (preliminary)**: `connect` creates a connection pool internally (HikariCP). User doesn't manage the pool explicitly. Default pool size configurable via `dtw.POOL_SIZE` (default: 5). Transparent — simple interface, complexity hidden inside.
-
+Tasks:
 - [ ] Namespace resolution (file-based, classpath, registry)
 - [ ] `require` with qualified access and selective import
 - [ ] Namespace caching, circular dependency detection
@@ -101,14 +107,27 @@ math/sin 3.14             // qualified access
 - [ ] Connector + Pushdown integration
 - [ ] Connection pool management (HikariCP) — transparent, configurable via `dtw.POOL_SIZE`
 
-### Demo Runner Rework `✅ done`
+### Data Sources `📝 bdd/tests`
 
-- [ ] Demo runner reads and parses `.dt` files from `resources/examples/`
-- [ ] Section markers in `.dt` files via comments (`; @section Pipelines`)
-- [ ] Expression-by-expression evaluation with formatted output
-- [ ] Support `; @expect result` annotations
-- [ ] Remove hardcoded demo data from `demo_runner.clj`
-- [ ] Remove `demo-glow` Makefile target
+Research done → `docs/data-sources-plan.md`. File and database connectors are specified; BDD and implementation remain.
+
+#### File sources
+
+- [ ] `read-csv "path"` — lazy CSV reader
+- [ ] `read-json "path"` — lazy JSON reader
+- [ ] `read-jsonl "path"` — lazy newline-delimited JSON reader
+- [ ] `read-lines "path"` — lazy line reader
+- [ ] `read-parquet "path"` — lazy Parquet reader
+- [ ] `save! collection "path"` — write collection to file (format inferred from extension)
+
+#### Database sources
+
+- [ ] `connect <profile>` — open database connection (returns connection object)
+- [ ] `query conn "sql"` — execute SQL, return lazy result set
+- [ ] `close! conn` — release connection/pool
+- [ ] `tables conn` — list tables
+- [ ] `schema conn "table"` — infer schema from table
+- [ ] `into! conn "table" collection` — bulk insert
 
 ### nREPL & Editor Integration `🔬 research`
 
@@ -119,22 +138,25 @@ Target: CIDER-like experience for DataTwist. Plugins live in `plugins/` (future 
 - **Reference implementation**: CIDER is the reference. Emacs-first.
 - **MVP scope**: eval sub-expression at cursor + inspect drill-down (like CIDER inspector). Nothing more for MVP.
 
+Tasks:
 - [ ] nREPL server — middleware for DataTwist eval on top of Clojure nREPL
 - [ ] Eval sub-expression — parse sub-expr at cursor position, eval in current context
 - [ ] Inspector — drill-down into nested objects/lists (like CIDER inspector)
 - [ ] `datatwist-mode` for Emacs — CIDER-like package (nREPL connection, eval, inspect, overlay results)
 - [ ] Inline result display — result next to expression (CIDER overlays style)
-- [ ] inspect-pipeline-step nREPL op — request: `{:op "inspect-pipeline-step" :file :line :step-index}`, response: cached sample
+- [ ] `inspect-pipeline-step` nREPL op — request: `{:op "inspect-pipeline-step" :file :line :step-index}`, response: cached sample
 
 ### Async & Parallel Execution `🔬 research`
 
-**Decision (locked)**: NO BLOCKING EVER. Stream or wait. Notification system when sample is ready. The unit of the language is a sample — get/transform/save data.
+#### Design decisions (locked)
 
-**Decision (locked)**: Rethink traditional parallelism. The language works with samples (batches), so async is the natural model. Everything can be async; parallel where appropriate. No explicit `pmap`/`pfilter` — the runtime decides based on sample size and operation type.
+- **NO BLOCKING EVER**: stream or wait; notification system when sample is ready. The unit of the language is a sample — get/transform/save data.
+- **Rethink traditional parallelism**: the language works with samples (batches), so async is the natural model. No explicit `pmap`/`pfilter` — the runtime decides based on sample size and operation type.
 
+Tasks:
 - [ ] Streaming-first: data arrives as stream, never blocks
 - [ ] Notification system: "sample ready" events for IDE/REPL
-- [ ] Parallel map/filter: automatic parallelization based on sample size + op type (no explicit pmap/pfilter)
+- [ ] Parallel map/filter: automatic parallelization based on sample size + op type
 - [ ] Pipeline-level parallelism: independent branches execute concurrently
 - [ ] Error propagation across async boundaries
 - [ ] Backpressure and resource limits (thread pool, connection pool)
@@ -144,30 +166,22 @@ Target: CIDER-like experience for DataTwist. Plugins live in `plugins/` (future 
 
 Persistent background server that IDE, CLI, and tools connect to. Eliminates JVM startup cost, holds project state, caches, samples.
 
-#### Architecture research needed
-
-Requires a thorough analysis: what do we gain from a persistent daemon vs. stateless CLI invocations (GraalVM native binary starts in ms)? Trade-offs to investigate:
+#### Architecture questions to investigate
 
 - **Pro**: shared state (sample caches, connection pools, autodoc type data) persists between invocations
 - **Pro**: IDE connects to live process with data context
 - **Pro**: hot reload on file changes
 - **Con**: another process to manage (start/stop/crash recovery)
-- **Con**: GraalVM binary is already fast — do we really need persistent state?
-- **Con**: complexity of two-tier architecture (global + per-project)
+- **Con**: GraalVM binary may already be fast enough — do we really need persistent state?
 - **Question**: can we get the same benefits with a simpler model? (e.g. cache files on disk, lazy daemon that starts on first IDE connection)
 
 #### Preliminary design (needs validation)
 
-- **Two-tier architecture**:
-  - **Global daemon** (cross-project): always running, instant REPL access from any project, handles eval requests, doc queries, formatting. One per user.
-  - **Project process**: spawned per-project, knows project context — loaded files, connection profiles, sample caches, autodoc type data. Managed by the global daemon.
-- **IDE connects to daemon**: no JVM startup per eval. nREPL/LSP talk to the daemon.
+- **Two-tier architecture**: global daemon (cross-project, always running) + per-project process (spawned per-project, knows project context — loaded files, connection profiles, sample caches).
 - **`datatwist daemon start/stop/status`** CLI subcommands
 - **Hot reload**: daemon watches project files, reloads on change
-- **Autodoc via daemon**: `fmt --doc` queries the project process for runtime type info from cached samples
 
-#### Tasks
-
+Tasks:
 - [ ] Daemon architecture: global daemon + per-project process model
 - [ ] `datatwist daemon start` / `stop` / `status` CLI subcommands
 - [ ] Socket/port management — daemon listens on Unix socket or TCP
@@ -183,8 +197,6 @@ Requires a thorough analysis: what do we gain from a persistent daemon vs. state
 
 ### CLI Subcommands & TUI `🔬 research`
 
-CLI user-facing commands and TUI experience for the DataTwist binary.
-
 - [ ] CLI subcommands: `datatwist run`, `datatwist repl`, `datatwist eval`, `datatwist fmt`, `datatwist lint`, `datatwist test`, `datatwist webui`
 - [ ] `datatwist creds add <project> <key>` — add credential to pass store (`datatwist/<project>/<key>`)
 - [ ] `datatwist creds list [project]` — list credentials
@@ -194,7 +206,7 @@ CLI user-facing commands and TUI experience for the DataTwist binary.
 - [ ] `datatwist connect` — interactive TUI wizard for setting up data sources
 - [ ] Source type registry: each connector declares its required fields (host, port, db, auth, etc.)
 - [ ] Connection testing: verify connectivity before saving profile
-- [ ] Profile storage: save/load connection profiles (location TBD — `~/.datatwist/connections/` or project-local)
+- [ ] Profile storage: save/load connection profiles (`~/.datatwist/connections/` or project-local — TBD)
 - [ ] `datatwist connect list` — show saved profiles
 - [ ] `datatwist connect test <profile>` — re-test a saved connection
 - [ ] File source wizard: interactive file picker for CSV/JSON/Parquet, detect format and schema
@@ -202,64 +214,22 @@ CLI user-facing commands and TUI experience for the DataTwist binary.
 
 ### Benchmarking & Analytics System `🔬 research`
 
-Built-in tools for measuring, profiling, and analyzing data and performance.
+Note: `describe`, `schema`, `freq`, `histogram`, `sample`, `explain` are already done. The remaining items are the performance measurement tools.
 
 - [ ] `measure!` — time execution of expression or pipeline, return `{result time-ms}`
-- [ ] `size` / `count` / `length` — unified size measurement for any data type (collections, strings, objects, streams)
-- [ ] `describe` — statistical summary of collection: count, min, max, mean, median, stddev, percentiles, null count
-- [ ] `freq` — frequency table for categorical data
-- [ ] `histogram` — distribution of numeric data
 - [ ] `profile!` — detailed breakdown of pipeline: time per step, rows per step, memory per step
 - [ ] `compare!` — A/B benchmark: run two expressions N times, report mean/median/p99 with statistical significance
-- [ ] `schema` — infer and display data schema: field names, types, cardinality, null rates
+- [ ] `benchmark!` — run expression N times, report min/max/mean/stddev/percentiles
 - [ ] Volume analytics: data sizes in bytes/KB/MB, row counts, column counts
 - [ ] Memory profiling: track allocations per pipeline step
-- [ ] `benchmark!` — run expression N times, report min/max/mean/stddev/percentiles
 - [ ] Output formats: table (REPL), JSON (programmatic), chart (IDE)
 - [ ] Integration with `tap!` — benchmark results as tap output
 
-### String Pattern Destructuring (`#p`) `🔬 research`
+### String Pattern Destructuring (`#p`) `📝 bdd/tests`
 
-**Decision (locked)**: `#p"..."` reader macro for reverse-format string destructuring. Three-tier design:
+Design locked. Tier 1 (simple capture), brace escaping, wildcard `{_}`, and guard integration are done. Tier 2 and Tier 3 remain.
 
-**Tier 1 — Simple capture:** `{var}` captures between literals (greedy up to next literal, no constraint needed)
-```
-#p"{user}@{domain}"                                               ; email
-#p"{a}.{b}.{c}.{d}"                                               ; IPv4
-#p"{ip} - {user} [{time}] \"{method} {url} HTTP/{ver}\" {status} {bytes}"  ; nginx log
-```
-
-**Tier 2 — Type hints via `:` shorthand:** `:d` = digits, `:w` = word chars, `:N` = exactly N chars
-```
-#p"{y:4d}-{m:2d}-{d:2d}"         ; ISO date
-#p"{a:d}.{b:d}.{c:d}.{d:d}"      ; digits-only octets
-#p"{code:3}-{rest}"               ; exactly 3 chars then rest
-```
-
-**Tier 3 — Full constraints for complex logic:**
-```
-#p"{proto: 'http' maybe 's'}://{host: many (not '/:')}/{path: rest}"
-```
-
-**Escaping literal braces:** `{{` → literal `{`, `}}` → literal `}`
-```
-#p"{{key}}: {value}"    ; matches "{key}: hello" → {value: "hello"}
-```
-
-**Integration with existing syntax:**
-```
-; Guards
-input | #p"{name}@{domain}" -> {type: "email" name domain}
-      | #p"{proto}://{host}" -> {type: "url" proto host}
-      | _ -> {type: "unknown"}
-
-; Named patterns via is
-date-fmt is #p"{y:4d}-{m:2d}-{d:2d}"
-text | date-fmt -> {y, m, d}
-
-; Pipelines
-logs |> map (extract _.timestamp date-fmt) |> filter _.m = "01"
-```
+Tier 2 research → `docs/pattern-phase2-plan.md`.
 
 #### Design decisions (locked)
 
@@ -267,22 +237,57 @@ logs |> map (extract _.timestamp date-fmt) |> filter _.m = "01"
 - `{var}` with no constraint captures up to next literal (smart default)
 - Short type hints: `:d` (digits), `:w` (word), `:N` (exact N chars)
 - Full constraint syntax inside `{}` for complex cases: `many`, `maybe`, `not`, `N..M`, alternation `|`
-- `{{` / `}}` for literal brace escaping (standard convention: Python, Rust, C#)
+- `{{` / `}}` for literal brace escaping (standard: Python, Rust, C#) — done
 - Patterns are first-class values (can bind with `is`, pass to functions)
-- Works in guards — extends existing pattern matching
+- Works in guards — extends existing pattern matching — done
 - Captures become object fields — natural for pipeline processing
 - Regex `#"..."` remains as escape hatch for edge cases
-- Replaces the previous "Regex Alternatives / Pattern Language" backlog item
 
-#### Implementation tasks
+#### Tier 2 — Type hints `📝 bdd/tests`
 
-- [ ] Parser support for `#p"..."` reader macro
-- [ ] Constraint mini-language parser (inside `{var: ...}`)
+Research done. Ready for BDD and implementation.
+
+```
+#p"{y:4d}-{m:2d}-{d:2d}"         ; ISO date
+#p"{a:d}.{b:d}.{c:d}.{d:d}"      ; digits-only octets
+#p"{code:3}-{rest}"               ; exactly 3 chars then rest
+```
+
+- [ ] Parser support for `:d`, `:w`, `:N` type hint syntax inside `{var:hint}`
+- [ ] Compilation of type hints to regex character classes / quantifiers
+- [ ] BDD scenarios and tests for Tier 2
+
+#### Tier 3 — Full constraint mini-language `🔬 research`
+
+```
+#p"{proto: 'http' maybe 's'}://{host: many (not '/:')}/{path: rest}"
+```
+
+- [ ] Design the constraint mini-language grammar
+- [ ] Parser support for `many`, `maybe`, `not`, `N..M`, alternation `|`
 - [ ] Compilation to `java.util.regex.Pattern` (via Regal or direct)
-- [ ] Integration with guard/pattern matching system
-- [ ] `extract` / `match` / `replace` stdlib functions using patterns
-- [ ] `{{` / `}}` escaping
-- [ ] BDD feature file + tests
+- [ ] BDD scenarios and tests for Tier 3
+
+### Error Reporting `🚧 in progress`
+
+BDD: `bdd/9-error-reporting.feature`, Tests: `test/datatwist/error_reporting_test.clj` (42 TDD stubs)
+Research doc: `docs/error-reporting-research.md`
+
+Done: error code system (DT-PXXX/TXXX/RXXX/DXXX/CXXX), Elm/Rust-style messages with source snippets and hints, "did you mean?" fuzzy matching, `WARNINGS_AS_ERRORS` constant.
+
+Remaining:
+
+- [ ] Expected token hints in parse errors (what the parser expected at the failure point)
+- [ ] Suppress Java/Clojure stack traces from user output
+- [ ] Data-aware warnings (nil prevalence, common mistakes) — non-blocking by default
+- [ ] JSON error output: `{:code "DT-T001" :message "..." :hint "..." :line N :col N}`
+- [ ] Error code registry (`docs/error-codes.md`): catalog of all codes with descriptions, examples, fix suggestions
+
+#### Design decisions (locked)
+
+- **Both expected tokens AND "did you mean?" fuzzy matching** in parse error messages.
+- **Warnings are non-blocking**: warnings print but execution continues.
+- **`WARNINGS_AS_ERRORS` constant**: set to enable strict mode where warnings fail execution.
 
 ### REPL & Developer Experience `⏳ waiting`
 
@@ -306,60 +311,26 @@ Design doc: `docs/lsp-tree-sitter-design.md`. Plugins live in `plugins/lsp/`.
 - [ ] Go-to-definition for `is`-bindings and `require`-aliases
 - [ ] Eldoc-style function signatures in Emacs
 
-### Error Reporting `🚧 in progress`
-
-BDD: `bdd/9-error-reporting.feature`, Tests: `test/datatwist/error_reporting_test.clj` (42 TDD stubs)
-Research doc: `docs/error-reporting-research.md`
-
-#### Design decisions (locked)
-
-- **Both expected tokens AND "did you mean?" fuzzy matching** in parse error messages. Not either/or.
-- **Warnings are non-blocking**: warnings print but execution continues.
-- **`WARNINGS_AS_ERRORS` constant**: set to enable strict mode where warnings fail execution.
-
-- [ ] Error code system: `DT-PXXX` / `DT-TXXX` / `DT-RXXX` / `DT-DXXX` / `DT-CXXX`
-- [ ] Elm/Rust-style messages with source snippets and hints
-- [ ] "Did you mean?" fuzzy matching for identifiers and keywords
-- [ ] Expected token hints in parse errors
-- [ ] Suppress Java/Clojure stack traces from user output
-- [ ] Data-aware warnings (nil prevalence, common mistakes) — non-blocking by default
-- [ ] `WARNINGS_AS_ERRORS` constant for strict mode
-- [ ] JSON error output: `{:code "DT-T001" :message "..." :hint "..." :line N :col N}`
-- [ ] Error code registry (`docs/error-codes.md`): catalog of all codes with descriptions, examples, fix suggestions
-
-### Performance & Streaming `⏳ waiting`
-
-- [ ] Benchmark suite
-- [ ] Memory profiling
-- [ ] Parallel `map`/`filter` via virtual threads
-
 ### Credentials & Network Configuration `⏳ waiting`
 
 #### Design decisions (locked)
 
 - **Three namespaces, clearly separated**: `env` for OS environment variables only, `pass` for secrets from password-store, `dtw` for all DataTwist internal config.
-- **`env` module**: `env.HOME`, `env.PATH`, `env.DB_URL` — OS environment variables only. No DataTwist settings live here.
-- **`pass` module**: `pass.myproject.db-host` maps to `pass show datatwist/myproject/db-host`. Flat structure — one value per key, returns a string. Integrates with the standard Unix `pass` (password-store).
-- **Leaf path returns string, directory path returns object**: Accessing a leaf key returns a single string value. Accessing a directory path (non-leaf) returns an object with all keys as fields. Enables standard destructuring.
-- **`dtw` module**: all DataTwist internal config — settings/constants (`dtw.SAMPLE_SIZE`, `dtw.POOL_SIZE`), saved connection profiles (`dtw.connections.prod-db`), VPN configurations (`dtw.vpn.prod-vpn`), and proxy configurations (`dtw.proxy.prod-proxy`).
+- **`env` module**: `env.HOME`, `env.PATH`, `env.DB_URL` — OS environment variables only.
+- **`pass` module**: `pass.myproject.db-host` maps to `pass show datatwist/myproject/db-host`. Flat structure — one value per key, returns a string.
+- **Leaf path returns string, directory path returns object**: accessing a non-leaf path returns an object with all keys as fields.
+- **`dtw` module**: all DataTwist internal config — settings (`dtw.SAMPLE_SIZE`, `dtw.POOL_SIZE`), saved connection profiles (`dtw.connections.prod-db`), VPN configs (`dtw.vpn.prod-vpn`), proxy configs (`dtw.proxy.prod-proxy`).
 
 ```
-; OS environment
 env.HOME                    ; => "/home/user"
-
-; Secrets
 {db-host, db-pass} is pass.myproject
-
-; DataTwist config
 dtw.SAMPLE_SIZE             ; => 10
-
-; Connections with network config
 db is connect dtw.connections.prod-db dtw.vpn.prod-vpn
-db is connect dtw.connections.prod-db dtw.proxy.prod-proxy
 ```
 
-- [ ] `pass` module — resolve credentials via `pass show datatwist/<project>/<key>`, flat key/value, returns string
-- [ ] `env` module — OS environment variable access only (`env.HOME`, `env.PATH`, `env.DB_URL`)
+Tasks:
+- [ ] `pass` module — resolve credentials via `pass show datatwist/<project>/<key>`, returns string
+- [ ] `env` module — OS environment variable access only
 - [ ] `dtw` module — DataTwist internal config namespace (settings, connection profiles, VPN, proxy)
 - [ ] `dtw.connections.*` — saved connection profile storage and resolution
 - [ ] `dtw.vpn.*` — VPN configuration profiles
@@ -368,19 +339,18 @@ db is connect dtw.connections.prod-db dtw.proxy.prod-proxy
 
 ### Network Tunneling `🔬 research`
 
-Per-connection VPN/proxy routing at the language level. Any `connect` can route through a tunnel profile. All tunnel types abstract to SOCKS5 proxies internally — uniform syntax, different mechanisms underneath.
+Per-connection VPN/proxy routing at the language level. Any `connect` can route through a tunnel profile.
 
-**Design decision (locked)**: all tunnels reduce to SOCKS5 proxy on localhost. DataTwist manages tunnel lifecycle (spawn on first use, share across connections with same profile, teardown on last `close!` or script exit).
+#### Design decisions (locked)
 
-**Syntax**: `connect <profile> <tunnel-profile>` — tunnel is the optional second argument.
+- All tunnels reduce to SOCKS5 proxy on localhost. DataTwist manages tunnel lifecycle (spawn on first use, share across connections with same profile, teardown on last `close!` or script exit).
+- Syntax: `connect <profile> <tunnel-profile>` — tunnel is the optional second argument.
 
 ```
 db is connect dtw.connections.prod-db dtw.vpn.work
 api is connect dtw.connections.api dtw.proxy.corp-socks
 local is connect dtw.connections.local-db
 ```
-
-**Tunnel types to research**:
 
 | Type | Mechanism | Root? | Complexity |
 |---|---|---|---|
@@ -390,7 +360,7 @@ local is connect dtw.connections.local-db
 | WireGuard | `wireguard-go` + `tunsocks` → SOCKS5 | No | Hard |
 | OpenVPN | `openvpn` + `tunsocks` → SOCKS5 | Maybe | Hard |
 
-**Research questions**:
+Research questions:
 - [ ] ocproxy / tunsocks feasibility — JVM integration, lifecycle management, error handling
 - [ ] Credential flow for interactive auth (TOTP, MFA) — `pass` integration, interactive TUI prompt, or callback
 - [ ] Connection pool interaction — does HikariCP support per-connection SOCKS proxy?
@@ -398,40 +368,39 @@ local is connect dtw.connections.local-db
 - [ ] Tunnel health checks and reconnection strategy
 - [ ] Security: tunnel process isolation, credential exposure surface
 - [ ] Environment-based overrides: `DT_PROFILE=work` selects default connection profile
-- [ ] Keyring integration: macOS Keychain, Linux secret-service, Windows Credential Manager (lower priority than pass)
-- [ ] Design: config format (TOML, EDN, or DataTwist syntax?), encryption strategy (GPG vs OS keyring)
+- [ ] Keyring integration: macOS Keychain, Linux secret-service (lower priority than pass)
+- [ ] Config format decision (TOML, EDN, or DataTwist syntax?), encryption strategy (GPG vs OS keyring)
 
 ### Configuration System `🔬 research`
 
 How DataTwist settings, project config, and runtime options are defined, stored, loaded, and overridden.
 
-#### Questions to resolve
+Note: `config.clj`, `set!` special form, `dtw.*` sentinel, `get-config`, and runtime constants (`SAMPLE_SIZE`, `MAX_COLLECT_ROWS`, `DESCRIBE_SAMPLE_SIZE`, `PRINT_WIDTH`) are done. The remaining work is file-based config, layering, and project discovery.
+
+#### Questions to resolve `⏳ waiting`
 
 - Where does config live? `~/.datatwist/config.dt` (global), `.datatwist/config.dt` (project), or both with merge?
 - Config file format: DataTwist syntax (`.dt`), EDN, TOML?
 - Layering/priority: CLI flags > env vars > project config > global config > defaults?
-- How does `dtw.*` namespace load its values? From config files? Hardcoded defaults?
+- How does `dtw.*` namespace load its values at startup?
 - Project discovery: how does DataTwist know which project it's in? (`.datatwist/` directory marker?)
-- Runtime mutability: can scripts change config via `set! dtw.KEY`? Persisted or session-only?
+- Runtime mutability via `set! dtw.KEY` — persisted or session-only?
 - Validation: schema for config values? Type checking? Error on unknown keys?
 
-#### Tasks
-
-- [ ] Config file format and location design (`~/.datatwist/` global, `.datatwist/` project)
+Tasks:
+- [ ] Config file format and location design
 - [ ] Config layering: defaults → global → project → env vars → CLI flags
 - [ ] `dtw.*` namespace backed by config system — reads from config files at startup
-- [ ] `set! dtw.KEY` — runtime config override (session-only by default)
 - [ ] `set! dtw.KEY --persist` or `datatwist config set KEY VALUE` — write back to config file
 - [ ] Project discovery: `.datatwist/` directory as project root marker
 - [ ] `datatwist init` CLI command — create `.datatwist/` with default config
 - [ ] `datatwist config list` — show effective config with source (default/global/project/env/cli)
 - [ ] Config schema + validation: known keys, types, ranges
-- [ ] Integration with `pass` module: config can reference `pass.*` for secrets
-- [ ] Integration with `env` module: config can reference `env.*` for OS values
+- [ ] Integration with `pass` and `env` modules
 
 ### Docker & Kubernetes Sources `🔬 research`
 
-Query Docker containers and Kubernetes resources as data sources, like database tables.
+Query Docker containers and Kubernetes resources as data sources.
 
 - [ ] Docker connector: `docker is connect "docker://local"` — list/inspect containers, images, networks
 - [ ] `docker |> query "containers" |> filter _.status = "running"`
@@ -439,21 +408,17 @@ Query Docker containers and Kubernetes resources as data sources, like database 
 - [ ] `k8s |> query "pods" |> filter _.namespace = "production"`
 - [ ] Credential storage for Docker registries and K8s contexts via `pass` module
 - [ ] Read logs: `docker |> logs "container-name" |> filter (contains _ "ERROR")`
-- [ ] Integration with `pass` module for registry/cluster auth
 
 ### Documentation System & Autodoc `🔬 research`
 
-Docstrings, inline documentation, and automatic type inference from runtime data.
-
 #### Design decisions (locked)
 
-- **`dtw` is a plain object** (Lua-style): `dtw`, `dtw.connections`, `dtw.proxy` — all readable/writable objects. No special accessor syntax needed.
-- **`doc` function**: `doc filter` returns documentation for any function (built-in or user-defined)
-- **`@doc` annotation**: attach docstring to user functions: `double is [x -> x * 2] @doc "Doubles a number"`
+- **`dtw` is a plain object** (Lua-style): `dtw`, `dtw.connections`, `dtw.proxy` — all readable/writable objects.
+- **`doc` function**: `doc filter` returns documentation for any function (built-in or user-defined).
+- **`@doc` annotation**: attach docstring to user functions: `double is [x -> x * 2] @doc "Doubles a number"`.
 - **Autodoc**: runtime type inference from samples — observe actual argument types and return types, generate signatures automatically. Not static types — observation of real data.
 
-#### Tasks
-
+Tasks:
 - [ ] `@doc "..."` annotation syntax — attach docstring to `is` bindings
 - [ ] `doc` function — retrieve documentation for any symbol
 - [ ] Built-in function docs — docstrings for all stdlib functions
@@ -464,9 +429,9 @@ Docstrings, inline documentation, and automatic type inference from runtime data
 - [ ] Integration with nREPL — `doc` operation returns formatted docs to IDE
 - [ ] Integration with LSP — hover documentation, signature hints
 
-### Standard Library Gaps `📝 bdd/tests`
+### Standard Library Gaps `⏳ waiting`
 
-Functions specified in PRD but not yet implemented or tracked:
+Functions specified in PRD but not yet implemented. Needs user decisions on some semantics.
 
 - [ ] `fill-nil` — fill nil values with a default
 - [ ] `skip-nil` — remove nil entries from collections
@@ -474,22 +439,32 @@ Functions specified in PRD but not yet implemented or tracked:
 - [ ] `join` / `left-join` / `inner-join` / `outer-join` — multi-source join operations
 - [ ] `define` — user-defined function declaration (PRD stdlib section)
 
+Pending questions: exact semantics of `coerce` (target types? error on failure?), join key syntax, `define` vs `is [fn -> ...]` distinction.
+
+### Lazy Range `⏳ waiting`
+
+`range-from N` for infinite sequences starting at N. Research → `docs/range-semantics-decision.md`.
+
+Pending question: should `range-from N` produce an infinite lazy sequence (no end), or should it require an explicit `take`? What is the syntax — `range-from 1`, `range 1 ..`, or something else?
+
 ---
 
 ## P3 — Future
 
 ### Reader Macros
 
-**Decision (locked)**: `#` prefix like Clojure for reader macros.
+#### Design decisions (locked)
 
-- [ ] `#sample {predicate}` — conditional sampling: filter what data enters sample. Re-samples if predicate doesn't match. `SAMPLE_ATTEMPTS` controls max retries. Can set sample size to zero.
-- [ ] `#p"..."` — string pattern destructuring (see P2 item above for full design)
+- `#` prefix like Clojure for reader macros.
+
+Tasks:
+- [ ] `#sample {predicate}` — conditional sampling: filter what data enters sample. Re-samples if predicate doesn't match. `SAMPLE_ATTEMPTS` controls max retries.
 - [ ] Reader macro dispatch system (extensible `#name` syntax)
 - [ ] `#dbg`-style debugging support
 
-### HTTP Sources & Web Data
+### HTTP Sources & Web Data `🔬 research`
 
-**Decision (preliminary)**: Not a simple `http!` call — needs proper design. Each site/API is unique. Key considerations: JSON responses work natively as data; HTML parsing also needed. Auth varieties (Bearer, Basic, API keys, OAuth) must all be supported. Secrets via ENV/credentials module. No final design yet.
+Not a simple `http!` call — needs proper design. Key considerations: JSON responses work natively as data; HTML parsing also needed. Auth varieties (Bearer, Basic, API keys, OAuth) must all be supported. Secrets via credentials module.
 
 - [ ] HTTP client with auth: Bearer, Basic, API key, OAuth
 - [ ] JSON responses work natively as DataTwist data (no explicit parse-json needed)
@@ -497,39 +472,22 @@ Functions specified in PRD but not yet implemented or tracked:
 - [ ] Integration with credentials module for secrets (no inline secrets)
 - [ ] Response formats: json, html, text, markdown
 - [ ] Pipeline integration: `fetch! "api.com/users" |> filter _.active`
-- [ ] Design: auth configuration API, session management, retries
+- [ ] Auth configuration API, session management, retries
 
 ### Language Extensions
 
 #### Design decisions (locked)
 
-- **String interpolation**: `#s"Hello {name}"` reader macro. Concern: scope visibility must be clear (which variables are in scope). Multiline strings — undecided yet.
+- **String interpolation**: `#s"Hello {name}"` reader macro. Concern: scope visibility must be clear.
+- **Multiline strings**: undecided.
+- **Formatter**: opinionated, one canonical style, zero configuration (like `gofmt`). Rules are future work.
 
-- [ ] String interpolation: `#s"Hello {name}"` reader macro. Full feature — needs BDD, tests, implementation. `#s"Hello {name}"` reader macro for string interpolation.
-- [ ] Multi-line strings / heredocs (`"""..."""`) — undecided
+Tasks:
+- [ ] String interpolation: `#s"Hello {name}"` reader macro — needs BDD, tests, implementation
+- [ ] Multi-line strings / heredocs (`"""..."""`) — needs PRD design decision
 - [ ] Date/time literals and operations
-- [ ] Spread operator in objects: `{...base name: "new"}` — Needs PRD design decision before implementation.
+- [ ] Spread operator in objects: `{...base name: "new"}` — needs PRD design decision
 - [ ] Optional type annotations for tooling
-- [x] Line comments with `;` (replacing `//`) — locked design decision
-- [x] Block comments: `(comment ...)` form — parsed but not evaluated — locked design decision
-
-#### Source-Driven Development: Code as Living Document
-
-The language can modify its own source files — auto-formatting, function ranking, and auto-updating documentation. DataTwist owns its source.
-
-#### Design decisions (locked)
-
-- **Code as living document**: DataTwist owns its source files. `datatwist fmt` is not optional — the canonical format is enforced. Like `gofmt` but going further.
-- **Three levels of source modification**:
-  1. `datatwist fmt` — opinionated formatting: indentation, pipeline alignment, line width, function ordering. One style, no config.
-  2. `datatwist fmt --doc` — run samples through functions, infer types, write `@doc` annotations back into source code. Auto-generated docs from runtime observation.
-  3. IDE on-save — format + doc update automatically. File always in canonical form.
-- **`@doc` auto-generation**: evaluator runs sample data through each function, observes input/output types, writes signature as `@doc "Number -> Number"` annotation.
-- **Formatter rules are future work**: specific rules (line length limits, vector formatting, map indentation, pipeline alignment) will be designed later. The principle is locked: opinionated, one canonical style, zero configuration.
-
-#### Tasks
-
-- [x] Built-in formatter (`datatwist fmt`): opinionated auto-format — locked design decision
 - [ ] Formatter: indentation, line width, pipeline alignment, guard alignment
 - [ ] Formatter: function ordering/ranking (by dependency? alphabetical?)
 - [ ] `datatwist fmt --doc`: auto-generate `@doc` annotations from sample type inference
@@ -538,8 +496,11 @@ The language can modify its own source files — auto-formatting, function ranki
 
 ### Cache Management
 
-**Decision (preliminary)**: `invalidate-cache!` command for manual reset. Global `dtw.AUTO_INVALIDATE` setting. Eviction policy details TBD.
+#### Design decisions (preliminary)
 
+- `invalidate-cache!` command for manual reset. Global `dtw.AUTO_INVALIDATE` setting. Eviction policy details TBD.
+
+Tasks:
 - [ ] `invalidate-cache!` — manual cache reset for an expression/pipeline
 - [ ] `dtw.AUTO_INVALIDATE` global setting — automatic invalidation on source change
 - [ ] Per-expression cache invalidation
@@ -548,8 +509,11 @@ The language can modify its own source files — auto-formatting, function ranki
 
 ### tap! Output Channels
 
-**Decision (locked)**: `tap!` output is redirectable like Clojure's `*out*`.
+#### Design decisions (locked)
 
+- `tap!` output is redirectable like Clojure's `*out*`.
+
+Tasks:
 - [ ] Default: console/REPL
 - [ ] `with-tap-out "file.log" [-> pipeline]` — redirect to file
 - [ ] IDE channel: send to overlay instead of console
