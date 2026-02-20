@@ -380,3 +380,109 @@
 
 (deftest nginx-style-log-pattern-extracts-all-fields
   (testing "stub — not yet implemented (Phase 2+: requires Tier 2 or Tier 3 constraints)"))
+
+;; === Section 11: Reader macro syntax — whitespace and positioning ===
+;; Design decision: #p"..." is a single lexeme. The sigil and delimiter
+;; must be adjacent, matching Clojure's #"regex" convention.
+
+(deftest space-between-hash-p-and-quote-is-a-parse-error
+  (testing "Space between #p and opening quote is a parse error"
+    ;; #p"..." is a single lexeme — whitespace breaks it
+    (is (parse-error? "#p \"hello {name}\""))))
+
+(deftest newline-between-hash-p-and-quote-is-a-parse-error
+  (testing "Newline between #p and opening quote is a parse error"
+    (is (parse-error? "#p\n\"hello {name}\""))))
+
+;; === Section 12: Literal-only patterns and empty pattern ===
+
+(deftest empty-pattern-evaluates-to-a-valid-pattern-object
+  (testing "Empty pattern #p\"\" evaluates to a pattern map with :dt/type :pattern"
+    (let [result (eval-dt "#p\"\"")]
+      (is (map? result))
+      (is (= :pattern (:dt/type result))))))
+
+(deftest empty-pattern-matches-only-empty-string
+  (testing "Empty pattern matches only the empty string"
+    (is (= "matched"
+           (eval-dt "\"\" |> (| #p\"\" -> \"matched\" | _ -> \"no match\")")))))
+
+(deftest empty-pattern-does-not-match-non-empty-string
+  (testing "Empty pattern does not match a non-empty string"
+    (is (= "no match"
+           (eval-dt "\"hello\" |> (| #p\"\" -> \"matched\" | _ -> \"no match\")")))))
+
+(deftest pattern-with-only-literal-text-matches-exact-string
+  (testing "Literal-only pattern (no captures) matches exact string"
+    (is (= "matched"
+           (eval-dt "\"hello\" |> (| #p\"hello\" -> \"matched\" | _ -> \"no match\")")))))
+
+(deftest pattern-with-only-literal-text-does-not-match-different-string
+  (testing "Literal-only pattern does not match a different string"
+    (is (= "no match"
+           (eval-dt "\"world\" |> (| #p\"hello\" -> \"matched\" | _ -> \"no match\")")))))
+
+(deftest extract-returns-empty-map-for-literal-only-pattern-on-match
+  (testing "extract returns empty map {} when literal-only pattern matches"
+    ;; No captures means no fields — successful match returns {}
+    (is (= {}
+           (eval-dt "extract \"hello\" #p\"hello\"")))))
+
+;; === Section 13: Regex special characters in literal segments ===
+;; Literal text in #p"..." is always Pattern/quote'd — regex metacharacters
+;; match themselves, never as regex syntax.
+
+(deftest dot-in-literal-matches-only-literal-dot-not-any-character
+  (testing "Dot in literal segment matches only a literal dot"
+    ;; "aXb" should NOT match {a}.{b} because X != .
+    (is (= "no match"
+           (eval-dt "\"aXb\" |> (| #p\"{a}.{b}\" -> \"matched\" | _ -> \"no match\")")))
+    ;; "a.b" SHOULD match {a}.{b}
+    (is (= {:a "a" :b "b"}
+           (eval-dt "\"a.b\" |> (| #p\"{a}.{b}\" -> {a: a b: b} | _ -> nil)")))))
+
+(deftest star-in-literal-matches-literal-asterisk
+  (testing "Star (*) in literal segment matches literal asterisk character"
+    (is (= {:x "a" :y "b"}
+           (eval-dt "\"a*b\" |> (| #p\"{x}*{y}\" -> {x: x y: y} | _ -> nil)")))))
+
+(deftest plus-in-literal-matches-literal-plus-sign
+  (testing "Plus (+) in literal segment matches literal plus character"
+    (is (= {:x "a" :y "b"}
+           (eval-dt "\"a+b\" |> (| #p\"{x}+{y}\" -> {x: x y: y} | _ -> nil)")))))
+
+(deftest question-mark-in-literal-matches-literal-question-mark
+  (testing "Question mark (?) in literal segment matches literal ? character"
+    (is (= "is it ok"
+           (eval-dt "\"is it ok?\" |> (| #p\"{msg}?\" -> msg | _ -> nil)")))))
+
+(deftest parentheses-in-literal-match-literal-parentheses
+  (testing "Parentheses in literal segment match literal ( and ) characters"
+    (is (= "hello"
+           (eval-dt "\"(hello)\" |> (| #p\"({msg})\" -> msg | _ -> nil)")))))
+
+;; === Section 14: Pattern as inline expression (first-class usage) ===
+
+(deftest pattern-as-direct-function-argument-inline-not-bound
+  (testing "Pattern used directly as function argument without being bound to a name"
+    (is (= {:user "alice" :domain "example.com"}
+           (eval-dt "extract \"alice@example.com\" #p\"{user}@{domain}\"")))))
+
+(deftest pattern-in-pipeline-as-inline-argument-to-extract
+  (testing "Pattern used inline as argument to extract in a pipeline"
+    (is (= {:user "alice" :domain "example.com"}
+           (eval-dt "\"alice@example.com\" |> extract #p\"{user}@{domain}\"")))))
+
+(deftest pattern-on-own-line-in-multi-line-code-is-valid-expression
+  (testing "Pattern on its own line is a valid standalone expression"
+    ;; The pattern evaluates to a pattern object; the last expression's value is returned
+    (is (= 2
+           (eval-dt-last
+            "x is 1"
+            "#p\"{a}@{b}\""
+            "x + 1")))))
+
+(deftest match-with-inline-pattern-not-bound-to-variable
+  (testing "match? accepts an inline (unbound) pattern literal"
+    (is (= true
+           (eval-dt "match? \"alice@example.com\" #p\"{u}@{d}\"")))))
