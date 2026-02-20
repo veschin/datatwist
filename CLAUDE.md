@@ -22,11 +22,19 @@ When spawning subagents via Task tool, almost always use Sonnet (`model: "sonnet
 - Never let an agent run `make test` in a loop — use targeted namespace runs
 - Never read/edit files manually when an agent can do it
 - Stop stuck agents early, launch fresh with clearer instructions
-- After agents finish, Opus reviews results and commits
+- **After agents finish, Opus MUST review before committing.** Never trust agent summaries blindly. Review checklist:
+  1. Read the actual diff (`git diff`) — not just the agent's report
+  2. Check edge cases the agent may have missed (escaping, whitespace, nil, empty input, boundary conditions)
+  3. Verify BDD coverage matches the implementation — if a feature was added, BDD scenarios for its edge cases must exist
+  4. For grammar/parser changes: manually test parsing of edge case inputs
+  5. For new stdlib functions: verify argument validation, nil handling, type errors
+  6. If changes are significant (>50 lines), dispatch a separate code-review agent before committing
+  7. Only commit after review passes. If issues found — fix or re-dispatch agent with specific instructions
 - Haiku for trivial tasks (backlog edits, doc updates, file renames) — cheapest model
 - Proactively persist cross-session knowledge: if the user shares a design idea, preference, or decision — write it to CLAUDE.md or BACKLOG.md immediately. Don't rely on conversation memory.
 - If a task is too large for one session or an idea needs design work — add it to BACKLOG.md with context, don't lose it
 - Implementation agents work in feature branches (`feat/<name>`), merge to main when verified. Prevents parallel agents from conflicting on the same files.
+- **HARDCODED VALUES AND STUBS ARE FORBIDDEN.** No magic numbers, no placeholder implementations, no silently swallowed errors. If something isn't implemented — it must fail loudly (throw, not return nil). Better to crash and know there's a problem than to silently mask it. This applies to: sample sizes, config values (use config.clj), return values (no fake data), error handling (no empty catch blocks). Stubs that pretend to work are worse than no code at all — they hide the real state of the system.
 
 ### Development pipeline
 
@@ -39,13 +47,6 @@ Strict order: **Design → Research → BDD → Tests (strictly from BDD) → Im
 ### Backlog ↔ PRD consistency
 
 When writing anything to BACKLOG.md, always check it does not contradict PRD.md. If a conflict is found — resolve through the user via `AskUserQuestion` before proceeding. PRD is the source of truth for locked design decisions.
-
-### Key design decisions (lazy eval)
-
-- **Laziness ≠ DTPipeline**: Laziness is the execution model (lazy seqs). DTPipeline is the introspection model (step inspection, caching). Orthogonal concerns — implement independently.
-- **`collect` is removed. `force!` is the sole materializer**: forces full pipeline execution, ignores sampling.
-- **`log!` is removed. `tap!` is the sole pipeline debug tool** (three modes: bare, labeled, lambda).
-- **`autotap!` is a macro-like transformation**: wraps every pipeline step with tap!.
 
 ### Design sessions
 

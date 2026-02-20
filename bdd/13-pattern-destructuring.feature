@@ -585,3 +585,173 @@ Feature: String Pattern Destructuring (#p)
       """
     When it is evaluated
     Then the result is {ip: "127.0.0.1" method: "GET" url: "/index.html" status: "200"}
+
+  # ---------------------------------------------------------------------------
+  # SECTION 11: Reader macro syntax — whitespace and positioning
+  # ---------------------------------------------------------------------------
+  # Design decision: #p"..." is a single lexeme. Space or newline between
+  # #p and the opening quote is a parse error, matching Clojure's #"regex"
+  # convention where the sigil and delimiter must be adjacent.
+
+  Scenario: Space between #p and quote is a parse error
+    Given the DataTwist source:
+      """
+      #p "hello {name}"
+      """
+    When it is parsed
+    Then it should be a parse error
+
+  Scenario: Newline between #p and quote is a parse error
+    Given the DataTwist source:
+      """
+      #p
+      "hello {name}"
+      """
+    When it is parsed
+    Then it should be a parse error
+
+  # ---------------------------------------------------------------------------
+  # SECTION 12: Literal-only patterns and empty pattern
+  # ---------------------------------------------------------------------------
+
+  Scenario: Empty pattern #p"" evaluates to a valid pattern object
+    Given the DataTwist source:
+      """
+      #p""
+      """
+    When it is evaluated
+    Then the result should be a pattern value (not an error)
+
+  Scenario: Empty pattern matches only the empty string
+    Given the DataTwist source:
+      """
+      "" | #p"" -> "matched"
+         | _    -> "no match"
+      """
+    When it is evaluated
+    Then the result is "matched"
+
+  Scenario: Empty pattern does not match a non-empty string
+    Given the DataTwist source:
+      """
+      "hello" | #p"" -> "matched"
+               | _   -> "no match"
+      """
+    When it is evaluated
+    Then the result is "no match"
+
+  Scenario: Pattern with only literal text (no captures) matches exact string
+    Given the DataTwist source:
+      """
+      "hello" | #p"hello" -> "matched"
+               | _        -> "no match"
+      """
+    When it is evaluated
+    Then the result is "matched"
+
+  Scenario: Pattern with only literal text does not match different string
+    Given the DataTwist source:
+      """
+      "world" | #p"hello" -> "matched"
+               | _        -> "no match"
+      """
+    When it is evaluated
+    Then the result is "no match"
+
+  Scenario: extract returns empty map for literal-only pattern on match
+    Given the DataTwist source:
+      """
+      extract "hello" #p"hello"
+      """
+    When it is evaluated
+    Then the result is {}
+
+  # ---------------------------------------------------------------------------
+  # SECTION 13: Regex special characters in literal segments
+  # ---------------------------------------------------------------------------
+  # Literal text in #p"..." is always matched literally, never as regex syntax.
+  # Characters with special regex meaning (. * + ? ( ) [ ] { } ^ $ | \)
+  # are automatically escaped so they match themselves.
+
+  Scenario: Dot in literal matches only literal dot, not any character
+    Given the DataTwist source:
+      """
+      "aXb" | #p"{a}.{b}" -> "matched"
+             | _           -> "no match"
+      """
+    When it is evaluated
+    Then the result is "no match"
+
+  Scenario: Star in literal matches literal asterisk
+    Given the DataTwist source:
+      """
+      "a*b" | #p"{x}*{y}" -> {x y}
+             | _           -> nil
+      """
+    When it is evaluated
+    Then the result is {x: "a" y: "b"}
+
+  Scenario: Plus in literal matches literal plus sign
+    Given the DataTwist source:
+      """
+      "a+b" | #p"{x}+{y}" -> {x y}
+             | _           -> nil
+      """
+    When it is evaluated
+    Then the result is {x: "a" y: "b"}
+
+  Scenario: Question mark in literal matches literal question mark
+    Given the DataTwist source:
+      """
+      "is it ok?" | #p"{msg}?" -> msg
+                  | _          -> nil
+      """
+    When it is evaluated
+    Then the result is "is it ok"
+
+  Scenario: Parentheses in literal match literal parentheses
+    Given the DataTwist source:
+      """
+      "(hello)" | #p"({msg})" -> msg
+                | _           -> nil
+      """
+    When it is evaluated
+    Then the result is "hello"
+
+  # ---------------------------------------------------------------------------
+  # SECTION 14: Pattern as inline expression (first-class usage)
+  # ---------------------------------------------------------------------------
+
+  Scenario: Pattern as direct function argument (inline, not bound)
+    Given the DataTwist source:
+      """
+      extract "alice@example.com" #p"{user}@{domain}"
+      """
+    When it is evaluated
+    Then the result is {user: "alice" domain: "example.com"}
+
+  Scenario: Pattern in pipeline as inline argument to extract
+    Given the DataTwist source:
+      """
+      "alice@example.com" |> extract #p"{user}@{domain}"
+      """
+    When it is evaluated
+    Then the result is {user: "alice" domain: "example.com"}
+
+  Scenario: Pattern on its own line in multi-line code is a valid expression
+    Given the DataTwist source:
+      """
+      x is 1
+      #p"{a}@{b}"
+      x + 1
+      """
+    When it is evaluated
+    Then the result is 2
+
+  Scenario: match? with inline pattern (not bound to variable)
+    Given the DataTwist source:
+      """
+      match? "alice@example.com" #p"{u}@{d}"
+      """
+    When it is evaluated
+    Then the result is true

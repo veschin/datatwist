@@ -362,9 +362,41 @@ db is connect dtw.connections.prod-db dtw.proxy.prod-proxy
 - [ ] `env` module — OS environment variable access only (`env.HOME`, `env.PATH`, `env.DB_URL`)
 - [ ] `dtw` module — DataTwist internal config namespace (settings, connection profiles, VPN, proxy)
 - [ ] `dtw.connections.*` — saved connection profile storage and resolution
-- [ ] `dtw.vpn.*` — VPN configuration profiles (WireGuard, OpenVPN)
+- [ ] `dtw.vpn.*` — VPN configuration profiles
 - [ ] `dtw.proxy.*` — proxy configuration profiles (SOCKS5, HTTP)
 - [ ] `connect` accepts profile + optional network config (VPN or proxy)
+
+### Network Tunneling `🔬 research`
+
+Per-connection VPN/proxy routing at the language level. Any `connect` can route through a tunnel profile. All tunnel types abstract to SOCKS5 proxies internally — uniform syntax, different mechanisms underneath.
+
+**Design decision (locked)**: all tunnels reduce to SOCKS5 proxy on localhost. DataTwist manages tunnel lifecycle (spawn on first use, share across connections with same profile, teardown on last `close!` or script exit).
+
+**Syntax**: `connect <profile> <tunnel-profile>` — tunnel is the optional second argument.
+
+```
+db is connect dtw.connections.prod-db dtw.vpn.work
+api is connect dtw.connections.api dtw.proxy.corp-socks
+local is connect dtw.connections.local-db
+```
+
+**Tunnel types to research**:
+
+| Type | Mechanism | Root? | Complexity |
+|---|---|---|---|
+| SOCKS5/HTTP proxy | JVM native `java.net.Proxy` per-socket | No | Trivial |
+| SSH tunnel | `ssh -D <port>` → SOCKS5 | No | Simple |
+| OpenConnect | `openconnect --script-tun --script "ocproxy -D <port>"` → SOCKS5 | Maybe | Medium |
+| WireGuard | `wireguard-go` + `tunsocks` → SOCKS5 | No | Hard |
+| OpenVPN | `openvpn` + `tunsocks` → SOCKS5 | Maybe | Hard |
+
+**Research questions**:
+- [ ] ocproxy / tunsocks feasibility — JVM integration, lifecycle management, error handling
+- [ ] Credential flow for interactive auth (TOTP, MFA) — `pass` integration, interactive TUI prompt, or callback
+- [ ] Connection pool interaction — does HikariCP support per-connection SOCKS proxy?
+- [ ] Platform support — Linux primary, macOS secondary, Windows TBD
+- [ ] Tunnel health checks and reconnection strategy
+- [ ] Security: tunnel process isolation, credential exposure surface
 - [ ] Environment-based overrides: `DT_PROFILE=work` selects default connection profile
 - [ ] Keyring integration: macOS Keychain, Linux secret-service, Windows Credential Manager (lower priority than pass)
 - [ ] Design: config format (TOML, EDN, or DataTwist syntax?), encryption strategy (GPG vs OS keyring)

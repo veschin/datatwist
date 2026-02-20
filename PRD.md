@@ -334,6 +334,16 @@ data is read-csv "sales.csv"
 bucket is connect "s3://my-bucket/"
 ```
 
+**Network tunneling (per-connection):**
+
+Any `connect` can route through a VPN or proxy by passing a network profile as the second argument. All tunnel types are abstracted to SOCKS5 proxies internally — the user syntax is uniform regardless of the underlying mechanism (proxy, SSH tunnel, OpenConnect+ocproxy, WireGuard+tunsocks).
+
+```
+db is connect dtw.connections.prod-db dtw.vpn.work
+api is connect dtw.connections.api dtw.proxy.corp-socks
+local is connect dtw.connections.local-db
+```
+
 **Lazy pipelines:**
 ```
 ; Instant -- only builds execution plan
