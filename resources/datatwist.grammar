@@ -49,7 +49,7 @@ ComposeOp = '>>' / '<<'
 (* --- Guards / Pattern Matching --- *)
 GuardBlock = GuardArm (_ GuardArm)+
 GuardArm = <'|'> _ GuardPattern (_ <KW-WHEN> _ OrExpr)? _ <'->'> _ OrExpr
-GuardPattern = DestructListPattern / DestructObjPattern / OrExpr
+GuardPattern = DestructListPattern / DestructObjPattern / Pattern / OrExpr
 
 (* --- Logical OR --- *)
 OrExpr = AndExpr (_ <KW-OR> _ AndExpr)*
@@ -99,7 +99,7 @@ FieldAccess = Atom (<'.'> FieldName)*
 FieldName = #'[a-zA-Z][a-zA-Z0-9_\-]*[?!]?'
 
 (* --- Atom --- *)
-Atom = Float / Integer / String / Boolean / Nil / Keyword / Regex
+Atom = Float / Integer / String / Boolean / Nil / Keyword / Pattern / Regex
      / Object / FnDef / List
      / InstanceMethod / Constructor / QualifiedName
      / Wildcard / Identifier / ParenExpr
@@ -158,6 +158,7 @@ Boolean = #'(true|false)(?![a-zA-Z0-9_?!\-])'
 Nil     = #'nil(?![a-zA-Z0-9_?!\-])'
 Keyword = #':[a-zA-Z][a-zA-Z0-9_\-]*'
 Regex   = <'#"'> #'(?:[^"\\]|\\.)*' <'"'>
+Pattern = <'#p"'> #'(?:[^"\\]|\\.)*' <'"'>
 
 (* --- Interop --- *)
 InstanceMethod = #'\.[a-zA-Z][a-zA-Z0-9_\-]*'
