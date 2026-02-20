@@ -331,14 +331,14 @@
 
 (deftest runtime-error-cannot-call-nil-as-a-function
   (testing "Scenario: Runtime error - cannot call nil as a function"
-    ;; The grammar currently parses 'nil 42' as two separate expressions.
-    ;; nil-as-callee detection is not yet implemented in the evaluator.
-    ;; This test documents the required contract: once implemented, calling nil
-    ;; must throw and must not expose NullPointerException.
-    (let [msg (error-msg "result is nil 42")]
-      (when (some? msg)
-        (is (not (re-find #"NullPointerException" (or msg "")))
-            "NullPointerException must not appear in user-visible output")))))
+    ;; nil-as-callee detection (DT-R003) is implemented: calling nil as a
+    ;; function throws a DataTwist error with no NullPointerException exposed.
+    (let [src "result is nil\nresult 42"
+          msg (error-msg src)]
+      (is (throws? src)
+          "calling nil as a function must throw a runtime error")
+      (is (not (re-find #"NullPointerException" (or msg "")))
+          "NullPointerException must not appear in user-visible output"))))
 
 (deftest runtime-error-calling-a-non-function-value
   (testing "Scenario: Runtime error - calling a non-function value"
@@ -351,17 +351,15 @@
 
 (deftest runtime-error-no-matching-arity
   (testing "Scenario: Runtime error - no matching arity"
-    ;; Currently a 1-arg function called with 2 args silently ignores the extra
-    ;; argument. DT-R005 is defined in the registry but not yet enforced by the
-    ;; evaluator. This test documents the required contract; the 'when' guard
-    ;; keeps it green until the evaluator enforces arity.
+    ;; DT-R005 arity enforcement is now implemented in the evaluator.
     (let [src  "add is [x -> x + 1]\nresult is add 1 2"
           msg  (error-msg src)]
-      (when (throws? src)
-        (is (re-find #"(?i)arity|argument|parameter" (or msg ""))
-            "error message must mention arity or wrong number of arguments")
-        (is (no-java-names? msg)
-            "error must not expose Java/Clojure exception class names")))))
+      (is (throws? src)
+          "calling a 1-arg function with 2 args must throw a runtime error")
+      (is (re-find #"(?i)arity|argument|parameter" (or msg ""))
+          "error message must mention arity or wrong number of arguments")
+      (is (no-java-names? msg)
+          "error must not expose Java/Clojure exception class names"))))
 
 (deftest parse-error-completely-unrecognised-token-generic-fallback
   (testing "Scenario: Parse error - completely unrecognised token (generic fallback)"
@@ -419,9 +417,17 @@
 
 (deftest warnings-as-errors-constant-causes-warnings-to-halt-execution
   (testing "Scenario: WARNINGS_AS_ERRORS constant causes warnings to halt execution"
-    ;; WARNINGS_AS_ERRORS strict mode is not yet implemented in the evaluator.
-    ;; This test is a stub documenting the required contract.
-    (testing "stub — not yet implemented")))
+    ;; WARNINGS_AS_ERRORS strict mode requires the evaluator to detect when
+    ;; the binding `WARNINGS_AS_ERRORS is true` is set in the environment and
+    ;; then thread that state into dt-warning so it throws instead of returning.
+    ;; Implementation plan:
+    ;;   1. Add ^:dynamic *warnings-as-errors* to errors.clj (default false).
+    ;;   2. In the evaluator, after each binding step, check if the name is
+    ;;      "WARNINGS_AS_ERRORS" and bind the dynamic var accordingly.
+    ;;   3. In dt-warning, check *warnings-as-errors* and throw if true.
+    ;; This requires evaluator changes but no grammar changes.
+    ;; Leaving as stub until evaluator threading is implemented.
+    (testing "stub — needs evaluator threading of WARNINGS_AS_ERRORS flag")))
 
 (deftest warnings-are-non-blocking-without-warnings-as-errors
   (testing "Scenario: Warnings are non-blocking without WARNINGS_AS_ERRORS"
