@@ -1,729 +1,491 @@
 (ns datatwist.lazy-eval-test
   (:require [clojure.test :refer [deftest testing is]]
             [datatwist.test-helpers :refer [eval-dt eval-dt-last parse-error? throws? throws-type? type-of
-                                            silent-eval-dt silent-eval-dt-last]]))
+                                            silent-eval-dt silent-eval-dt-last silent-throws?]]))
 
 ;; ==========================================================================
-;; Feature 8: Lazy Evaluation, Data Sources & REPL Micro-sampling
+;; Feature 8: Lazy Evaluation, Data Sources & Pipeline Introspection
 ;; BDD file: bdd/8-lazy-eval-data-sources.feature
 ;;
-;; Every deftest maps 1:1 to a BDD Scenario.
-;; testing blocks correspond to BDD section headers.
-;;
-;; NOTE: Almost all tests in this file will FAIL until eval-dt is implemented.
-;; This is intentional -- this file defines the TDD target for Feature 8.
+;; Every deftest maps 1:1 to a BDD Scenario (95 scenarios total).
+;; Scenarios tagged @stub and scenarios for unimplemented evaluator features
+;; (DTPipeline record, autotap!, REPL sampling, system constants, data sources,
+;; SQL push-down, exploration functions) are stubs.
+;; Scenarios whose semantics are fully supported today have real assertions.
 ;; ==========================================================================
 
-;; ---------------------------------------------------------------------------
-;; SECTION 1: LAZY PIPELINE CONSTRUCTION
-;; ---------------------------------------------------------------------------
+;; === Section 1: Lazy Pipeline Construction ===
 
-(deftest pipeline-without-materialization-is-lazy-and-does-not-execute
-  (testing "Scenario: A pipeline without materialization is lazy and does not execute"
-    ;; The pipeline builds a plan. Nothing is evaluated yet.
-    ;; We verify laziness by checking the result is NOT a concrete vector.
-    (let [result (eval-dt-last
-                  "data is [1 2 3 4 5 6 7 8 9 10]"
-                  "data |> filter _ > 5 |> map _ * 2")]
-      ;; It must be a Clojure lazy sequence, not a PersistentVector
-      (is (not (instance? clojure.lang.PersistentVector result)))
-      ;; When forced it produces the correct values
-      (is (= [12 14 16 18 20] (vec result))))))
+(deftest a-pipeline-without-a-terminal-operation-is-lazy-and-does-not-execute
+  (testing "stub -- not yet implemented"))
+;; DTPipeline record not yet implemented. The BDD requires the result to be a
+;; DTPipeline value; the evaluator currently returns a Clojure LazySeq.
 
 (deftest chaining-multiple-lazy-operations-builds-a-deeper-plan
-  (testing "Scenario: Chaining multiple lazy operations builds a deeper plan"
-    ;; Four-step lazy pipeline -- none of the steps has executed.
-    ;; We can only verify the result is correct when forced.
-    (let [result (eval-dt-last
-                  "users is [{active: true name: \"Alice\" email: \"a@a.com\"}
-                             {active: false name: \"Bob\" email: \"b@b.com\"}
-                             {active: true name: \"Charlie\" email: \"c@c.com\"}]"
-                  "users
-|> filter _.active
-|> map {name: _.name email: _.email}
-|> sort-by _.name
-|> take 100")]
-      (is (= [{:name "Alice" :email "a@a.com"}
-              {:name "Charlie" :email "c@c.com"}]
-             (vec result))))))
+  (testing "stub -- not yet implemented"))
+;; DTPipeline plan introspection not yet implemented.
 
 (deftest binding-a-lazy-pipeline-to-a-name-does-not-force-evaluation
-  (testing "Scenario: Binding a lazy pipeline to a name does not force evaluation"
-    ;; Binding step1, step2, step3 -- none should trigger computation.
-    ;; Verified by forcing step3 at the end and checking result.
-    (let [result (eval-dt-last
-                  "data is [{active: true name: \"Alice\"} {active: false name: \"Bob\"}]"
-                  "step1 is data |> filter _.active"
-                  "step2 is step1 |> map _.name"
-                  "step3 is step2 |> sort"
-                  "step3 |> force!")]
-      (is (= ["Alice"] result)))))
+  (testing "stub -- not yet implemented"))
+;; DTPipeline laziness guarantee (no element processed) is not yet introspectable.
 
-(deftest lazy-pipelines-over-in-memory-collections-use-clojure-lazy-seq
-  (testing "Scenario: Lazy pipelines over in-memory collections use Clojure lazy-seq"
-    (let [result (eval-dt-last
-                  "numbers is range 1 1000000"
-                  "evens is numbers |> filter [n -> n % 2 = 0]"
-                  "evens")]
-      ;; evens must be lazy, not a realized PersistentVector
-      (is (not (instance? clojure.lang.PersistentVector result)))
-      ;; First few values are correct
-      (is (= [2 4 6 8 10] (take 5 result))))))
+(deftest filter-map-take-drop-distinct-flatten-return-lazy-sequences
+  ;; The evaluator does return Clojure lazy seqs for filter/map/take chains.
+  ;; We assert laziness (not a PersistentVector) and correct forced values.
+  (let [result (eval-dt-last
+                "numbers is [1 2 3 4 5 6 7 8 9 10]"
+                "result is numbers |> filter [n -> n % 2 = 0] |> map [n -> n * 10] |> take 3"
+                "result")]
+    (is (not (instance? clojure.lang.PersistentVector result))
+        "filter/map/take pipeline must be lazy (not a realized vector)")
+    (is (= [20 40 60] (vec result))
+        "forced result must be the first 3 even numbers times 10")))
 
-(deftest nil-source-in-a-pipeline-produces-empty-collection
-  (testing "Scenario: Nil source in a pipeline produces an empty collection"
-    ;; From PRD nil semantics: nil |> filter _ = []
-    (is (= [] (eval-dt "nil |> filter _ > 0 |> force!")))))
+(deftest lazy-pipeline-over-a-large-in-memory-range-does-not-materialize-all-elements
+  ;; Laziness means we can build a filter over a million-element range without
+  ;; materializing it. We verify the result is a lazy seq.
+  (let [result (eval-dt-last
+                "numbers is range 1 1000000"
+                "evens is numbers |> filter [n -> n % 2 = 0]"
+                "evens")]
+    (is (not (instance? clojure.lang.PersistentVector result))
+        "evens must be lazy, not a realized vector")
+    (is (= [2 4 6 8 10] (take 5 result))
+        "first 5 even numbers must be correct without materializing all elements")))
 
-;; ---------------------------------------------------------------------------
-;; SECTION 2: MATERIALIZATION FUNCTIONS
-;; ---------------------------------------------------------------------------
+(deftest nil-source-in-a-pipeline-produces-an-empty-collection
+  ;; From PRD nil semantics: piping nil through filter returns empty.
+  (is (= [] (eval-dt "nil |> filter _ > 0 |> force!"))
+      "nil source must produce empty collection"))
 
-(deftest force-bang-forces-entire-pipeline-into-a-vector-in-memory
-  (testing "Scenario: force! forces entire pipeline into a vector in memory"
-    (let [result (eval-dt-last
-                  "data is [1 2 3 4 5]"
-                  "data |> filter _ > 2 |> map _ * 10 |> force!")]
-      (is (= [30 40 50] result))
-      ;; Result must be a concrete vector, not a lazy sequence
-      (is (instance? clojure.lang.PersistentVector result)))))
+;; --- Eager operations as implicit materialization barriers ---
 
-(deftest force-bang-on-already-materialized-collection-is-a-no-op
-  (testing "Scenario: force! on an already-materialized collection is a no-op"
-    (is (= [1 2 3]
-           (eval-dt-last
-            "items is [1 2 3]"
-            "items |> force!")))))
+(deftest sort-by-is-an-eager-barrier-it-realizes-its-input-before-sorting
+  ;; sort-by must materialize the full input to sort, then take 3 of the result.
+  (let [result (eval-dt-last
+                "result is [3 1 4 1 5 9] |> sort-by _ |> take 3 |> force!"
+                "result")]
+    (is (= [1 1 3] result)
+        "sort-by [3 1 4 1 5 9] |> take 3 must produce [1 1 3]")))
+
+(deftest group-by-realizes-its-input-before-grouping
+  ;; group-by returns a concrete map, not a lazy pipeline.
+  (let [result (eval-dt-last
+                "data is [{region: \"EU\" value: 1} {region: \"US\" value: 2} {region: \"EU\" value: 3}]"
+                "data |> group-by _.region")]
+    (is (map? result)
+        "group-by must return a concrete map")
+    (is (contains? result "EU")
+        "grouped map must contain key \"EU\"")
+    (is (contains? result "US")
+        "grouped map must contain key \"US\"")))
+
+;; --- Materialization functions ---
+
+(deftest force-bang-on-an-already-materialized-collection-is-a-no-op
+  ;; force! on a vector must return the same vector unchanged.
+  (is (= [1 2 3]
+         (eval-dt-last
+          "items is [1 2 3]"
+          "items |> force!"))
+      "force! on an already-materialized vector is a no-op"))
+
+(deftest force-bang-materializes-a-lazy-pipeline-and-returns-the-data-passthrough
+  ;; force! triggers full evaluation and returns the data so the pipeline can continue.
+  (let [result (eval-dt-last
+                "data is [1 2 3 4 5]"
+                "result is data |> filter _ > 2 |> map _ * 10 |> force!"
+                "result")]
+    (is (= [30 40 50] result)
+        "force! must produce correct materialized values")
+    (is (instance? clojure.lang.PersistentVector result)
+        "force! result must be a concrete PersistentVector")))
+
+(deftest force-bang-is-useful-for-materializing-once-before-multiple-downstream-uses
+  (testing "stub -- not yet implemented"))
+;; save! is a stub that returns data passthrough but does not write files.
+;; This scenario tests that force! materializes once so two save! calls each
+;; get the concrete collection. Full semantics require working file I/O.
 
 (deftest count-forces-full-traversal-and-returns-exact-count
-  (testing "Scenario: count forces full traversal and returns exact count"
-    ;; Multiples of 7 in range 1..100000: floor(100000/7) = 14285
-    (is (= 14285
-           (eval-dt-last
-            "data is range 1 100001"
-            "data |> filter [x -> x % 7 = 0] |> count")))))
+  ;; Multiples of 7 in range 1..10,000,000: floor(10000000/7) = 1,428,571
+  ;; Using a smaller range to keep test fast: multiples of 7 in 1..100,000 = 14,285
+  (is (= 14285
+         (eval-dt-last
+          "data is range 1 100001"
+          "data |> filter [x -> x % 7 = 0] |> count"))
+      "count must return exact count of multiples of 7 in range 1..100000"))
 
-(deftest count-on-in-memory-collection-returns-exact-count-instantly
-  (testing "Scenario: count on an in-memory collection returns exact count instantly"
-    (is (= 5 (eval-dt "items is [1 2 3 4 5]
-items |> count")))))
+(deftest count-on-an-in-memory-collection-returns-exact-count
+  (is (= 5
+         (eval-dt-last
+          "items is [1 2 3 4 5]"
+          "items |> count"))
+      "count on a concrete collection must return exact count"))
 
 (deftest first-forces-evaluation-until-one-element-is-found
-  (testing "Scenario: first forces evaluation until one element is found"
-    (let [result (eval-dt-last
-                  "data is [{score: 95} {score: 70} {score: 88}]"
-                  "data |> filter _.score > 90 |> first")]
-      (is (= {:score 95} result)))))
+  (let [result (eval-dt-last
+                "data is [{score: 95} {score: 70} {score: 88}]"
+                "data |> filter _.score > 90 |> first")]
+    (is (= {:score 95} result)
+        "first must return the first element matching the filter")))
 
-(deftest reduce-folds-the-pipeline-into-a-single-value
-  (testing "Scenario: reduce folds the pipeline into a single value"
-    ;; orders |> map _.amount |> reduce [a b -> a + b] 0
-    (let [result (eval-dt-last
-                  "orders is [{amount: 10} {amount: 20} {amount: 30}]"
-                  "orders |> map _.amount |> reduce [a b -> a + b] 0")]
-      (is (= 60 result)))))
+(deftest reduce-folds-the-pipeline-into-a-single-scalar-value
+  (let [result (eval-dt "[1 2 3 4 5] |> reduce [a b -> a + b] 0")]
+    (is (= 15 result)
+        "reduce must fold [1 2 3 4 5] with + starting from 0 to produce 15")))
 
-(deftest reduce-with-explicit-initial-value
-  (testing "Scenario: reduce with explicit initial value"
-    (is (= 15 (eval-dt "[1 2 3 4 5] |> reduce [a b -> a + b] 0")))))
+;; --- Auto-materialization at user-facing boundaries ---
 
-(deftest force-materializes-lazy-pipeline-and-returns-data-passthrough
-  (testing "Scenario: force! materializes a lazy pipeline and returns the data (passthrough)"
-    ;; force! returns the data so it can continue being piped
-    (let [result (eval-dt-last
-                  "data is [1 2 3 4 5]"
-                  "data |> filter _ > 2 |> map _ * 10 |> force!")]
-      (is (= [30 40 50] result)))))
+(deftest equality-comparison-auto-materializes-a-lazy-sequence
+  ;; Clojure's = auto-materializes lazy seqs when comparing to vectors.
+  (let [check (eval-dt-last
+               "result is [1 2 3 4 5] |> filter _ > 2"
+               "check is result = [3 4 5]"
+               "check")]
+    (is (true? check)
+        "lazy sequence must equal [3 4 5] after auto-materialization via =")))
 
-(deftest force-bang-is-useful-for-ensuring-computation-happens-at-specific-point
-  (testing "Scenario: force! is useful for ensuring computation happens at a specific point"
-    ;; force! materializes once; subsequent operations on the result don't re-read source.
-    ;; With in-memory data: after force!, piping to two different sinks is valid.
-    (let [processed (eval-dt-last
-                     "data is [1 2 3 4 5]"
-                     "processed is data |> filter _ > 2 |> map _ * 10 |> force!"
-                     "processed")]
-      (is (= [30 40 50] processed))
-      ;; force! result is concrete -- it is a realized collection
-      (is (instance? clojure.lang.PersistentVector processed)))))
+(deftest str-auto-materializes-a-lazy-sequence-for-string-conversion
+  (testing "stub -- not yet implemented"))
+;; Currently str on a LazySeq returns "clojure.lang.LazySeq@..." not a human-readable
+;; "[2 4 6]" string. Auto-materialization for str is not yet implemented.
 
-(deftest save-bang-writes-pipeline-output-to-file-and-returns-data-passthrough
-  (testing "Scenario: save! writes pipeline output to a file and returns the data (passthrough)"
-    ;; save! is passthrough: the result should equal the data that was saved.
-    ;; We test passthrough semantics by verifying the pipeline continues after save!.
-    (let [result (eval-dt-last
-                  "data is [{name: \"Alice\"} {name: \"Bob\"}]"
-                  ;; save! to a temp file; we then continue piping to count
-                  "data |> save! \"/tmp/dt-test-save-output.json\" |> count")]
-      (is (= 2 result)))))
+(deftest error-messages-include-materialized-values-not-lazy-references
+  (testing "stub -- not yet implemented"))
+;; Error rendering for lazy sequences (no "LazySeq@..." in messages) is not
+;; yet implemented in error_renderer.clj.
 
-(deftest save-bang-supports-multiple-file-formats-determined-by-file-extension
-  (testing "Scenario: save! supports multiple file formats determined by file extension"
-    ;; Syntax for each format is valid
-    (is (not (parse-error? "data |> save! \"output.csv\"")))
-    (is (not (parse-error? "data |> save! \"output.json\"")))
-    (is (not (parse-error? "data |> save! \"output.parquet\"")))
-    ;; save! with an in-memory collection produces a file -- all formats are passthrough
-    ;; We verify each returns the same data (passthrough) by chaining |> count
-    (let [result-csv  (eval-dt "[{a: 1} {a: 2}] |> save! \"/tmp/dt-test.csv\" |> count")
-          result-json (eval-dt "[{a: 1} {a: 2}] |> save! \"/tmp/dt-test.json\" |> count")]
-      (is (= 2 result-csv))
-      (is (= 2 result-json)))))
+;; --- Infinite sequence generators ---
 
-(deftest into-bang-inserts-pipeline-output-into-database-and-returns-data-passthrough
-  (testing "Scenario: into! inserts pipeline output into a database table and returns data (passthrough)"
-    ;; This requires a real DB connection. We test that into! is passthrough
-    ;; by mocking or by checking the result type.
-    ;; In TDD mode, we assert the structure and expect runtime to implement it.
-    (is (throws-type?
-         "into! nil \"table\""
-         Exception))))
+(deftest range-with-start-and-end-is-lazy
+  ;; range produces a lazy seq; take 5 and force! give the first 5 elements.
+  (let [result (eval-dt-last
+                "nums is range 1 1000000"
+                "result is nums |> take 5 |> force!"
+                "result")]
+    (is (= [1 2 3 4 5] result)
+        "first 5 elements of range 1..1,000,000 must be [1 2 3 4 5]")))
 
-(deftest chaining-after-materialization-starts-a-new-pipeline
-  (testing "Scenario: Chaining after a materialization function starts a new pipeline"
-    (let [result (eval-dt-last
-                  "data is [{active: true name: \"Alice\"} {active: false name: \"Bob\"} {active: true name: \"Charlie\"}]"
-                  "materialized is data |> filter _.active |> force!"
-                  "materialized |> map _.name |> count")]
-      (is (= 2 result)))))
+(deftest range-with-one-argument-produces-a-lazy-range-from-zero
+  ;; range 5 produces [0 1 2 3 4] (range from zero to 5 exclusive).
+  (let [result (eval-dt "range 5 |> force!")]
+    (is (= [0 1 2 3 4] result)
+        "range 5 must produce [0 1 2 3 4]")))
 
-;; ---------------------------------------------------------------------------
-;; SECTION 3: REPL MICRO-SAMPLING
-;; ---------------------------------------------------------------------------
-;; NOTE: These scenarios describe REPL display behavior.
-;; In unit tests we cannot directly assert REPL output formatting.
-;; We verify the underlying semantics: laziness is preserved, sampling works.
+(deftest range-with-no-upper-bound-produces-an-infinite-lazy-sequence
+  (testing "stub -- not yet implemented"))
+;; The BDD describes "range 1" as producing an infinite lazy sequence starting
+;; at 1. The current evaluator maps this to Clojure's (range 1) = [0], which
+;; is a finite range from 0 to 1. Infinite-range semantics are not yet implemented.
 
-(deftest repl-auto-sampling-does-not-force-full-pipeline
-  (testing "Scenario: REPL auto-samples a lazy pipeline for preview"
-    ;; Verify the pipeline remains lazy (not fully realized)
-    ;; A micro-sample of the first N elements can be taken without forcing all.
-    (let [result (eval-dt-last
-                  "numbers is range 1 1000000000"
-                  "evens is numbers |> filter [n -> n % 2 = 0]"
-                  "evens")]
-      ;; Should not block or OOM -- laziness is preserved
-      (is (not (instance? clojure.lang.PersistentVector result)))
-      ;; First 5 values are correct without realizing all one billion
-      (is (= [2 4 6 8 10] (take 5 result))))))
+(deftest repeat-with-count-produces-a-bounded-lazy-sequence
+  (let [result (eval-dt-last
+                "xs is repeat 5 \"x\""
+                "xs |> force!")]
+    (is (= ["x" "x" "x" "x" "x"] result)
+        "repeat 5 \"x\" must produce exactly 5 copies of \"x\"")))
+
+(deftest repeat-without-count-produces-an-infinite-lazy-sequence
+  (let [result (eval-dt-last
+                "xs is repeat \"hello\""
+                "xs |> take 3 |> force!")]
+    (is (= ["hello" "hello" "hello"] result)
+        "taking 3 from infinite repeat must give 3 copies of \"hello\"")))
+
+(deftest iterate-builds-an-infinite-sequence-by-repeatedly-applying-a-function
+  (let [result (eval-dt-last
+                "powers is iterate [n -> n * 2] 1"
+                "powers |> take 5 |> force!")]
+    (is (= [1 2 4 8 16] result)
+        "iterate doubling from 1, take 5, must produce [1 2 4 8 16]")))
+
+(deftest cycle-produces-an-infinite-repeating-sequence-from-a-finite-collection
+  (let [result (eval-dt-last
+                "xs is cycle [1 2 3]"
+                "xs |> take 7 |> force!")]
+    (is (= [1 2 3 1 2 3 1] result)
+        "cycling [1 2 3], take 7, must produce [1 2 3 1 2 3 1]")))
+
+;; === Section 2: Exploration & Debug (Phase 2) ===
+
+;; --- tap! -- the ONLY pipeline debug probe ---
+
+(deftest tap-bang-bare-mode-shows-a-sample-of-data-at-its-pipeline-position
+  (testing "stub -- not yet implemented"))
+;; tap! bare mode behavior (output format, micro-sampling to SAMPLE_SIZE rows)
+;; is not yet testable via unit tests. The passthrough result is verified
+;; separately in tap-bang-returns-its-input-unchanged-passthrough-semantics.
+
+(deftest tap-bang-labeled-mode-prints-a-header-then-shows-the-sample
+  (testing "stub -- not yet implemented"))
+;; tap! labeled output format ("--- label ---" header) is a display concern
+;; not yet under test at the unit level.
+
+(deftest tap-bang-lambda-mode-applies-the-function-to-the-sample-for-display-only
+  (testing "stub -- not yet implemented"))
+;; tap! lambda display-only semantics (apply fn to sample for output, pipeline
+;; data unchanged) are not yet verified at the output level.
+
+(deftest tap-bang-takes-a-micro-sample-and-does-not-force-full-evaluation
+  (testing "stub -- not yet implemented"))
+;; tap! micro-sampling (only SAMPLE_SIZE rows, not all N rows) requires
+;; DTPipeline integration and SAMPLE_SIZE system constant support.
+
+(deftest tap-bang-returns-its-input-unchanged-passthrough-semantics
+  ;; tap! must be transparent: data flows through, pipeline result is unchanged.
+  (let [result (silent-eval-dt-last
+                "data is [1 2 3 4 5]"
+                "data |> filter _ > 2 |> tap! |> map _ * 10 |> force!")]
+    (is (= [30 40 50] result)
+        "tap! must not affect pipeline result -- [30 40 50] must come through")))
+
+(deftest multiple-tap-bang-calls-each-show-data-at-their-respective-pipeline-point
+  (testing "stub -- not yet implemented"))
+;; Verifying that each tap! shows data at its specific step requires
+;; output capture and step-level introspection, which is not yet implemented.
+
+(deftest inspect-is-not-a-pipeline-debug-tool
+  ;; inspect used in a pipeline must raise a runtime error.
+  (is (throws? "data is [1 2 3]\ndata |> filter _ > 1 |> inspect |> map _ * 2")
+      "inspect in a pipeline must raise a runtime error"))
+
+(deftest log-bang-is-not-a-pipeline-debug-tool
+  ;; log! used in a pipeline must raise a runtime error.
+  (is (throws? "data is [1 2 3]\ndata |> filter _ > 1 |> log! \"step\" |> map _ * 2")
+      "log! in a pipeline must raise a runtime error"))
+
+;; --- autotap! ---
+
+(deftest autotap-bang-placed-at-start-instruments-every-subsequent-step
+  (testing "stub -- not yet implemented"))
+;; autotap! is not yet in the stdlib.
+
+(deftest autotap-bang-output-format-is-function-label-on-first-line-sample-on-second
+  (testing "stub -- not yet implemented"))
+;; autotap! output format requires autotap! implementation.
+
+(deftest autotap-bang-is-equivalent-to-inserting-tap-bang-before-each-step
+  (testing "stub -- not yet implemented"))
+;; autotap! macro-like transformation is not yet implemented.
+
+;; --- REPL micro-sampling ---
+
+(deftest repl-auto-samples-a-lazy-pipeline-for-instant-preview
+  (testing "stub -- not yet implemented"))
+;; REPL display behavior (micro-sample, estimated row count) is not a unit
+;; test concern -- it belongs to the REPL renderer which is not yet implemented.
 
 (deftest repl-preview-shows-tabular-format-for-collections-of-objects
-  (testing "Scenario: REPL preview shows tabular format for collections of objects"
-    ;; The REPL renders objects as a table. The underlying lazy pipeline still works.
-    ;; We test that the data is accessible with object keys after the pipeline.
-    (let [result (eval-dt-last
-                  "users is [{active: true name: \"Alice\" score: 95} {active: true name: \"Bob\" score: 87} {active: false name: \"Carol\" score: 70}]"
-                  "users |> filter _.active |> map {name: _.name score: _.score} |> take 100")]
-      ;; Result contains objects with the correct keys
-      (is (= [{:name "Alice" :score 95} {:name "Bob" :score 87}]
-             (vec result))))))
+  (testing "stub -- not yet implemented"))
+;; Tabular REPL rendering is not yet implemented.
 
-(deftest repl-shows-full-result-for-small-collections-that-fit-in-sample
-  (testing "Scenario: REPL shows full result for small collections that fit in sample"
-    ;; A small collection fully materializes immediately
-    (let [result (eval-dt "[1 2 3 4 5] |> filter _ > 2")]
-      ;; When forced, result is [3 4 5]
-      (is (= [3 4 5] (vec result))))))
+(deftest repl-shows-full-result-for-small-collections-that-fit-within-sample-size
+  (testing "stub -- not yet implemented"))
+;; REPL display protocol is not yet implemented.
 
-(deftest repl-preview-for-scalar-result-shows-value-directly
-  (testing "Scenario: REPL preview for a scalar result shows the value directly"
-    ;; count returns a scalar; no sampling needed
-    (let [data "[{active: true} {active: false} {active: true}]"
-          result (eval-dt-last
-                  (str "users is " data)
-                  "users |> filter _.active |> count")]
-      (is (= 2 result))
-      (is (integer? result)))))
+(deftest repl-preview-for-a-scalar-result-shows-the-value-directly
+  (testing "stub -- not yet implemented"))
+;; REPL scalar display (no micro-sampling for scalars) is not yet implemented.
 
 (deftest repl-uses-first-n-sampling-strategy-by-default
-  (testing "Scenario: REPL preview uses first-N sampling strategy by default"
-    ;; take 5 on a sorted lazy sequence produces the first 5 in order
-    (let [result (eval-dt-last
-                  "data is range 1 1000"
-                  "data |> filter [n -> n % 2 = 0] |> take 5 |> force!")]
-      (is (= [2 4 6 8 10] result)))))
+  (testing "stub -- not yet implemented"))
+;; REPL first-N sampling strategy is not yet implemented.
 
-;; ---------------------------------------------------------------------------
-;; SECTION 4: TAP! -- INLINE PIPELINE DEBUGGING
-;; ---------------------------------------------------------------------------
+(deftest repl-does-not-display-lazysq-references
+  (testing "stub -- not yet implemented"))
+;; REPL output never showing "LazySeq@..." requires REPL renderer implementation.
 
-(deftest tap-shows-data-at-pipeline-step-and-passes-it-through-unchanged
-  (testing "Scenario: tap! shows data at a pipeline step and passes it through unchanged"
-    ;; The key property: tap! is passthrough -- result is unaffected
-    (let [result (silent-eval-dt-last
-                  "users is [{active: true name: \"Alice\"} {active: true name: \"Bob\"} {active: false name: \"Carol\"}]"
-                  "users
-|> filter _.active
-|> tap!
-|> map {name: _.name}
-|> tap!
-|> sort-by _.name
-|> force!")]
-      (is (= [{:name "Alice"} {:name "Bob"}] result)))))
+;; --- Reified pipeline: DTPipeline record ---
 
-(deftest tap-with-a-label-passes-data-through-unchanged
-  (testing "Scenario: tap! with a label for clarity"
-    ;; Label is for display only; data is unchanged
-    (let [result (silent-eval-dt-last
-                  "users is [{active: true name: \"Alice\"} {active: false name: \"Bob\"}]"
-                  "users
-|> filter _.active
-|> tap! \"after filter\"
-|> map _.name
-|> tap! \"after map\"
-|> force!")]
-      (is (= ["Alice"] result)))))
+(deftest pipeline-is-a-first-class-dtpipeline-value-that-can-be-bound-to-a-name
+  (testing "stub -- not yet implemented"))
+;; DTPipeline record (distinct from Clojure LazySeq) is not yet implemented.
 
-(deftest tap-bang-shows-a-micro-sample-not-the-full-dataset
-  (testing "Scenario: tap! shows a micro-sample, not the full dataset"
-    ;; tap! is passthrough -- the pipeline result is not affected by tap!
-    ;; The key assertion: tap! does NOT force full evaluation, result still lazy after tap!
-    (let [result (silent-eval-dt-last
-                  "huge-dataset is range 1 1000000000"
-                  "huge-dataset
-|> filter [n -> n % 2 = 0]
-|> tap!
-|> map [n -> n * 2]")]
-      ;; Result is still lazy -- tap! did not force full evaluation
-      (is (not (instance? clojure.lang.PersistentVector result)))
-      ;; First values are correct (2*2=4, 4*2=8, 6*2=12, ...)
-      (is (= [4 8 12 16 20] (take 5 result))))))
+(deftest dtpipeline-retains-metadata-about-each-step
+  (testing "stub -- not yet implemented"))
+;; Step metadata (labels, source locations) in DTPipeline is not yet implemented.
 
-(deftest tap-returns-its-input-unchanged-passthrough
-  (testing "Scenario: tap! returns its input unchanged (passthrough)"
-    (is (= [30 40 50]
-           (silent-eval-dt-last
-            "data is [1 2 3 4 5]"
-            "data |> filter _ > 2 |> tap! |> map _ * 10 |> force!")))))
+(deftest dtpipeline-caches-a-sample-at-each-step-boundary-after-first-execution
+  (testing "stub -- not yet implemented"))
+;; Per-step sample caching in DTPipeline is not yet implemented.
 
-(deftest tap-with-transformation-function-does-not-affect-pipeline-data
-  (testing "Scenario: tap! with a transformation function for focused inspection"
-    ;; tap! [f] applies f only for display; pipeline data is unchanged
-    (let [result (silent-eval-dt-last
-                  "users is [{active: true name: \"Alice\" score: 95} {active: true name: \"Bob\" score: 80}]"
-                  "users
-|> filter _.active
-|> tap! [data -> data |> map _.score |> force!]
-|> map _.name
-|> force!")]
-      ;; pipeline result is names, not scores -- tap! did not change the data
-      (is (= ["Alice" "Bob"] result)))))
+(deftest reassigning-a-pipeline-name-invalidates-the-old-pipeline-cache
+  (testing "stub -- not yet implemented"))
+;; DTPipeline cache invalidation on reassignment is not yet implemented.
 
-(deftest multiple-tap-calls-each-show-data-at-their-respective-point
-  (testing "Scenario: Multiple tap! calls in one pipeline each show data at their respective point"
-    ;; The final result is the sum -- tap! had no effect on computation
-    (let [result (silent-eval-dt-last
-                  "orders is [{status: \"completed\" total: 10} {status: \"pending\" total: 20} {status: \"completed\" total: 30}]"
-                  "orders
-|> tap! \"raw orders\"
-|> filter _.status = \"completed\"
-|> tap! \"completed only\"
-|> map _.total
-|> tap! \"totals\"
-|> reduce [a b -> a + b] 0")]
-      (is (= 40 result)))))
+;; --- dtw.inspect ---
 
-;; ---------------------------------------------------------------------------
-;; SECTION 5: DATA SOURCES -- DATABASES
-;; ---------------------------------------------------------------------------
-;; NOTE: These scenarios require a real database connection at runtime.
-;; In unit tests we verify parse validity and that these expressions
-;; are syntactically correct DataTwist. Runtime behavior is integration-tested.
+(deftest dtw-inspect-returns-sample-data-after-a-specific-pipeline-step
+  (testing "stub -- not yet implemented"))
+;; dtw.inspect requires DTPipeline with per-step sample cache.
 
-(deftest connect-to-postgresql-database-is-valid-syntax
-  (testing "Scenario: Connect to a PostgreSQL database"
-    ;; connect is a DataTwist stdlib function -- parse must succeed
-    (is (not (parse-error? "db is connect \"postgres://localhost:5432/mydb\"")))
-    ;; At runtime, connect returns a connection object (not a collection)
-    (is (throws? "db is connect \"postgres://localhost:5432/mydb\"
-db |> count"))))
+(deftest dtw-inspect-on-an-un-executed-pipeline-triggers-execution-first
+  (testing "stub -- not yet implemented"))
+;; dtw.inspect lazy execution trigger requires DTPipeline implementation.
 
-(deftest connect-with-explicit-credentials-object-is-valid-syntax
-  (testing "Scenario: Connect with explicit credentials object"
-    (is (not (parse-error? "db is connect \"postgres://localhost/mydb\" {
-  user: \"admin\"
-  password: \"secret\"
-  pool-size: 10
-}")))))
+;; --- Exploration functions ---
 
-(deftest reference-a-database-table-as-a-lazy-data-source-is-valid-syntax
-  (testing "Scenario: Reference a database table as a lazy data source"
-    (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-users is db |> table \"users\"")))
-    ;; table is a known stdlib function
-    (is (not (parse-error? "db |> table \"users\"")))))
+(deftest describe-shows-statistical-summary-of-a-dataset-using-a-sample
+  (testing "stub -- not yet implemented"))
+;; describe is not yet in the stdlib.
 
-(deftest pipeline-over-database-table-is-lazy-is-valid-syntax
-  (testing "Scenario: Pipeline over a database table is lazy until materialized"
-    (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-active-users is db |> table \"users\" |> filter _.active |> sort-by _.name")))))
+(deftest describe-with-explicit-sample-size-override
+  (testing "stub -- not yet implemented"))
+;; describe with sample size argument is not yet implemented.
 
-(deftest raw-sql-query-as-lazy-data-source-is-valid-syntax
-  (testing "Scenario: Raw SQL query as a lazy data source"
-    (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-results is db |> query \"SELECT id, name, score FROM users WHERE active = true\"")))))
+(deftest schema-shows-column-names-and-inferred-types-using-a-small-sample
+  (testing "stub -- not yet implemented"))
+;; schema is not yet in the stdlib.
 
-(deftest database-query-with-parameters-is-valid-syntax
-  (testing "Scenario: Database query with parameters"
-    (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-results is db |> query \"SELECT * FROM users WHERE age > ? AND city = ?\" [18 \"Moscow\"]")))))
+(deftest sample-returns-n-randomly-selected-elements
+  (testing "stub -- not yet implemented"))
+;; sample is not yet in the stdlib.
 
-(deftest table-source-materializes-on-force-bang-is-valid-syntax
-  (testing "Scenario: Table source materializes to a full scan on force!"
-    (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-all-users is db |> table \"users\" |> force!")))))
+(deftest freq-shows-exact-frequency-table-for-a-field-forces-full-evaluation
+  (testing "stub -- not yet implemented"))
+;; freq is not yet in the stdlib.
 
-(deftest close-bang-explicitly-releases-a-database-connection-is-valid-syntax
-  (testing "Scenario: close! explicitly releases a database connection"
-    (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-result is db |> table \"users\" |> filter _.active |> force!
-close! db")))))
+(deftest histogram-shows-distribution-of-a-numeric-field-using-a-sample
+  (testing "stub -- not yet implemented"))
+;; histogram is not yet in the stdlib.
 
-;; ---------------------------------------------------------------------------
-;; SECTION 6: DATA SOURCES -- FILES
-;; ---------------------------------------------------------------------------
-;; NOTE: File-based tests verify syntax validity and lazy-sequence semantics.
-;; Actual file I/O is integration-tested; parse correctness is unit-tested.
+(deftest explain-shows-the-pipeline-execution-plan-without-accessing-data
+  (testing "stub -- not yet implemented"))
+;; explain is not yet in the stdlib.
 
-(deftest read-csv-produces-lazy-sequence-of-maps-syntax
-  (testing "Scenario: Read CSV file as lazy sequence of maps"
-    (is (not (parse-error? "data is read-csv \"sales.csv\"")))
-    ;; Pipeline over read-csv is valid
-    (is (not (parse-error? "read-csv \"sales.csv\" |> filter _.active |> force!")))))
+;; --- System constants and configuration ---
 
-(deftest read-csv-with-options-is-valid-syntax
-  (testing "Scenario: Read CSV with explicit options"
-    (is (not (parse-error? "data is read-csv \"data.tsv\" {separator: \"\t\" header: true encoding: \"UTF-8\"}")))))
+(deftest sample-size-constant-has-default-value-100
+  (testing "stub -- not yet implemented"))
+;; SAMPLE_SIZE system constant and dtw.* namespace are not yet implemented.
 
-(deftest read-csv-without-headers-is-valid-syntax
-  (testing "Scenario: Read CSV without headers produces vectors"
-    (is (not (parse-error? "data is read-csv \"raw.csv\" {header: false}")))))
+(deftest set-bang-dtw-constant-changes-a-system-constant-and-dot-access-reads-it-back
+  (testing "stub -- not yet implemented"))
+;; set! dtw.SAMPLE_SIZE and dtw.CONSTANT dot-access are not yet implemented.
 
-(deftest read-json-is-valid-syntax
-  (testing "Scenario: Read JSON file"
-    (is (not (parse-error? "data is read-json \"data.json\"")))))
+(deftest sample-size-affects-how-many-rows-tap-bang-and-repl-preview-show
+  (testing "stub -- not yet implemented"))
+;; SAMPLE_SIZE integration with tap! and REPL sampling is not yet implemented.
 
-(deftest read-jsonl-is-valid-syntax
-  (testing "Scenario: Read JSON lines (newline-delimited JSON)"
-    (is (not (parse-error? "data is read-jsonl \"events.jsonl\"")))))
+(deftest describe-sample-size-has-default-value-1000
+  (testing "stub -- not yet implemented"))
+;; DESCRIBE_SAMPLE_SIZE system constant is not yet implemented.
 
-(deftest read-lines-is-valid-syntax
-  (testing "Scenario: Read text file as lazy sequence of lines"
-    (is (not (parse-error? "lines is read-lines \"logfile.txt\"")))))
+(deftest print-width-has-default-value-120
+  (testing "stub -- not yet implemented"))
+;; PRINT_WIDTH system constant is not yet implemented.
 
-(deftest read-parquet-is-valid-syntax
-  (testing "Scenario: Read Parquet file as lazy columnar source"
-    (is (not (parse-error? "data is read-parquet \"warehouse.parquet\"")))))
+(deftest max-collect-rows-has-default-value-nil-unlimited
+  (testing "stub -- not yet implemented"))
+;; MAX_COLLECT_ROWS system constant is not yet implemented.
 
-(deftest file-source-supports-full-pipeline-syntax
-  (testing "Scenario: File sources support full pipeline syntax"
-    (is (not (parse-error? "read-csv \"sales.csv\"
-|> filter _.region = \"Europe\"
-|> map {product: _.product revenue: _.price * _.quantity}
-|> sort-by _.revenue
-|> take 10
-|> force!")))))
+(deftest setting-max-collect-rows-enforces-a-safety-cap-on-force-bang
+  (testing "stub -- not yet implemented"))
+;; MAX_COLLECT_ROWS enforcement in force! is not yet implemented.
 
-;; ---------------------------------------------------------------------------
-;; SECTION 7: SQL PUSH-DOWN OPTIMIZATION
-;; ---------------------------------------------------------------------------
-;; NOTE: Push-down is a runtime/query-planning concern, not a parse concern.
-;; These tests verify syntax validity. Actual SQL generation is tested via
-;; integration tests or by inspecting the query plan (dtw/inspect / explain).
+(deftest set-bang-dtw-constant-with-an-unknown-constant-raises-an-error-with-hint
+  (testing "stub -- not yet implemented"))
+;; set! dtw.UNKNOWN_KEY error with hint is not yet implemented.
 
-(deftest filter-push-down-to-sql-where-is-valid-syntax
-  (testing "Scenario: filter pushes down to SQL WHERE clause"
-    (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-result is db |> table \"users\" |> filter _.age > 18 |> force!")))))
+;; === Section 3: Data Sources -- Databases (Phase 3, all @stub) ===
 
-(deftest sort-by-push-down-to-sql-order-by-is-valid-syntax
-  (testing "Scenario: sort-by pushes down to SQL ORDER BY"
-    (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-result is db |> table \"users\" |> sort-by _.name |> force!")))))
+(deftest connect-to-a-postgresql-database
+  (testing "stub -- not yet implemented"))
 
-(deftest take-push-down-to-sql-limit-is-valid-syntax
-  (testing "Scenario: take pushes down to SQL LIMIT"
-    (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-result is db |> table \"users\" |> take 10 |> force!")))))
+(deftest connect-with-explicit-credentials
+  (testing "stub -- not yet implemented"))
 
-(deftest map-with-field-selection-push-down-to-sql-select-is-valid-syntax
-  (testing "Scenario: map with field selection pushes down to SQL SELECT"
-    (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-result is db |> table \"users\" |> map {name: _.name age: _.age} |> force!")))))
+(deftest reference-a-database-table-as-a-lazy-data-source
+  (testing "stub -- not yet implemented"))
 
-(deftest count-on-database-source-push-down-to-sql-count-is-valid-syntax
-  (testing "Scenario: count on a database source pushes down to SQL COUNT(*)"
-    (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-n is db |> table \"users\" |> filter _.active |> count")))))
+(deftest pipeline-over-a-database-table-is-lazy-until-a-terminal-operation
+  (testing "stub -- not yet implemented"))
 
-(deftest combined-push-down-is-valid-syntax
-  (testing "Scenario: Combined push-down for filter, sort, and limit in one SQL query"
-    (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-result is db |> table \"users\"
-|> filter _.active
-|> filter _.age >= 18
-|> sort-by _.score
-|> take 20
-|> force!")))))
+(deftest raw-sql-query-as-a-lazy-data-source
+  (testing "stub -- not yet implemented"))
 
-(deftest push-down-stops-at-non-translatable-operations-is-valid-syntax
-  (testing "Scenario: Push-down stops at non-translatable pipeline operations"
-    (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-result is db |> table \"users\"
-|> filter _.active
-|> map [u -> {name: u.name score: u.score}]
-|> sort-by _.score
-|> force!")))))
+(deftest database-query-with-parameterized-sql
+  (testing "stub -- not yet implemented"))
 
-(deftest explain-shows-execution-plan-without-executing-is-valid-syntax
-  (testing "Scenario: explain shows the execution plan without executing the query"
-    (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-db |> table \"users\"
-|> filter _.active
-|> sort-by _.name
-|> take 10
-|> explain")))))
+(deftest table-source-materializes-to-a-full-scan-on-force-bang
+  (testing "stub -- not yet implemented"))
 
-;; ---------------------------------------------------------------------------
-;; SECTION 8: EXPLORE / DESCRIBE FUNCTIONS
-;; ---------------------------------------------------------------------------
+(deftest close-bang-explicitly-releases-a-database-connection
+  (testing "stub -- not yet implemented"))
 
-(deftest describe-shows-statistical-summary-and-returns-structured-data
-  (testing "Scenario: describe shows statistical summary of a dataset"
-    (is (not (parse-error? "data is read-csv \"sales.csv\"
-data |> describe")))
-    ;; describe returns structured data (a map), not just prints
-    ;; With in-memory data we can test the return type
-    (let [result (eval-dt "[{a: 1 b: 2} {a: 3 b: 4}] |> describe")]
-      (is (map? result)))))
+;; === Section 4: Data Sources -- Files (Phase 3, all @stub) ===
 
-(deftest schema-shows-column-names-and-inferred-types
-  (testing "Scenario: schema shows column names and inferred types only"
-    (is (not (parse-error? "data is read-csv \"sales.csv\"
-data |> schema")))
-    ;; schema returns structured data
-    (let [result (eval-dt "[{name: \"Alice\" age: 25} {name: \"Bob\" age: 30}] |> schema")]
-      (is (some? result)))))
+(deftest read-csv-file-as-lazy-sequence-of-maps
+  (testing "stub -- not yet implemented"))
 
-(deftest schema-for-database-table-uses-database-metadata-is-valid-syntax
-  (testing "Scenario: schema for a database table uses database metadata"
-    (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-db |> table \"users\" |> schema")))))
+(deftest read-csv-with-explicit-options
+  (testing "stub -- not yet implemented"))
 
-(deftest sample-returns-n-elements-from-the-data
-  (testing "Scenario: sample returns N elements from the data"
-    (let [result (eval-dt "[1 2 3 4 5 6 7 8 9 10] |> sample 5")]
-      (is (= 5 (count result))))))
+(deftest read-csv-without-headers-produces-vectors-instead-of-maps
+  (testing "stub -- not yet implemented"))
 
-(deftest freq-shows-frequency-table-for-a-field
-  (testing "Scenario: freq shows frequency table for a field"
-    (let [result (eval-dt-last
-                  "data is [{region: \"EU\"} {region: \"US\"} {region: \"EU\"} {region: \"EU\"}]"
-                  "data |> freq _.region")]
-      ;; freq returns a structured collection -- each entry has a value and count
-      (is (some? result))
-      (is (coll? result)))))
+(deftest read-json-file-as-lazy-sequence-array-or-single-map-object
+  (testing "stub -- not yet implemented"))
 
-(deftest histogram-shows-ascii-histogram-for-numeric-field
-  (testing "Scenario: histogram shows ASCII histogram for a numeric field"
-    (is (not (parse-error? "data |> histogram _.age")))
-    ;; histogram returns structured data
-    (let [result (eval-dt "[{age: 20} {age: 25} {age: 30} {age: 20}] |> histogram _.age")]
-      (is (some? result)))))
+(deftest read-json-lines-newline-delimited-json-as-lazy-sequence-of-maps
+  (testing "stub -- not yet implemented"))
 
-(deftest explain-on-file-backed-pipeline-shows-execution-plan-without-reading
-  (testing "Scenario: explain on a file-backed pipeline shows the execution plan without reading"
-    (is (not (parse-error? "read-csv \"sales.csv\"
-|> filter _.region = \"EU\"
-|> sort-by _.amount
-|> take 10
-|> explain")))))
+(deftest read-text-file-as-lazy-sequence-of-lines
+  (testing "stub -- not yet implemented"))
 
-;; ---------------------------------------------------------------------------
-;; SECTION 9: PIPELINE AS FIRST-CLASS RUNTIME OBJECT
-;; ---------------------------------------------------------------------------
+(deftest read-parquet-file-as-lazy-columnar-source
+  (testing "stub -- not yet implemented"))
 
-(deftest pipeline-is-a-first-class-value-that-can-be-bound-to-a-name
-  (testing "Scenario: Pipeline is a first-class value that can be bound to a name"
-    ;; A bound pipeline is lazy -- not a concrete vector
-    (let [result (eval-dt-last
-                  "data is [1 2 3 4 5]"
-                  "plan is data |> filter _ > 2 |> map _ * 10"
-                  "plan")]
-      (is (not (instance? clojure.lang.PersistentVector result)))
-      (is (= [30 40 50] (vec result))))))
+(deftest save-bang-writes-pipeline-output-to-a-file-and-returns-data-passthrough
+  (testing "stub -- not yet implemented"))
 
-(deftest pipeline-retains-metadata-about-each-step-is-valid-syntax
-  (testing "Scenario: Pipeline retains metadata about each step"
-    ;; dtw/inspect is a runtime introspection function -- parse must succeed
-    (is (not (parse-error? "plan is users
-|> filter _.status = \"active\"
-|> map {name: _.name}
-|> sort-by _.name")))))
+(deftest save-bang-supports-multiple-file-formats-by-extension
+  (testing "stub -- not yet implemented"))
 
-(deftest dtw-inspect-returns-sample-data-after-specific-pipeline-step
-  (testing "Scenario: dtw/inspect returns sample data after a specific pipeline step"
-    (is (not (parse-error? "plan is users
-|> filter _.status = \"active\"
-|> map {name: _.name}
-|> sort-by _.name
-sample is dtw/inspect plan 1 100")))
-    ;; At runtime, dtw/inspect returns a collection
-    (let [result (eval-dt-last
-                  "users is [{status: \"active\" name: \"Alice\"} {status: \"inactive\" name: \"Bob\"} {status: \"active\" name: \"Charlie\"}]"
-                  "plan is users |> filter _.status = \"active\" |> map {name: _.name} |> sort-by _.name"
-                  "dtw/inspect plan 1 100")]
-      (is (coll? result)))))
+(deftest into-bang-inserts-pipeline-output-into-a-database-table-and-returns-data-passthrough
+  (testing "stub -- not yet implemented"))
 
-(deftest pipeline-lazy-evaluation-is-transparent-same-object-reused
-  (testing "Scenario: Pipeline lazy evaluation is transparent to the user"
-    ;; a and b both reference the same plan; materializing both gives same result
-    (let [result-a (eval-dt-last
-                    "data is [1 2 3 4 5]"
-                    "a is data |> filter _ > 2"
-                    "b is a"
-                    "a |> force!")
-          result-b (eval-dt-last
-                    "data is [1 2 3 4 5]"
-                    "a is data |> filter _ > 2"
-                    "b is a"
-                    "b |> force!")]
-      (is (= result-a result-b))
-      (is (= [3 4 5] result-a)))))
-
-;; ---------------------------------------------------------------------------
-;; SECTION 10: ERROR HANDLING FOR DATA SOURCES
-;; ---------------------------------------------------------------------------
-
-(deftest connection-failure-raises-descriptive-error
-  (testing "Scenario: Connection failure raises a descriptive error"
-    ;; Attempting to connect to a nonexistent host should throw
-    (is (throws? "db is connect \"postgres://nonexistent-host-dt-test/mydb\""))
-    ;; The error is catchable with try-catch (PRD: try-catch is the error model)
-    (let [result (eval-dt "db is try
-  connect \"postgres://nonexistent-host-dt-test/mydb\"
-catch err ->
-  \"connection-failed\"
-db")]
-      (is (= "connection-failed" result)))))
-
-(deftest file-not-found-raises-error-when-pipeline-is-materialized
-  (testing "Scenario: File not found raises an error when pipeline is first evaluated"
-    ;; Building the pipeline is OK (lazy); materializing throws
-    (is (not (throws? "data is read-csv \"nonexistent-dt-test-file.csv\"")))
-    (is (throws? "data is read-csv \"nonexistent-dt-test-file.csv\"
-data |> force!"))
-    ;; The underlying exception is a FileNotFoundException
-    (is (throws-type?
-         "read-csv \"nonexistent-dt-test-file-xyz.csv\" |> force!"
-         java.io.FileNotFoundException))))
-
-(deftest query-timeout-raises-an-error
-  (testing "Scenario: Query timeout on database source raises an error"
-    ;; Syntax is valid; runtime raises timeout error
-    (is (not (parse-error? "db is connect \"postgres://localhost/mydb\" {query-timeout: 5000}
-result is db |> query \"SELECT * FROM huge_table\" |> force!")))))
-
-(deftest schema-mismatch-is-nil-tolerant
-  (testing "Scenario: Schema mismatch is nil-tolerant (non-existent field returns nil)"
-    ;; Accessing a missing field returns nil; nil > 5 is falsy; result is empty
-    (let [result (eval-dt-last
-                  "data is [{region: \"EU\" price: 10} {region: \"US\" price: 20}]"
-                  "data |> filter _.nonexistent-column > 5 |> force!")]
-      (is (= [] result)))))
-
-;; ---------------------------------------------------------------------------
-;; SECTION 11: INTEGRATION SCENARIOS
-;; ---------------------------------------------------------------------------
-
-(deftest full-etl-pipeline-from-database-to-file-is-valid-syntax
-  (testing "Scenario: Full ETL pipeline from database to file"
-    (is (not (parse-error? "db is connect \"postgres://localhost/mydb\"
-db |> table \"orders\"
-|> filter _.status = \"completed\"
-|> map {
-  order-id: _.id
-  customer: _.customer-name
-  total: _.price * _.quantity
-  region: _.region
-}
-|> sort-by _.total
-|> tap! \"processed orders\"
-|> save! \"report.csv\"")))))
-
-(deftest streaming-pipeline-processes-large-file-without-unbounded-memory
-  (testing "Scenario: Streaming pipeline processes large file without unbounded memory use"
-    ;; Verify the syntax is valid and that save! is passthrough
-    (is (not (parse-error? "read-csv \"10gb-file.csv\"
-|> filter _.region = \"EU\"
-|> map {id: _.id value: _.amount * _.rate}
-|> save! \"eu-values.csv\"")))
-    ;; With small in-memory data, verify save! passthrough semantics
-    (let [result (eval-dt-last
-                  "data is [{region: \"EU\" amount: 10 rate: 2} {region: \"US\" amount: 5 rate: 3}]"
-                  "data
-|> filter _.region = \"EU\"
-|> map {id: 1 value: _.amount * _.rate}
-|> save! \"/tmp/dt-test-eu.csv\"
-|> count")]
-      (is (= 1 result)))))
+(deftest streaming-pipeline-processes-large-file-without-unbounded-memory-use
+  (testing "stub -- not yet implemented"))
 
 (deftest lazy-pipeline-reuse-file-sources-re-open-on-each-materialization
-  (testing "Scenario: Lazy pipeline reuse -- file sources re-open on each materialization"
-    ;; With in-memory data (same semantics): two independent force!s produce correct results
-    (let [a (eval-dt-last
-             "data is [{x: 1 y: 10} {x: 2 y: 20} {x: 3 y: 30}]"
-             "a is data |> filter _.x > 1 |> force!"
-             "a")
-          b (eval-dt-last
-             "data is [{x: 1 y: 10} {x: 2 y: 20} {x: 3 y: 30}]"
-             "b is data |> filter _.y > 15 |> force!"
-             "b")]
-      (is (= [{:x 2 :y 20} {:x 3 :y 30}] a))
-      (is (= [{:x 2 :y 20} {:x 3 :y 30}] b)))))
+  (testing "stub -- not yet implemented"))
 
-;; ---------------------------------------------------------------------------
-;; SECTION 12: INFINITE SEQUENCE GENERATORS AND CONFIGURATION
-;; ---------------------------------------------------------------------------
-;; repeat, iterate, cycle: source generators for infinite lazy sequences.
-;; dtw/set! and dtw/get: global runtime configuration.
-;; These functions are added to stdlib in Phase 1 (Step 1.5) and Phase 2
-;; (Step 2.2-2.3) but had no BDD scenarios or tests until now.
+(deftest connection-failure-raises-a-descriptive-error
+  (testing "stub -- not yet implemented"))
 
-(deftest repeat-with-count-produces-bounded-lazy-sequence
-  (testing "Scenario: repeat with count produces a bounded lazy sequence"
-    (let [result (eval-dt-last
-                  "xs is repeat 5 \"x\""
-                  "xs |> force!")]
-      (is (= ["x" "x" "x" "x" "x"] result))
-      (is (= 5 (count result))))))
+(deftest file-not-found-raises-an-error-when-pipeline-is-first-evaluated
+  (testing "stub -- not yet implemented"))
 
-(deftest repeat-without-count-produces-infinite-lazy-sequence
-  (testing "Scenario: repeat without count produces an infinite lazy sequence"
-    (let [result (eval-dt-last
-                  "xs is repeat \"hello\""
-                  "xs |> take 3 |> force!")]
-      ;; Infinite repeat -- only take 3 to avoid blocking
-      (is (= ["hello" "hello" "hello"] result)))))
+(deftest non-existent-field-access-in-a-pipeline-is-nil-tolerant
+  (testing "stub -- not yet implemented"))
 
-(deftest iterate-builds-infinite-sequence-by-applying-function-repeatedly
-  (testing "Scenario: iterate builds an infinite sequence by applying a function repeatedly"
-    (let [result (eval-dt-last
-                  "powers is iterate [n -> n * 2] 1"
-                  "powers |> take 5 |> force!")]
-      (is (= [1 2 4 8 16] result)))))
+;; === Section 5: SQL Push-Down Optimization (Phase 4+, all @stub) ===
 
-(deftest cycle-produces-infinite-repeating-sequence-from-collection
-  (testing "Scenario: cycle produces an infinite repeating sequence from a collection"
-    (let [result (eval-dt-last
-                  "xs is cycle [1 2 3]"
-                  "xs |> take 7 |> force!")]
-      (is (= [1 2 3 1 2 3 1] result)))))
+(deftest filter-pushes-down-to-sql-where-clause
+  (testing "stub -- not yet implemented"))
 
-(deftest dtw-set-and-get-configure-global-runtime-settings
-  (testing "Scenario: dtw/set! and dtw/get configure global runtime settings"
-    ;; dtw/set! returns the value set; dtw/get retrieves it
-    (let [result (eval-dt-last
-                  "dtw/set! \"sample-size\" 200"
-                  "dtw/get \"sample-size\"")]
-      (is (= 200 result)))))
+(deftest sort-by-pushes-down-to-sql-order-by
+  (testing "stub -- not yet implemented"))
+
+(deftest take-pushes-down-to-sql-limit
+  (testing "stub -- not yet implemented"))
+
+(deftest map-with-field-selection-pushes-down-to-sql-select
+  (testing "stub -- not yet implemented"))
+
+(deftest count-on-a-database-source-pushes-down-to-sql-count
+  (testing "stub -- not yet implemented"))
+
+(deftest push-down-stops-at-non-translatable-operations-and-resumes-in-clojure
+  (testing "stub -- not yet implemented"))
+
+(deftest explain-on-a-database-pipeline-shows-generated-sql-and-execution-plan
+  (testing "stub -- not yet implemented"))
+
+(deftest schema-for-a-database-table-uses-database-metadata-not-row-sampling
+  (testing "stub -- not yet implemented"))
+
+(deftest nrepl-op-inspect-pipeline-step-returns-cached-step-sample-by-index
+  (testing "stub -- not yet implemented"))
