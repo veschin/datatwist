@@ -119,6 +119,11 @@
               :description "Nil group keys encountered."
               :hint "Rows with nil group keys were grouped under nil."}
 
+   ;; Config errors
+   "DT-R030" {:category "CONFIG ERROR"
+              :description "Unknown system constant."
+              :hint "Valid constants: SAMPLE_SIZE, DESCRIBE_SAMPLE_SIZE, PRINT_WIDTH, MAX_COLLECT_ROWS."}
+
    ;; Connection errors
    "DT-C001" {:category "FILE NOT FOUND"
               :description "File not found."

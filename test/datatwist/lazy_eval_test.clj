@@ -2,7 +2,8 @@
   (:require [clojure.test :refer [deftest testing is]]
             [datatwist.test-helpers :refer [eval-dt eval-dt-last parse-error? throws? throws-type? type-of
                                             silent-eval-dt silent-eval-dt-last silent-throws?
-                                            capture-eval-dt-last]]))
+                                            capture-eval-dt-last]]
+            [datatwist.config :as config]))
 
 ;; ==========================================================================
 ;; Feature 8: Lazy Evaluation, Data Sources & Pipeline Introspection
@@ -588,36 +589,77 @@
 ;; --- System constants and configuration ---
 
 (deftest sample-size-constant-has-default-value-100
-  (testing "stub -- not yet implemented"))
-;; SAMPLE_SIZE system constant and dtw.* namespace are not yet implemented.
+  (testing "SAMPLE_SIZE bare name and dtw.SAMPLE_SIZE both resolve to 100 by default"
+    (try
+      (is (= 100 (eval-dt "dtw.SAMPLE_SIZE")))
+      (is (= 100 (eval-dt "SAMPLE_SIZE")))
+      (finally (config/reset-config!)))))
 
 (deftest set-bang-dtw-constant-changes-a-system-constant-and-dot-access-reads-it-back
-  (testing "stub -- not yet implemented"))
-;; set! dtw.SAMPLE_SIZE and dtw.CONSTANT dot-access are not yet implemented.
+  (testing "set! dtw.SAMPLE_SIZE changes the constant; dtw.SAMPLE_SIZE reads the new value back"
+    (try
+      (silent-eval-dt-last "set! dtw.SAMPLE_SIZE 50")
+      (is (= 50 (eval-dt "dtw.SAMPLE_SIZE")))
+      (is (= 50 (eval-dt "SAMPLE_SIZE")))
+      (finally (config/reset-config!)))))
 
 (deftest sample-size-affects-how-many-rows-tap-bang-and-repl-preview-show
-  (testing "stub -- not yet implemented"))
-;; SAMPLE_SIZE integration with tap! and REPL sampling is not yet implemented.
+  (testing "setting SAMPLE_SIZE limits how many rows tap! prints"
+    (try
+      (silent-eval-dt-last "set! dtw.SAMPLE_SIZE 3")
+      ;; tap! on a 10-element list prints at most SAMPLE_SIZE rows (3)
+      (let [{:keys [output]} (capture-eval-dt-last
+                              "set! dtw.SAMPLE_SIZE 3"
+                              "[1 2 3 4 5 6 7 8 9 10] |> tap!")]
+        (is (clojure.string/includes? output "[1 2 3]"))
+        (is (not (clojure.string/includes? output "4"))))
+      (finally (config/reset-config!)))))
 
 (deftest describe-sample-size-has-default-value-1000
-  (testing "stub -- not yet implemented"))
-;; DESCRIBE_SAMPLE_SIZE system constant is not yet implemented.
+  (testing "DESCRIBE_SAMPLE_SIZE bare name and dtw.DESCRIBE_SAMPLE_SIZE resolve to 1000 by default"
+    (try
+      (is (= 1000 (eval-dt "dtw.DESCRIBE_SAMPLE_SIZE")))
+      (is (= 1000 (eval-dt "DESCRIBE_SAMPLE_SIZE")))
+      (finally (config/reset-config!)))))
 
 (deftest print-width-has-default-value-120
-  (testing "stub -- not yet implemented"))
-;; PRINT_WIDTH system constant is not yet implemented.
+  (testing "PRINT_WIDTH bare name and dtw.PRINT_WIDTH resolve to 120 by default"
+    (try
+      (is (= 120 (eval-dt "dtw.PRINT_WIDTH")))
+      (is (= 120 (eval-dt "PRINT_WIDTH")))
+      (finally (config/reset-config!)))))
 
 (deftest max-collect-rows-has-default-value-nil-unlimited
-  (testing "stub -- not yet implemented"))
-;; MAX_COLLECT_ROWS system constant is not yet implemented.
+  (testing "MAX_COLLECT_ROWS default is nil (unlimited)"
+    (try
+      (is (nil? (eval-dt "dtw.MAX_COLLECT_ROWS")))
+      (is (nil? (eval-dt "MAX_COLLECT_ROWS")))
+      (finally (config/reset-config!)))))
 
 (deftest setting-max-collect-rows-enforces-a-safety-cap-on-force-bang
-  (testing "stub -- not yet implemented"))
-;; MAX_COLLECT_ROWS enforcement in force! is not yet implemented.
+  (testing "force! on a 10-element list is capped to MAX_COLLECT_ROWS when set"
+    (try
+      (silent-eval-dt-last "set! dtw.MAX_COLLECT_ROWS 3")
+      (let [result (silent-eval-dt "[1 2 3 4 5 6 7 8 9 10] |> force!")]
+        (is (= 3 (count result)))
+        (is (= [1 2 3] result)))
+      (finally (config/reset-config!)))))
 
 (deftest set-bang-dtw-constant-with-an-unknown-constant-raises-an-error-with-hint
-  (testing "stub -- not yet implemented"))
-;; set! dtw.UNKNOWN_KEY error with hint is not yet implemented.
+  (testing "set! dtw.FOOBAR raises CONFIG ERROR with a hint listing valid constants"
+    (try
+      (let [caught (atom nil)]
+        (try
+          (eval-dt "set! dtw.FOOBAR 42")
+          (catch Exception e
+            (reset! caught e)))
+        (is (some? @caught) "should have thrown an exception")
+        (when @caught
+          (let [data (ex-data @caught)]
+            (is (= "DT-R030" (:code data)))
+            (is (= "CONFIG ERROR" (:category data)))
+            (is (clojure.string/includes? (:hint data) "SAMPLE_SIZE")))))
+      (finally (config/reset-config!)))))
 
 ;; === Section 3: Data Sources -- Databases (Phase 3, all @stub) ===
 

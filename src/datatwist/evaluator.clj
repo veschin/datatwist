@@ -3,7 +3,9 @@
             [datatwist.env :as env]
             [datatwist.stdlib :as stdlib]
             [datatwist.parser :as parser]
-            [datatwist.errors :as errors]))
+            [datatwist.errors :as errors]
+            [datatwist.config :as config]
+            [datatwist.pattern-compiler :as pattern-compiler]))
 
 ;; ---------------------------------------------------------------------------
 ;; Forward declarations (all private helpers)
@@ -87,6 +89,71 @@
                      (apply min-key #(levenshtein name %) candidates))]
     (when (and best (<= (levenshtein name best) threshold))
       best)))
+
+;; ---------------------------------------------------------------------------
+;; set! special-form helpers
+;; ---------------------------------------------------------------------------
+
+(defn- set!-call?
+  "Returns true if the CallTarget AST node represents the identifier 'set!'."
+  [call-target-node]
+  (and (vector? call-target-node)
+       (= :CallTarget (first call-target-node))
+       (let [inner (second call-target-node)]
+         (and (vector? inner)
+              (= :Identifier (first inner))
+              (= "set!" (second inner))))))
+
+(defn- extract-config-key
+  "Extract the config key string from a CallArg AST node for set!.
+   Accepts:
+     - bare Identifier   (SAMPLE_SIZE)
+     - FieldAccess with dtw base (dtw.SAMPLE_SIZE)
+   Returns the key string (e.g. 'SAMPLE_SIZE') or throws DT-R030."
+  [call-arg-node]
+  ;; CallArg wraps the actual expression; descend through :CallArg and :NegFieldAccess
+  (letfn [(descend [node]
+            (if (and (vector? node) (#{:CallArg :NegFieldAccess} (first node)))
+              (descend (second node))
+              node))]
+    (let [fa (descend call-arg-node)]
+      (cond
+        ;; dtw.SAMPLE_SIZE: [:FieldAccess [:Atom [:Identifier "dtw"]] [:FieldName "SAMPLE_SIZE"]]
+        (and (vector? fa)
+             (= :FieldAccess (first fa))
+             (= 3 (count fa)))
+        (let [base      (second fa)
+              field-node (nth fa 2)]
+          (if (and (vector? base)
+                   (= :Atom (first base))
+                   (vector? (second base))
+                   (= :Identifier (first (second base)))
+                   (= "dtw" (second (second base)))
+                   (vector? field-node)
+                   (= :FieldName (first field-node)))
+            (second field-node)
+            (throw (ex-info "set! first argument must be dtw.CONSTANT or CONSTANT"
+                            {:dt/error true :code "DT-R030" :category "CONFIG ERROR"
+                             :hint "Use: set! dtw.SAMPLE_SIZE 200  or  set! SAMPLE_SIZE 200"}))))
+
+        ;; Bare SAMPLE_SIZE: [:FieldAccess [:Atom [:Identifier "SAMPLE_SIZE"]]]
+        (and (vector? fa)
+             (= :FieldAccess (first fa))
+             (= 2 (count fa)))
+        (let [base (second fa)]
+          (if (and (vector? base)
+                   (= :Atom (first base))
+                   (vector? (second base))
+                   (= :Identifier (first (second base))))
+            (second (second base))
+            (throw (ex-info "set! first argument must be dtw.CONSTANT or CONSTANT"
+                            {:dt/error true :code "DT-R030" :category "CONFIG ERROR"
+                             :hint "Use: set! dtw.SAMPLE_SIZE 200  or  set! SAMPLE_SIZE 200"}))))
+
+        :else
+        (throw (ex-info "set! first argument must be a system constant name (e.g. SAMPLE_SIZE or dtw.SAMPLE_SIZE)"
+                        {:dt/error true :code "DT-R030" :category "CONFIG ERROR"
+                         :hint "Use: set! dtw.SAMPLE_SIZE 200  or  set! SAMPLE_SIZE 200"}))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Human-readable type names for error messages
@@ -269,6 +336,9 @@
         (= :Regex tag)
         (re-pattern (first children))
 
+        (= :Pattern tag)
+        (pattern-compiler/compile-pattern (first children))
+
         (= :Wildcard tag)
         (env/lookup env "_")
 
@@ -276,17 +346,20 @@
         (let [id-name (first children)
               val     (env/lookup env id-name)]
           (if (and (nil? val) (not (contains? env id-name)))
-            (let [env-names   (keys env)
-                  suggestion  (levenshtein-suggest id-name env-names)]
-              (throw (ex-info (str "Undefined identifier: " id-name
-                                   (when suggestion (str ". Did you mean '" suggestion "'?")))
-                              {:dt/error true :code "DT-R001" :category "UNDEFINED IDENTIFIER"
-                               :hint (if suggestion
-                                       (str "Did you mean '" suggestion "'?")
-                                       "Check the spelling or define the value with `is`.")
-                               :name id-name
-                               :suggestion suggestion
-                               :source *source*})))
+            ;; Not found in env: check if it's a valid ALL_CAPS config key
+            (if (config/valid-key? (keyword id-name))
+              (config/get-config (keyword id-name))
+              (let [env-names   (keys env)
+                    suggestion  (levenshtein-suggest id-name env-names)]
+                (throw (ex-info (str "Undefined identifier: " id-name
+                                     (when suggestion (str ". Did you mean '" suggestion "'?")))
+                                {:dt/error true :code "DT-R001" :category "UNDEFINED IDENTIFIER"
+                                 :hint (if suggestion
+                                         (str "Did you mean '" suggestion "'?")
+                                         "Check the spelling or define the value with `is`.")
+                                 :name id-name
+                                 :suggestion suggestion
+                                 :source *source*}))))
             val))
 
         (= :ParenExpr tag)
@@ -542,13 +615,26 @@
         ;; --- FnCall ---
         (= :FnCall tag)
         (let [call-target (first children)
-              call-args   (rest children)
-              ;; Evaluate call target with constructor-callable? = true so that
-              ;; Constructor nodes return a fn rather than auto-invoking with 0 args.
-              f           (binding [*constructor-callable?* true]
-                            (eval-node call-target env))
-              args        (mapv #(eval-node (second %) env) call-args)]
-          (apply-fn f args))
+              call-args   (rest children)]
+          (if (set!-call? call-target)
+            ;; Special form: set! dtw.CONSTANT value  OR  set! CONSTANT value
+            ;; Do NOT evaluate the first argument — extract key name from AST.
+            ;; call-args is a list of [:CallArg inner-expr] nodes.
+            (do
+              (when (not= 2 (count call-args))
+                (throw (ex-info "set! requires exactly 2 arguments: a constant name and a new value"
+                                {:dt/error true :code "DT-R030" :category "CONFIG ERROR"
+                                 :hint "Usage: set! dtw.SAMPLE_SIZE 200"})))
+              (let [key-str (extract-config-key (first call-args))
+                    ;; Evaluate the second CallArg's inner expression (same as generic path)
+                    new-val (eval-node (second (second call-args)) env)]
+                (config/set-config! (keyword key-str) new-val)
+                new-val))
+            ;; Generic function call: evaluate target and all args
+            (let [f    (binding [*constructor-callable?* true]
+                         (eval-node call-target env))
+                  args (mapv #(eval-node (second %) env) call-args)]
+              (apply-fn f args))))
 
         ;; --- Recur ---
         (= :Recur tag)
@@ -1215,6 +1301,19 @@
                       (let [lit (eval-node guard-innermost env)]
                         [(not (or (nil? lit) (false? lit))) env]))
 
+                    ;; String Pattern: #p"..." in guard position
+                    ;; Compiles the pattern, applies it to ctx.
+                    ;; On match: binds all named captures in env.
+                    ;; On no-match (including non-string ctx): fails this arm.
+                    (and (vector? guard-inner)
+                         (= :Pattern (first guard-inner)))
+                    (let [pat-val (eval-node guard-inner env)
+                          result  (pattern-compiler/apply-pattern pat-val ctx)]
+                      (if result
+                        ;; Merge captures into env as string bindings
+                        [true (merge env (into {} (map (fn [[k v]] [(name k) v]) result)))]
+                        [false env]))
+
                     ;; Bare literal pattern: | 42 / | "ok" / | true / | nil
                     ;; When _ is bound: compare against ctx (equality match).
                     ;; When _ is not bound: evaluate as DataTwist boolean condition
@@ -1234,9 +1333,18 @@
                     ;; Boolean expression guard: evaluate the inner expression
                     ;; Undefined identifiers in guard conditions are nil-tolerant
                     ;; (they evaluate to nil/false, causing the arm to be skipped).
+                    ;; If the evaluated value is a compiled pattern, apply it to ctx.
                     :else
                     (try
-                      [(eval-node guard-inner env) env]
+                      (let [val (eval-node guard-inner env)]
+                        (if (= :pattern (:dt/type val))
+                          ;; Named pattern (bound via is): apply to ctx
+                          (let [result (pattern-compiler/apply-pattern val ctx)]
+                            (if result
+                              [true (merge env (into {} (map (fn [[k v]] [(name k) v]) result)))]
+                              [false env]))
+                          ;; Boolean expression
+                          [val env]))
                       (catch clojure.lang.ExceptionInfo e
                         (if (= "DT-R001" (:code (ex-data e)))
                           [nil env]

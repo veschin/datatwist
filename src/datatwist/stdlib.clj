@@ -1,5 +1,7 @@
 (ns datatwist.stdlib
-  (:require [datatwist.errors :as errors]))
+  (:require [datatwist.errors :as errors]
+            [datatwist.config :as config]
+            [datatwist.pattern-compiler :as pattern-compiler]))
 
 ;; ---------------------------------------------------------------------------
 ;; Helper functions used by the stdlib
@@ -251,7 +253,6 @@
 ;; Exploration functions (Feature 8)
 ;; ---------------------------------------------------------------------------
 
-(def ^:private DESCRIBE_SAMPLE_SIZE 1000)
 (def ^:private SCHEMA_SAMPLE_SIZE   100)
 
 (defn- numeric? [v]
@@ -281,7 +282,7 @@
    Returns a map of column-name -> stats map with :count :nil-count :type.
    For numeric columns also includes :min :max :sum :mean.
    For comparable non-numeric columns includes :min :max."
-  ([coll] (dt-describe coll DESCRIBE_SAMPLE_SIZE))
+  ([coll] (dt-describe coll (config/get-config :DESCRIBE_SAMPLE_SIZE)))
   ([coll sample-size]
    (let [rows (vec (take sample-size coll))]
      (when (empty? rows)
@@ -366,7 +367,7 @@
    Returns a map with :bins (list of {from: X to: Y count: N}) and :bin-count.
    Samples at most DESCRIBE_SAMPLE_SIZE rows."
   [coll f]
-  (let [rows   (vec (take DESCRIBE_SAMPLE_SIZE coll))
+  (let [rows   (vec (take (config/get-config :DESCRIBE_SAMPLE_SIZE) coll))
         vals   (vec (remove nil? (map f rows)))]
     (if (empty? vals)
       {:bins [] :bin-count 10}
@@ -568,7 +569,15 @@
    "includes?"   clojure.string/includes?
    "substring"   dt-substring
    ;; Materialization
-   "force!"      (fn [data] (if (vector? data) data (vec data)))
+   "force!"      (fn [data]
+                   (let [limit  (config/get-config :MAX_COLLECT_ROWS)
+                         result (if (vector? data) data (vec data))]
+                     (if (and limit (> (count result) limit))
+                       (do
+                         (println (str "WARNING: force! result truncated to " limit
+                                       " rows (MAX_COLLECT_ROWS). Source had " (count result) " rows."))
+                         (vec (take limit result)))
+                       result)))
    ;; Infinite / lazy sequence generators
    "repeat"      (fn ([v] (clojure.core/repeat v))
                    ([n v] (clojure.core/repeat n v)))
@@ -576,33 +585,39 @@
    "cycle"       (fn [coll] (clojure.core/cycle coll))
    ;; Side-effect builtins (pre-wrapped: return first arg)
    ;; tap! -- the ONLY pipeline debug probe. Always passthrough: returns first arg unchanged.
-   ;; SAMPLE_SIZE is hardcoded at 100 (will be replaced by configurable constant later).
+   ;; SAMPLE_SIZE is read dynamically from config at call time.
    ;; Bare mode   : (tap! data)          -- prints "--- tap! ---" header then sample
    ;; Labeled mode: (tap! data label)    -- prints "--- label ---" header then sample
    ;; Lambda mode : (tap! data fn)       -- applies fn to sample for display only, returns original data
-   "tap!"        (let [sample-size 100
-                       print-sample (fn [data]
-                                      (if (sequential? data)
-                                        (println (vec (take sample-size data)))
-                                        (println data)))]
-                   (fn
-                     ([data]
-                      ;; Bare mode: print header then sample
+   "tap!"        (fn
+                   ([data]
+                    ;; Bare mode: print header then sample
+                    (let [sample-size (config/get-config :SAMPLE_SIZE)]
                       (println "--- tap! ---")
-                      (print-sample data)
-                      data)
-                     ([data label-or-fn]
+                      (if (sequential? data)
+                        (println (vec (take sample-size data)))
+                        (println data))
+                      data))
+                   ([data label-or-fn]
+                    (let [sample-size (config/get-config :SAMPLE_SIZE)]
                       (if (string? label-or-fn)
                         ;; Labeled mode: print "--- label ---" header then sample
                         (do
                           (println (str "--- " label-or-fn " ---"))
-                          (print-sample data)
+                          (if (sequential? data)
+                            (println (vec (take sample-size data)))
+                            (println data))
                           data)
                         ;; Lambda mode: apply fn to sample for display only, return original data
                         (let [sample (if (sequential? data) (vec (take sample-size data)) data)]
                           (println (label-or-fn sample))
                           data)))))
    "save!"       (fn [data & _args] data)
+   ;; dtw namespace sentinel object — field access reads config dynamically
+   ;; e.g. dtw.SAMPLE_SIZE → (config/get-config :SAMPLE_SIZE)
+   "dtw"         (reify clojure.lang.ILookup
+                   (valAt [_ k] (config/get-config k))
+                   (valAt [_ k _not-found] (config/get-config k)))
    ;; Exploration functions (Feature 8)
    "describe"    dt-describe
    "schema"      dt-schema
@@ -624,4 +639,15 @@
    "connect"     (fn [uri]
                    (throw (ex-info (str "Connection failed: " uri)
                                    {:dt/error true :code "DT-C002" :category "CONNECTION ERROR"
-                                    :hint "Check that the database is running and the URI is correct."})))})
+                                    :hint "Check that the database is running and the URI is correct."})))
+   ;; Pattern matching functions (Feature 13)
+   ;; extract: apply a compiled pattern to a string, return captures map or nil
+   "extract"     (fn [input pat]
+                   (when (and (string? input) (map? pat) (= :pattern (:dt/type pat)))
+                     (pattern-compiler/apply-pattern pat input)))
+   ;; match?: boolean test — does the pattern match the string?
+   "match?"      (fn [input pat]
+                   (boolean (and (string? input)
+                                 (map? pat)
+                                 (= :pattern (:dt/type pat))
+                                 (pattern-compiler/apply-pattern pat input))))})
