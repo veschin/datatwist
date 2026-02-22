@@ -281,9 +281,10 @@ Remaining:
 
 - [x] Expected token hints in parse errors (what the parser expected at the failure point) — format-expected-tokens in errors.clj
 - [x] Suppress Java/Clojure stack traces from user output — demo_runner uses render-exception
-- [ ] Data-aware warnings (nil prevalence, common mistakes) — non-blocking by default
+- [ ] Data-aware warnings (nil prevalence, common mistakes) — non-blocking by default. Blocked on DTPipeline sampling.
 - [x] JSON error output: `{:code "DT-T001" :message "..." :hint "..." :line N :col N}` — Added 'col' field alias in error_renderer.clj
 - [x] Error code registry (`docs/error-codes.md`): catalog of all codes with descriptions, examples, fix suggestions — docs/error-codes.md created
+- [x] Test quality: strengthen parse-error and common-mistake tests with error code and hint content checks (was: boolean-only `parse-error?` assertions)
 
 #### Design decisions (locked)
 
@@ -437,6 +438,8 @@ Functions specified in PRD but not yet implemented. Needs user decisions on some
 
 - [x] `fill-nil` — fill nil values with a default — Implemented in stdlib.clj, tests in interop_test.clj
 - [x] `skip-nil` — remove nil entries from collections — Implemented in stdlib.clj, tests in interop_test.clj
+- [x] `median` — median of a numeric collection — Implemented in stdlib.clj, BDD in pipeline.feature, tests in pipeline_test.clj
+- [ ] `summarize` — aggregation function (needs design: what fields does it produce?)
 - [ ] `coerce` — type coercion function
 - [ ] `join` / `left-join` / `inner-join` / `outer-join` — multi-source join operations
 - [ ] `define` — user-defined function declaration (PRD stdlib section)

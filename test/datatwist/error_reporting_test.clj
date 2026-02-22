@@ -54,41 +54,99 @@
        (not (re-find #"\bat java\."             msg))
        (not (re-find #"\bat clojure\."          msg))))
 
+(defn- parse-error-data
+  "Parse a DataTwist source string, assert it is a parse failure, and return
+   the structured ex-data produced by parse-failure->dt-error.
+   Returns nil if the input unexpectedly parses successfully."
+  [source]
+  (let [parse-result (parser/parse source)]
+    (when (instaparse.core/failure? parse-result)
+      (ex-data (errors/parse-failure->dt-error parse-result source)))))
+
 ;; ==========================================================================
 ;; SECTION 1: Parse Errors — detected at parse time (before evaluation)
 ;; ==========================================================================
 
 (deftest parse-error-unexpected-end-of-expression-after-operator
   (testing "Scenario: Parse error - unexpected end of expression after operator"
-    (is (parse-error? "users |> filter _.age >"))))
+    (is (parse-error? "users |> filter _.age >"))
+    (let [data (parse-error-data "users |> filter _.age >")]
+      (is (some? data) "parse failure must produce structured error data")
+      (is (re-find #"^DT-P\d{3}$" (str (:code data)))
+          "error code must match DT-P format for a parse error")
+      (is (string? (:message data)) "error must include a descriptive message string")
+      (is (some? (:hint data)) "error must include an actionable hint"))))
 
 (deftest parse-error-unclosed-string-literal
   (testing "Scenario: Parse error - unclosed string literal"
-    (is (parse-error? "name is \"Alice"))))
+    (is (parse-error? "name is \"Alice"))
+    (let [data (parse-error-data "name is \"Alice")]
+      (is (some? data) "parse failure must produce structured error data")
+      (is (re-find #"^DT-P\d{3}$" (str (:code data)))
+          "error code must match DT-P format for a parse error")
+      (is (string? (:message data)) "error must include a descriptive message string")
+      (is (some? (:hint data)) "error must include an actionable hint"))))
 
 (deftest parse-error-unclosed-object-literal
   (testing "Scenario: Parse error - unclosed object literal"
-    (is (parse-error? "user is {name: \"Alice\" age: 25"))))
+    (is (parse-error? "user is {name: \"Alice\" age: 25"))
+    (let [data (parse-error-data "user is {name: \"Alice\" age: 25")]
+      (is (some? data) "parse failure must produce structured error data")
+      (is (re-find #"^DT-P\d{3}$" (str (:code data)))
+          "error code must match DT-P format for a parse error")
+      (is (string? (:message data)) "error must include a descriptive message string")
+      (is (some? (:hint data)) "error must include an actionable hint"))))
 
 (deftest parse-error-unclosed-list-literal
   (testing "Scenario: Parse error - unclosed list literal"
-    (is (parse-error? "items is [1 2 3"))))
+    (is (parse-error? "items is [1 2 3"))
+    (let [data (parse-error-data "items is [1 2 3")]
+      (is (some? data) "parse failure must produce structured error data")
+      (is (re-find #"^DT-P\d{3}$" (str (:code data)))
+          "error code must match DT-P format for a parse error")
+      (is (string? (:message data)) "error must include a descriptive message string")
+      (is (some? (:hint data)) "error must include an actionable hint"))))
 
 (deftest parse-error-missing-arrow-in-guard-branch
   (testing "Scenario: Parse error - missing arrow in guard branch"
-    (is (parse-error? "tier is\n  | amount > 1000 \"gold\"\n  | _ -> \"bronze\""))))
+    (is (parse-error? "tier is\n  | amount > 1000 \"gold\"\n  | _ -> \"bronze\""))
+    (let [src  "tier is\n  | amount > 1000 \"gold\"\n  | _ -> \"bronze\""
+          data (parse-error-data src)]
+      (is (some? data) "parse failure must produce structured error data")
+      (is (re-find #"^DT-P\d{3}$" (str (:code data)))
+          "error code must match DT-P format for a parse error")
+      (is (string? (:message data)) "error must include a descriptive message string")
+      (is (some? (:hint data)) "error must include an actionable hint"))))
 
 (deftest parse-error-missing-expression-after-pipe-operator
   (testing "Scenario: Parse error - missing expression after pipe operator"
-    (is (parse-error? "data |>"))))
+    (is (parse-error? "data |>"))
+    (let [data (parse-error-data "data |>")]
+      (is (some? data) "parse failure must produce structured error data")
+      (is (re-find #"^DT-P\d{3}$" (str (:code data)))
+          "error code must match DT-P format for a parse error")
+      (is (string? (:message data)) "error must include a descriptive message string")
+      (is (some? (:hint data)) "error must include an actionable hint"))))
 
 (deftest parse-error-double-pipe-operators
   (testing "Scenario: Parse error - double pipe operators"
-    (is (parse-error? "data |> |> count"))))
+    (is (parse-error? "data |> |> count"))
+    (let [data (parse-error-data "data |> |> count")]
+      (is (some? data) "parse failure must produce structured error data")
+      (is (re-find #"^DT-P\d{3}$" (str (:code data)))
+          "error code must match DT-P format for a parse error")
+      (is (string? (:message data)) "error must include a descriptive message string")
+      (is (some? (:hint data)) "error must include an actionable hint"))))
 
 (deftest parse-error-lambda-missing-arrow
   (testing "Scenario: Parse error - lambda missing arrow"
-    (is (parse-error? "double is [x x * 2]"))))
+    (is (parse-error? "double is [x x * 2]"))
+    (let [data (parse-error-data "double is [x x * 2]")]
+      (is (some? data) "parse failure must produce structured error data")
+      (is (re-find #"^DT-P\d{3}$" (str (:code data)))
+          "error code must match DT-P format for a parse error")
+      (is (string? (:message data)) "error must include a descriptive message string")
+      (is (some? (:hint data)) "error must include an actionable hint"))))
 
 ;; ==========================================================================
 ;; SECTION 2: Common Mistake Detection (Parse-time)
@@ -96,31 +154,75 @@
 
 (deftest common-mistake-using-=-for-assignment-instead-of-is
   (testing "Scenario: Common mistake - using = for assignment instead of is"
-    (is (parse-error? "x = 42"))))
+    (is (parse-error? "x = 42"))
+    (let [data (parse-error-data "x = 42")]
+      (is (some? data) "common mistake must produce structured error data")
+      (is (= "DT-P020" (:code data))
+          "using = for assignment must produce error code DT-P020")
+      (is (re-find #"(?i)is" (str (:hint data)))
+          "hint must instruct user to use 'is' for assignment"))))
 
 (deftest common-mistake-using-:=-for-assignment
   (testing "Scenario: Common mistake - using := for assignment"
-    (is (parse-error? "x := 42"))))
+    (is (parse-error? "x := 42"))
+    (let [data (parse-error-data "x := 42")]
+      (is (some? data) "common mistake must produce structured error data")
+      (is (= "DT-P021" (:code data))
+          "using := for assignment must produce error code DT-P021")
+      (is (re-find #"(?i)is" (str (:hint data)))
+          "hint must instruct user to use 'is' for assignment"))))
 
 (deftest common-mistake-using-=>-instead-of-->-in-lambda
   (testing "Scenario: Common mistake - using => instead of -> in lambda"
-    (is (parse-error? "double is [x => x * 2]"))))
+    (is (parse-error? "double is [x => x * 2]"))
+    (let [data (parse-error-data "double is [x => x * 2]")]
+      (is (some? data) "common mistake must produce structured error data")
+      (is (= "DT-P022" (:code data))
+          "using => in a lambda must produce error code DT-P022")
+      (is (re-find #"->" (str (:hint data)))
+          "hint must tell user to use '->' in function definitions"))))
 
 (deftest common-mistake-using-&&-for-logical-and
   (testing "Scenario: Common mistake - using && for logical and"
-    (is (parse-error? "result is x > 5 && y < 10"))))
+    (is (parse-error? "result is x > 5 && y < 10"))
+    (let [data (parse-error-data "result is x > 5 && y < 10")]
+      (is (some? data) "common mistake must produce structured error data")
+      (is (= "DT-P023" (:code data))
+          "using && must produce error code DT-P023")
+      (is (re-find #"(?i)and" (str (:hint data)))
+          "hint must tell user to use 'and' instead of '&&'"))))
 
 (deftest common-mistake-using-!-for-logical-not
   (testing "Scenario: Common mistake - using ! for logical not"
-    (is (parse-error? "result is !active"))))
+    (is (parse-error? "result is !active"))
+    (let [data (parse-error-data "result is !active")]
+      (is (some? data) "common mistake must produce structured error data")
+      (is (= "DT-P024" (:code data))
+          "using ! for logical-not must produce error code DT-P024")
+      (is (re-find #"(?i)not" (str (:hint data)))
+          "hint must instruct user to use 'not' instead of '!'"))))
 
 (deftest common-mistake-using-comma-as-list-separator
   (testing "Scenario: Common mistake - using comma as list separator"
-    (is (parse-error? "items is [1, 2, 3]"))))
+    (is (parse-error? "items is [1, 2, 3]"))
+    (let [data (parse-error-data "items is [1, 2, 3]")]
+      (is (some? data) "common mistake must produce structured error data")
+      (is (= "DT-P025" (:code data))
+          "using commas in a list must produce error code DT-P025")
+      (is (re-find #"(?i)spaces?\b|space" (str (:hint data)))
+          "hint must tell user to use spaces instead of commas in lists")
+      (is (re-find #"\[1 2 3\]" (str (:hint data)))
+          "hint must show the correct list syntax [1 2 3]"))))
 
 (deftest common-mistake-using-comma-as-object-field-separator
   (testing "Scenario: Common mistake - using comma as object field separator"
-    (is (parse-error? "user is {name: \"Alice\", age: 25}"))))
+    (is (parse-error? "user is {name: \"Alice\", age: 25}"))
+    (let [data (parse-error-data "user is {name: \"Alice\", age: 25}")]
+      (is (some? data) "common mistake must produce structured error data")
+      (is (= "DT-P026" (:code data))
+          "using commas between object fields must produce error code DT-P026")
+      (is (re-find #"(?i)spaces?\b|space" (str (:hint data)))
+          "hint must tell user to use spaces instead of commas in objects"))))
 
 ;; ==========================================================================
 ;; SECTION 3: Error Message Format
@@ -364,7 +466,15 @@
 (deftest parse-error-completely-unrecognised-token-generic-fallback
   (testing "Scenario: Parse error - completely unrecognised token (generic fallback)"
     (is (parse-error? "@ 42")
-        "a completely unrecognised token must be rejected by the parser")))
+        "a completely unrecognised token must be rejected by the parser")
+    (let [data (parse-error-data "@ 42")]
+      (is (some? data) "unrecognised token must produce structured error data")
+      (is (= "DT-P001" (:code data))
+          "generic parse failure must fall back to error code DT-P001")
+      (is (re-find #"^DT-P\d{3}$" (str (:code data)))
+          "error code must match DT-P format")
+      (is (string? (:message data)) "error must include a descriptive message string")
+      (is (some? (:hint data)) "error must include an actionable hint"))))
 
 ;; ==========================================================================
 ;; SECTION 6: Data-Aware Warnings (nil prevalence)

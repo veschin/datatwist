@@ -91,6 +91,20 @@
         (quot s n)
         (/ (double s) n)))))
 
+(defn- dt-median [coll]
+  (if (empty? coll)
+    nil
+    (let [sorted (vec (sort coll))
+          n (count sorted)
+          mid (quot n 2)]
+      (if (odd? n)
+        (nth sorted mid)
+        (let [a (nth sorted (dec mid))
+              b (nth sorted mid)]
+          (if (and (integer? a) (integer? b) (zero? (rem (+ a b) 2)))
+            (quot (+ a b) 2)
+            (/ (+ (double a) (double b)) 2.0)))))))
+
 (defn- dt-flatten [coll]
   (apply concat coll))
 
@@ -537,6 +551,7 @@
    "drop"        dt-drop
    "sum"         dt-sum
    "average"     dt-average
+   "median"      dt-median
    "flatten"     dt-flatten
    "distinct"    dt-distinct
    "reverse"     dt-reverse

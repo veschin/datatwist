@@ -260,6 +260,18 @@
   (testing "Scenario: average computes the arithmetic mean"
     (is (= 20 (eval-dt "[10 20 30] |> average")))))
 
+(deftest median-of-collection
+  (testing "Scenario: median returns the middle value of a sorted odd-length collection"
+    (is (= 2 (eval-dt "median [3 1 2]"))))
+  (testing "Scenario: median returns the average of the two middle values for even-length collection"
+    (is (= 2.5 (eval-dt "median [3 1 4 2]"))))
+  (testing "Scenario: median of a single-element collection returns that element"
+    (is (= 42 (eval-dt "median [42]"))))
+  (testing "Scenario: median of an empty collection returns nil"
+    (is (nil? (eval-dt "median []"))))
+  (testing "Scenario: median works in a pipeline"
+    (is (= 3 (eval-dt "[1 2 3 4 5] |> median")))))
+
 (deftest distinct-removes-duplicate-elements
   (testing "Scenario: distinct removes duplicate elements"
     (is (= [1 2 3] (eval-dt "[1 2 2 3 3 3] |> distinct")))))

@@ -530,25 +530,25 @@ Feature: Clojure Interop, Comments, Try-Catch, Nil Semantics, and Miscellaneous
     When it is evaluated
     Then the result is false
 
-  Scenario: Nil greater-than a value is false
+  Scenario: Nil greater-than a value is nil (three-valued)
     Given the DataTwist expression "nil > 5"
     When it is evaluated
-    Then the result is false
+    Then the result is nil
 
-  Scenario: Nil less-than a value is false
+  Scenario: Nil less-than a value is nil (three-valued)
     Given the DataTwist expression "nil < 5"
     When it is evaluated
-    Then the result is false
+    Then the result is nil
 
-  Scenario: Nil greater-or-equal is false
+  Scenario: Nil greater-or-equal is nil (three-valued)
     Given the DataTwist expression "nil >= 0"
     When it is evaluated
-    Then the result is false
+    Then the result is nil
 
-  Scenario: Nil less-or-equal is false
+  Scenario: Nil less-or-equal is nil (three-valued)
     Given the DataTwist expression "nil <= 0"
     When it is evaluated
-    Then the result is false
+    Then the result is nil
 
   # --- 4D: Nil in logical operators ---
 
