@@ -56,7 +56,7 @@ When reviewing design decisions with the user, use `AskUserQuestion` with multi-
 
 - NEVER read large files (>100 lines) in their entirety — they won't fit in context.
 - Always use `offset`/`limit` parameters when reading files, or use Grep to find specific sections.
-- **`evaluator.clj` (~1600 lines) and `stdlib.clj` (~435 lines)** are the largest files — always grep first, then read targeted sections.
+- **`evaluator.clj` (~1800 lines) and `stdlib.clj` (~660 lines)** are the largest files — always grep first, then read targeted sections.
 - For test files: grep for the specific failing test name, then read only that section.
 
 ## Project Overview
@@ -86,9 +86,11 @@ DataTwist source → grammar (Instaparse EBNF) → parser → AST → evaluator 
 |---|---|
 | `resources/datatwist.grammar` | Instaparse EBNF grammar (~195 lines). Manual whitespace (`_` = optional, `__` = required). No `:auto-whitespace`. Keywords hidden via `<>`. Comments use `//`. |
 | `src/datatwist/parser.clj` | Thin wrapper: `parse`, `parse-error?`, `eval-dt` (lazy-requires evaluator) |
-| `src/datatwist/evaluator.clj` | Tree-walking evaluator (~1600 lines). `evaluate`, `eval-node`, `eval-expr`, pipeline/guard/destructuring dispatch. **Largest file — always grep + offset/limit, never read whole.** |
+| `src/datatwist/evaluator.clj` | Tree-walking evaluator (~1800 lines). `evaluate`, `eval-node`, `eval-expr`, pipeline/guard/destructuring dispatch. **Largest file — always grep + offset/limit, never read whole.** |
 | `src/datatwist/env.clj` | Environment (scoping): `make-env`, `lookup`, `bind`, `bind-many` — simple map-based |
-| `src/datatwist/stdlib.clj` | Standard library (~435 lines): built-in functions (`map`, `filter`, `reduce`, `sort-by`, `tap!`, etc.) injected into the default environment |
+| `src/datatwist/stdlib.clj` | Standard library (~660 lines): built-in functions (`map`, `filter`, `reduce`, `sort-by`, `tap!`, etc.) injected into the default environment |
+| `src/datatwist/config.clj` | Runtime config store (`get-config`, `set-config!`, `reset-config!`). Holds `:SAMPLE_SIZE`, `:DESCRIBE_SAMPLE_SIZE`, `:PRINT_WIDTH`, `:MAX_COLLECT_ROWS` |
+| `src/datatwist/pattern_compiler.clj` | Compiles `#p"..."` pattern strings to regex-based matchers (`compile-pattern`, `apply-pattern`). Phase 1: simple `{var}` captures |
 | `src/datatwist/errors.clj` | Error code registry (DT-XNNN format) and canonical error map shape (`{:dt/error true :code :category :message :hint ...}`) |
 | `src/datatwist/error_renderer.clj` | Elm/Rust-style error rendering with optional ANSI color. Respects `NO_COLOR`/`DT_NO_COLOR` |
 | `src/datatwist/demo_runner.clj` | `make demo` entry point — language showcase |
@@ -106,9 +108,10 @@ Tests follow a strict BDD-to-TDD mapping: each `deftest` corresponds 1:1 to a BD
 | `binding_test.clj` | `5-binding-destructuring.feature` | `is` binding, object/list destructuring |
 | `pattern_matching_test.clj` | `6-pattern-matching.feature` | Guards (`\| expr -> result`), structural matching |
 | `interop_test.clj` | `7-interop-misc.feature` | Clojure interop, require, miscellaneous |
-| `error_reporting_test.clj` | `9-error-reporting.feature` | Error codes, messages, rendering (stubs — not yet implemented) |
-| `lazy_eval_test.clj` | `8-lazy-eval-data-sources.feature` | Lazy evaluation, data sources (stubs — not yet implemented) |
+| `error_reporting_test.clj` | `9-error-reporting.feature` | Error codes, messages, rendering |
+| `lazy_eval_test.clj` | `8-lazy-eval-data-sources.feature` | Lazy evaluation, data sources (partially implemented — DTPipeline stubs remain) |
 | `demo_runner_test.clj` | `10-demo-runner.feature` | Demo runner integration |
+| `pattern_destructuring_test.clj` | `13-pattern-destructuring.feature` | `#p"..."` pattern matching, destructuring, guards |
 
 **Exception: `parser_test.clj`** does not use `test_helpers.clj`. It has its own helpers (`parses?`, `parse-fails?`, `ast`, `simplify`) that test the grammar directly via `instaparse.core`, without going through `eval-dt`.
 
@@ -118,14 +121,16 @@ All other test files use helpers from `test/datatwist/test_helpers.clj`:
 - `parse-error?` — Assert syntax is rejected by the parser
 - `throws?` / `throws-type?` — Assert runtime exceptions
 - `type-of` — Return the JVM class of an evaluated expression
+- `silent-eval-dt` / `silent-eval-dt-last` — Evaluate while suppressing stdout
+- `capture-eval-dt-last` — Returns `{:result :output}` map capturing stdout
 
 ### BDD Specifications
 
-`bdd/` contains 12 Gherkin `.feature` files (numbered 1–12) that serve as the authoritative language specification. Features 8–9 have BDD + test stubs but no evaluator support yet. Features 11–12 (LSP, nREPL) are design-only.
+`bdd/` contains 13 Gherkin `.feature` files (numbered 1–13) that serve as the authoritative language specification. Features 11–12 (LSP, nREPL) are design-only.
 
 ## Current Status
 
-Grammar and evaluator are complete. Features 1–7 fully implemented (~500+ tests, 0 failures). Features 8–9 (lazy eval, error reporting) have BDD + test stubs but no evaluator support yet. Features 10–12 (demo runner, LSP, nREPL) are in various stages of design.
+Grammar and evaluator are complete. Features 1–7 fully implemented. Feature 9 (error reporting) implemented. Feature 8 (lazy eval) partially implemented — lazy sequences and `force!` work, DTPipeline/push-down stubs remain. Feature 13 (pattern destructuring `#p`) Phase 1 implemented. ~768 deftest blocks across all test files. Features 10–12 (demo runner, LSP, nREPL) are in various stages of design.
 
 ## Key Language Design Decisions
 
