@@ -75,6 +75,23 @@
             (recur (inc i) segments (.append lit-buf c))))))))
 
 ;; ---------------------------------------------------------------------------
+;; Type hint compilation (Tier 2)
+;; ---------------------------------------------------------------------------
+
+(defn- compile-type-hint
+  "Parse a Tier 2 type hint string (the raw text after ':' in {name:hint}).
+   Returns a regex fragment string, or nil if not a recognised hint."
+  [hint]
+  (cond
+    (nil? hint)                    nil
+    (= hint "d")                   "\\d+"
+    (= hint "w")                   "\\w+"
+    (re-matches #"(\d+)d" hint)    (let [[_ n] (re-matches #"(\d+)d" hint)]
+                                     (str "\\d{" n "}"))
+    (re-matches #"\d+" hint)       (str ".{" hint "}")
+    :else                          nil))
+
+;; ---------------------------------------------------------------------------
 ;; Compile-time validation
 ;; ---------------------------------------------------------------------------
 
@@ -99,10 +116,21 @@
                                         (:name prev) "} and {" (:name seg)
                                         "}. Add a literal separator between them.")
                          :source   source})))
+      (when (and (= :capture (:type seg))
+                 (some? (:constraint seg))
+                 (nil? (compile-type-hint (:constraint seg))))
+        (throw (ex-info (str "Unrecognised pattern type hint: \"" (:constraint seg) "\"")
+                        {:dt/error  true
+                         :code      "DT-P013"
+                         :category  "PATTERN ERROR"
+                         :message   (str "Type hint \"" (:constraint seg)
+                                         "\" is not recognised. Valid hints: :d (digits), :w (word chars), :N (N chars), :Nd (N digits)")
+                         :hint      "Use :d, :w, :3, :4d etc. Example: #p\"{year:4d}-{month:2d}\""
+                         :source    source})))
       (recur (rest segs) seg))))
 
 ;; ---------------------------------------------------------------------------
-;; Regex builder — Phase 1
+;; Regex builder — Phase 1 + Phase 2 (type hints)
 ;; ---------------------------------------------------------------------------
 
 (defn- wildcard-group-name
@@ -118,6 +146,7 @@
      :literal -> Pattern/quote the text
      :capture (no constraint) -> named group (?<name>.*?) for non-final captures
                                   (?<name>.*) for last capture in sequence
+   Tier 2: if constraint is a recognised type hint, use its regex instead.
    The caller handles last-capture distinction.
    seg-idx is the index of this segment (used to make unique wildcard group names)."
   [seg seg-idx is-last?]
@@ -126,13 +155,13 @@
     (java.util.regex.Pattern/quote (:text seg))
 
     :capture
-    (let [name  (:name seg)
-          ;; Phase 1: no constraint means .*? (non-greedy) except last which is .*
-          inner (if is-last? ".*" ".*?")
-          ;; Java named groups cannot start with _; use wc<idx> for wildcards
+    (let [name       (:name seg)
+          constraint (:constraint seg)
           group-name (if (= name "_")
                        (wildcard-group-name seg-idx)
-                       name)]
+                       name)
+          inner      (or (compile-type-hint constraint)
+                         (if is-last? ".*" ".*?"))]
       (str "(?<" group-name ">" inner ")"))))
 
 (defn- build-regex-str

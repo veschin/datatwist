@@ -49,6 +49,12 @@
    "DT-P009" {:category "PARSE ERROR"
               :description "Missing `->` in function definition."
               :hint "Function syntax is `[params -> body]`."}
+   "DT-P010" {:category "PATTERN ERROR"
+              :description "Adjacent unconstrained captures in #p pattern"
+              :hint "Add a literal separator between captures, or use type hints (:d, :w, :N, :Nd)"}
+   "DT-P013" {:category "PATTERN ERROR"
+              :description "Unrecognised type hint in #p pattern"
+              :hint "Valid hints: :d (digits), :w (word chars), :N (N chars), :Nd (N digits)"}
    "DT-P020" {:category "COMMON MISTAKE"
               :description "DataTwist uses `is` for assignment, not `=`."
               :hint "Write `x is 42` instead of `x = 42`."}
@@ -214,31 +220,68 @@
 ;; Parse failure → DT error
 ;; ---------------------------------------------------------------------------
 
+(def ^:private nt-name-map
+  {:Expr       "an expression"
+   :Identifier "a name"
+   :StringLit  "a string"
+   :Integer    "a number"
+   :Float      "a number"
+   :ListLit    "a list"
+   :ObjectLit  "an object"
+   :FnDef      "a function"
+   :Statement  "a statement"
+   :Pipeline   "a pipeline"})
+
+(def ^:private regex-desc-map
+  {"[0-9]"           "a number"
+   "[a-zA-Z]"        "a name"
+   "[^\"\\\\]"       "a string"})
+
+(defn- format-expected-tokens
+  "Extract readable expected-token descriptions from Instaparse failure :reason."
+  [fail-data]
+  (when-let [reasons (seq (:reason fail-data))]
+    (let [readable (keep (fn [{:keys [tag expecting]}]
+                           (case tag
+                             :string  (str "`" expecting "`")
+                             :nt      (get nt-name-map expecting
+                                           (some-> expecting name))
+                             :regexp  (some (fn [[substr desc]]
+                                              (when (clojure.string/includes? (str expecting) substr)
+                                                desc))
+                                            regex-desc-map)
+                             nil))
+                         reasons)
+          uniq (distinct (remove nil? readable))]
+      (when (seq uniq)
+        (str "Expected: " (clojure.string/join ", or " (take 5 uniq)))))))
+
 (defn parse-failure->dt-error
   "Convert an Instaparse failure object into a DataTwist ex-info.
    Checks for common mistakes first; falls back to DT-P001."
   [failure source]
-  (let [mistake   (detect-common-mistake source)
-        fail-data (try (instaparse.core/get-failure failure) (catch Exception _ nil))
-        line      (or (:line fail-data) 1)
-        col       (or (:column fail-data) 1)
+  (let [mistake      (detect-common-mistake source)
+        fail-data    (try (instaparse.core/get-failure failure) (catch Exception _ nil))
+        line         (or (:line fail-data) 1)
+        col          (or (:column fail-data) 1)
+        expected-str (format-expected-tokens fail-data)
         registry-default (fn [code]
                            (get-in error-registry [code :description] "Parse error."))
-        code      (or (:code mistake) "DT-P001")
-        hint      (or (:hint mistake)
-                      (get-in error-registry ["DT-P001" :hint]))
-        message   (or (and mistake (registry-default (:code mistake)))
-                      (str "I could not parse this expression"
-                           (when (and line col)
-                             (str " (line " line ", column " col ")"))
-                           "."))]
+        code         (or (:code mistake) "DT-P001")
+        hint         (or (:hint mistake)
+                         (get-in error-registry ["DT-P001" :hint]))
+        message      (or (and mistake (registry-default (:code mistake)))
+                         (if expected-str
+                           (str "Parse error at line " line ", column " col ". " expected-str)
+                           (str "Parse error at line " line ", column " col)))]
     (ex-info message
-             {:dt/error  true
-              :level     :error
-              :code      code
-              :category  (get-in error-registry [code :category] "PARSE ERROR")
-              :message   message
-              :hint      hint
-              :line      line
-              :col-start col
-              :source    source})))
+             (cond-> {:dt/error  true
+                      :level     :error
+                      :code      code
+                      :category  (get-in error-registry [code :category] "PARSE ERROR")
+                      :message   message
+                      :hint      hint
+                      :line      line
+                      :col-start col
+                      :source    source}
+               expected-str (assoc :expected expected-str)))))

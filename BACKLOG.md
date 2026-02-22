@@ -1,5 +1,7 @@
 # DataTwist Backlog
 
+Last updated: 2026-02-22 (autonomous session)
+
 Status legend: `🔬 research` `📝 bdd/tests` `🚧 in progress` `⏳ waiting` (blocked/needs user decision)
 
 ---
@@ -35,7 +37,7 @@ Design doc: `docs/lazy-eval-design.md`
 Note: basic lazy sequences (map, filter, take, drop, distinct, flatten, concat, range, repeat) are done. The tasks below are the remaining evaluator-level work.
 
 - [ ] Streaming pipelines with backpressure
-- [ ] Short-circuit evaluation in guards and boolean ops
+- [x] Short-circuit evaluation in guards and boolean ops — Already implemented — and/or use loop/recur with early return.
 - [ ] `take`/`drop` on infinite sequences
 
 #### Design decisions (locked)
@@ -52,13 +54,13 @@ Note: basic lazy sequences (map, filter, take, drop, distinct, flatten, concat, 
 - **No blocking ever**: streaming-first; notification when sample is ready for inspection.
 - **Auto-materialize contexts**: REPL output, `str`/concat, `tap!`, `save!`, `=` comparison, error messages — all auto-force with configurable limit.
 
-#### autotap! `📝 bdd/tests`
+#### autotap! `✅ done`
 
-Research done → `docs/autotap-impl-plan.md`. Ready for BDD and implementation.
+Research done → `docs/autotap-impl-plan.md`. BDD, tests, and evaluator support implemented.
 
-- [ ] BDD scenarios for `autotap!` in `bdd/8-lazy-evaluation.feature`
-- [ ] Tests in `test/datatwist/lazy_eval_test.clj`
-- [ ] Evaluator support: runtime pipeline transformation inserting `tap!` between each step
+- [x] BDD scenarios for `autotap!` in `bdd/8-lazy-evaluation.feature`
+- [x] Tests in `test/datatwist/lazy_eval_test.clj`
+- [x] Evaluator support: runtime pipeline transformation inserting `tap!` between each step — eval-pipeline loop/recur with tapping mode
 
 #### DTPipeline Reified Pipeline `📝 bdd/tests`
 
@@ -243,9 +245,9 @@ Tier 2 research → `docs/pattern-phase2-plan.md`.
 - Captures become object fields — natural for pipeline processing
 - Regex `#"..."` remains as escape hatch for edge cases
 
-#### Tier 2 — Type hints `📝 bdd/tests`
+#### Tier 2 — Type hints `✅ done`
 
-Research done. Ready for BDD and implementation.
+Research done. BDD scenarios, tests, and implementation complete. DT-P013 throws at compile time for unrecognised type hints.
 
 ```
 #p"{y:4d}-{m:2d}-{d:2d}"         ; ISO date
@@ -253,9 +255,9 @@ Research done. Ready for BDD and implementation.
 #p"{code:3}-{rest}"               ; exactly 3 chars then rest
 ```
 
-- [ ] Parser support for `:d`, `:w`, `:N` type hint syntax inside `{var:hint}`
-- [ ] Compilation of type hints to regex character classes / quantifiers
-- [ ] BDD scenarios and tests for Tier 2
+- [x] Parser support for `:d`, `:w`, `:N` type hint syntax inside `{var:hint}` — compile-type-hint in pattern_compiler.clj
+- [x] Compilation of type hints to regex character classes / quantifiers
+- [x] BDD scenarios and tests for Tier 2
 
 #### Tier 3 — Full constraint mini-language `🔬 research`
 
@@ -268,7 +270,7 @@ Research done. Ready for BDD and implementation.
 - [ ] Compilation to `java.util.regex.Pattern` (via Regal or direct)
 - [ ] BDD scenarios and tests for Tier 3
 
-### Error Reporting `🚧 in progress`
+### Error Reporting `✅ substantially complete`
 
 BDD: `bdd/9-error-reporting.feature`, Tests: `test/datatwist/error_reporting_test.clj` (42 TDD stubs)
 Research doc: `docs/error-reporting-research.md`
@@ -277,11 +279,11 @@ Done: error code system (DT-PXXX/TXXX/RXXX/DXXX/CXXX), Elm/Rust-style messages w
 
 Remaining:
 
-- [ ] Expected token hints in parse errors (what the parser expected at the failure point)
-- [ ] Suppress Java/Clojure stack traces from user output
+- [x] Expected token hints in parse errors (what the parser expected at the failure point) — format-expected-tokens in errors.clj
+- [x] Suppress Java/Clojure stack traces from user output — demo_runner uses render-exception
 - [ ] Data-aware warnings (nil prevalence, common mistakes) — non-blocking by default
-- [ ] JSON error output: `{:code "DT-T001" :message "..." :hint "..." :line N :col N}`
-- [ ] Error code registry (`docs/error-codes.md`): catalog of all codes with descriptions, examples, fix suggestions
+- [x] JSON error output: `{:code "DT-T001" :message "..." :hint "..." :line N :col N}` — Added 'col' field alias in error_renderer.clj
+- [x] Error code registry (`docs/error-codes.md`): catalog of all codes with descriptions, examples, fix suggestions — docs/error-codes.md created
 
 #### Design decisions (locked)
 
@@ -433,8 +435,8 @@ Tasks:
 
 Functions specified in PRD but not yet implemented. Needs user decisions on some semantics.
 
-- [ ] `fill-nil` — fill nil values with a default
-- [ ] `skip-nil` — remove nil entries from collections
+- [x] `fill-nil` — fill nil values with a default — Implemented in stdlib.clj, tests in interop_test.clj
+- [x] `skip-nil` — remove nil entries from collections — Implemented in stdlib.clj, tests in interop_test.clj
 - [ ] `coerce` — type coercion function
 - [ ] `join` / `left-join` / `inner-join` / `outer-join` — multi-source join operations
 - [ ] `define` — user-defined function declaration (PRD stdlib section)

@@ -89,25 +89,44 @@
 ;; (Phase 2 — stubs only)
 
 (deftest iso-date-with-4d-2d-2d-type-hints
-  (testing "stub — not yet implemented (Phase 2)"))
+  (testing "4d-2d-2d type hints extract year, month, day from ISO date string"
+    (is (= {:y "2024" :m "01" :d "15"}
+           (eval-dt "\"2024-01-15\" |> (| #p\"{y:4d}-{m:2d}-{d:2d}\" -> {y: y  m: m  d: d} | _ -> nil)")))))
 
 (deftest type-hint-d-enforces-digits-only-octets
-  (testing "stub — not yet implemented (Phase 2)"))
+  (testing ":d hint matches digit-only octets in an IP address"
+    (is (= {:a "10" :b "0" :c "0" :d "1"}
+           (eval-dt "\"10.0.0.1\" |> (| #p\"{a:d}.{b:d}.{c:d}.{d:d}\" -> {a: a  b: b  c: c  d: d} | _ -> nil)")))))
 
 (deftest type-hint-d-rejects-non-digit-content
-  (testing "stub — not yet implemented (Phase 2)"))
+  (testing ":d hint does not match alphabetic octets — falls through to default guard"
+    (is (= "no match"
+           (eval-dt "\"abc.def.ghi.jkl\" |> (| #p\"{a:d}.{b:d}.{c:d}.{d:d}\" -> {a: a  b: b  c: c  d: d} | _ -> \"no match\")")))))
 
 (deftest exact-length-type-hint-n-captures-fixed-char-count
-  (testing "stub — not yet implemented (Phase 2)"))
+  (testing ":N hint captures exactly N characters"
+    (is (= {:code "ABC" :rest "remainder"}
+           (eval-dt "\"ABC-remainder\" |> (| #p\"{code:3}-{rest}\" -> {code: code  rest: rest} | _ -> nil)")))))
 
 (deftest exact-length-type-hint-nd-captures-fixed-digit-count
-  (testing "stub — not yet implemented (Phase 2)"))
+  (testing ":Nd hint captures exactly N digits and values can be converted to int"
+    (is (= {:y 2024 :m 1 :d 15}
+           (eval-dt-last
+            "date is \"2024-01-15\""
+            "date |> (| #p\"{y:4d}-{m:2d}-{d:2d}\" -> {y: to-int y  m: to-int m  d: to-int d}"
+            "          | _ -> nil)")))))
 
 (deftest type-hint-w-captures-word-characters-only
-  (testing "stub — not yet implemented (Phase 2)"))
+  (testing ":w hint captures word characters, stopping before a space"
+    (is (= {:word "hello"}
+           (eval-dt
+            "\"hello world\" |> (| #p\"{word:w} {rest}\" -> {word: word} | _ -> nil)")))))
 
 (deftest type-hint-d-does-not-match-letters
-  (testing "stub — not yet implemented (Phase 2)"))
+  (testing ":2d hint rejects segments containing letters — no match"
+    (is (= "no match"
+           (eval-dt
+            "\"ab-12\" |> (| #p\"{a:2d}-{b:2d}\" -> {a: a b: b} | _ -> \"no match\")")))))
 
 ;; === Section 3: Tier 3 — Full constraint syntax ===
 ;; (Phase 3 — stubs only)

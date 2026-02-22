@@ -100,6 +100,36 @@
 (defn- dt-reverse [coll]
   (vec (reverse coll)))
 
+;; ---------------------------------------------------------------------------
+;; Nil Handling functions
+;; ---------------------------------------------------------------------------
+
+(defn- dt-fill-nil
+  "Replace nil values with a default. Data-first: (coll, default).
+   - sequential: replaces nil elements in the list
+   - map: replaces nil-valued map entries
+   - scalar nil: returns default
+   - non-nil scalar: returns coll unchanged"
+  [coll default]
+  (cond
+    (nil? coll)        default
+    (sequential? coll) (mapv #(if (nil? %) default %) coll)
+    (map? coll)        (into {} (map (fn [[k v]] [k (if (nil? v) default v)]) coll))
+    :else              coll))
+
+(defn- dt-skip-nil
+  "Remove nil entries. Data-first: (coll).
+   - sequential: removes nil elements, returns vector
+   - map: removes keys whose value is nil
+   - scalar nil: returns []
+   - non-nil scalar: returns coll unchanged"
+  [coll]
+  (cond
+    (nil? coll)        []
+    (sequential? coll) (vec (remove nil? coll))
+    (map? coll)        (into {} (remove (fn [[_ v]] (nil? v)) coll))
+    :else              coll))
+
 (defn- dt-sort [coll]
   (vec (sort coll)))
 
@@ -456,6 +486,13 @@
       (resolve-ns-fn name-str))))
 
 ;; ---------------------------------------------------------------------------
+;; autotap! sentinel — a marker value placed in the pipeline to activate
+;; automatic tap! instrumentation for all subsequent steps.
+;; ---------------------------------------------------------------------------
+
+(def autotap-sentinel {:dt/autotap true})
+
+;; ---------------------------------------------------------------------------
 ;; Default environment
 ;; ---------------------------------------------------------------------------
 
@@ -503,6 +540,8 @@
    "flatten"     dt-flatten
    "distinct"    dt-distinct
    "reverse"     dt-reverse
+   "fill-nil"    dt-fill-nil
+   "skip-nil"    dt-skip-nil
    ;; String operations
    "replace"     dt-replace-str
    "split"       dt-split
@@ -622,6 +661,7 @@
                                         {:dt/error true :code "DT-R010" :category "TYPE MISMATCH"
                                          :message "tap! expects a string label or function as second argument"
                                          :hint "Use tap! \"label\" for labeled mode or tap! [d -> expr] for lambda mode"}))))))
+   "autotap!"    autotap-sentinel
    "save!"       (fn [data & _args] data)
    ;; dtw namespace sentinel object — field access reads config dynamically
    ;; e.g. dtw.SAMPLE_SIZE → (config/get-config :SAMPLE_SIZE)

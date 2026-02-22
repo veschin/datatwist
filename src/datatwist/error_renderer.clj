@@ -119,17 +119,20 @@
    (render-error error-map {}))
   ([error-map {:keys [file width] :or {file "stdin" width 80}}]
    (when (map? error-map)
-     (let [header  (render-header error-map file width)
-           message (:message error-map)
-           snippet (render-snippet error-map)
-           hint    (render-hint error-map)
-           parts   (remove nil? [header
-                                 ""
-                                 message
-                                 (when snippet "")
-                                 snippet
-                                 (when hint "")
-                                 hint])]
+     (let [header        (render-header error-map file width)
+           message       (:message error-map)
+           snippet       (render-snippet error-map)
+           hint          (render-hint error-map)
+           expected-line (when-let [exp (:expected error-map)]
+                           (str "\n" exp))
+           parts         (remove nil? [header
+                                       ""
+                                       message
+                                       (when snippet "")
+                                       snippet
+                                       (when hint "")
+                                       hint
+                                       expected-line])]
        (clojure.string/join "\n" parts)))))
 
 ;; ---------------------------------------------------------------------------
@@ -150,8 +153,11 @@
                                 (number? v)  (str v)
                                 (keyword? v) (str "\"" (name v) "\"")
                                 :else        (str "\"" v "\""))]
-                  (str "  \"" key-str "\": " val-str)))]
-    (str "{\n" (clojure.string/join ",\n" pairs) "\n}")))
+                  (str "  \"" key-str "\": " val-str)))
+        ;; Add "col" as an alias for col-start
+        col-pair (when-let [col (:col-start m)] (str "  \"col\": " col))
+        all-pairs (remove nil? (concat pairs [col-pair]))]
+    (str "{\n" (clojure.string/join ",\n" all-pairs) "\n}")))
 
 (defn render-error-json
   "Render a DataTwist error map as a JSON string.

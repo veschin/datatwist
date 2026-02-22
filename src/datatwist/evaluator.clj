@@ -31,6 +31,11 @@
 ;; Used to attach source context to error messages.
 (def ^:dynamic *source* nil)
 
+(defn- autotap-sentinel?
+  "Returns true if val is the autotap! sentinel marker."
+  [val]
+  (and (map? val) (:dt/autotap val)))
+
 ;; ---------------------------------------------------------------------------
 ;; Helper: apply a callable to arguments
 ;; ---------------------------------------------------------------------------
@@ -210,6 +215,17 @@
            (= 1 (count (rest node))))
     (recur (second node))
     node))
+
+(defn- extract-step-label
+  "Extract the source text label for a pipeline step node using Instaparse metadata."
+  [step-node]
+  (let [m     (meta step-node)
+        start (:instaparse.gll/start-index m)
+        end   (:instaparse.gll/end-index m)]
+    (if (and start end *source*)
+      (let [label (clojure.string/trim (subs *source* start end))]
+        (str "[" label "]"))
+      "[step]")))
 
 ;; ---------------------------------------------------------------------------
 ;; Object entry evaluation
@@ -1542,13 +1558,31 @@
               (eval-node pipe-atom-node (env/bind env "_" data)))))))))
 
 (defn- eval-pipeline
-  "Evaluate a sequence of PipeAtom nodes against initial data."
+  "Evaluate a sequence of PipeAtom nodes against initial data.
+   Supports autotap! sentinel: when encountered, all subsequent steps are
+   automatically instrumented with a labeled tap! probe after each step."
   [data steps env]
-  (reduce (fn [d step-node]
-            (let [step-fn (eval-pipe-atom-with-fn-call step-node env)]
-              (step-fn d)))
-          data
-          steps))
+  (let [tap-fn (env/lookup env "tap!")]
+    (loop [remaining steps
+           d         data
+           tapping?  false]
+      (if (empty? remaining)
+        d
+        (let [step-node (first remaining)
+              inner     (descend-to-inner step-node)]
+          (if (and (not tapping?)
+                   (vector? inner)
+                   (= :Identifier (first inner))
+                   (= "autotap!" (second inner)))
+            ;; autotap! detected: tap the current data, then switch to tapping mode
+            (do
+              (when tap-fn (tap-fn d))
+              (recur (rest remaining) d true))
+            (let [step-fn (eval-pipe-atom-with-fn-call step-node env)
+                  result  (step-fn d)]
+              (when (and tapping? tap-fn)
+                (tap-fn result (extract-step-label step-node)))
+              (recur (rest remaining) result tapping?))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; eval-expr: returns [value env'] for binding propagation

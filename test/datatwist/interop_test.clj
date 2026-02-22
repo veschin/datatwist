@@ -584,3 +584,45 @@
            (eval-dt-last
             "result is [\"hello\" \"world\"]\n  |> map [s -> .toUpperCase s]"
             "result")))))
+
+;; ---------------------------------------------------------------------------
+;; Section 4I: Nil Handling Functions (fill-nil, skip-nil)
+;; ---------------------------------------------------------------------------
+
+(deftest fill-nil-replaces-nil-elements-in-list
+  (testing "Scenario: fill-nil replaces nil elements in a list with a default"
+    (is (= [1 0 3 0 5] (eval-dt "[1 nil 3 nil 5] |> fill-nil 0")))))
+
+(deftest fill-nil-on-scalar-nil-returns-default
+  (testing "Scenario: fill-nil on a scalar nil returns the default"
+    (is (= 0 (eval-dt "nil |> fill-nil 0")))))
+
+(deftest fill-nil-on-map-replaces-nil-valued-keys
+  (testing "Scenario: fill-nil on an object replaces nil-valued fields"
+    (is (= {:a 1 :b 0 :c 3}
+           (eval-dt "{a: 1  b: nil  c: 3} |> fill-nil 0")))))
+
+(deftest fill-nil-on-list-with-no-nils-returns-unchanged
+  (testing "Scenario: fill-nil on a list with no nils returns the list unchanged"
+    (is (= [1 2 3] (eval-dt "[1 2 3] |> fill-nil 0")))))
+
+(deftest skip-nil-removes-nil-elements-from-list
+  (testing "Scenario: skip-nil removes nil elements from a list"
+    (is (= [1 3 5] (eval-dt "[1 nil 3 nil 5] |> skip-nil")))))
+
+(deftest skip-nil-on-empty-list-returns-empty
+  (testing "Scenario: skip-nil on an empty list returns empty list"
+    (is (= [] (eval-dt "[] |> skip-nil")))))
+
+(deftest skip-nil-on-nil-source-returns-empty
+  (testing "Scenario: skip-nil on a nil source returns empty list"
+    (is (= [] (eval-dt "nil |> skip-nil")))))
+
+(deftest skip-nil-on-map-removes-nil-valued-keys
+  (testing "Scenario: skip-nil on an object removes keys with nil values"
+    (is (= {:a 1 :c 3}
+           (eval-dt "{a: 1  b: nil  c: 3} |> skip-nil")))))
+
+(deftest skip-nil-in-pipeline-chain
+  (testing "Scenario: skip-nil used in a pipeline to clean data before sum"
+    (is (= 6 (eval-dt "[1 nil 2 nil 3] |> skip-nil |> sum")))))

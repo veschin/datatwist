@@ -921,3 +921,50 @@ Feature: Clojure Interop, Comments, Try-Catch, Nil Semantics, and Miscellaneous
       """
     When it is evaluated
     Then the value of "result" is ["HELLO" "WORLD"]
+
+  ## Section 4I: Nil Handling Functions
+
+  Scenario: fill-nil replaces nil elements in a list with a default
+    Given the DataTwist expression "[1 nil 3 nil 5] |> fill-nil 0"
+    When it is evaluated
+    Then the result is [1, 0, 3, 0, 5]
+
+  Scenario: fill-nil on a scalar nil returns the default
+    Given the DataTwist expression "nil |> fill-nil 0"
+    When it is evaluated
+    Then the result is 0
+
+  Scenario: fill-nil on an object replaces nil-valued fields
+    Given the DataTwist expression "{a: 1 b: nil c: 3} |> fill-nil 0"
+    When it is evaluated
+    Then the result is an object with a = 1, b = 0, c = 3
+
+  Scenario: fill-nil on a list with no nils returns unchanged
+    Given the DataTwist expression "[1 2 3] |> fill-nil 0"
+    When it is evaluated
+    Then the result is [1, 2, 3]
+
+  Scenario: skip-nil removes nil elements from a list
+    Given the DataTwist expression "[1 nil 3 nil 5] |> skip-nil"
+    When it is evaluated
+    Then the result is [1, 3, 5]
+
+  Scenario: skip-nil on an empty list returns empty list
+    Given the DataTwist expression "[] |> skip-nil"
+    When it is evaluated
+    Then the result is []
+
+  Scenario: skip-nil on nil returns empty list
+    Given the DataTwist expression "nil |> skip-nil"
+    When it is evaluated
+    Then the result is []
+
+  Scenario: skip-nil on an object removes nil-valued keys
+    Given the DataTwist expression "{a: 1 b: nil c: 3} |> skip-nil"
+    When it is evaluated
+    Then the result has keys a and c only
+
+  Scenario: skip-nil in pipeline chain
+    Given the DataTwist expression "[1 nil 2 nil 3] |> skip-nil |> sum"
+    When it is evaluated
+    Then the result is 6

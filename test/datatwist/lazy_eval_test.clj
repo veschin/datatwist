@@ -357,16 +357,41 @@
 ;; --- autotap! ---
 
 (deftest autotap-bang-placed-at-start-instruments-every-subsequent-step
-  (testing "stub -- not yet implemented"))
-;; autotap! is not yet in the stdlib.
+  (let [{:keys [result output]}
+        (capture-eval-dt-last
+          "users is [{name: \"Alice\" active: true} {name: \"Bob\" active: false}]"
+          "users |> autotap! |> filter _.active |> map {name: _.name}")]
+    (is (clojure.string/includes? output "[filter _.active]")
+        "Output should contain the filter step label")
+    (is (clojure.string/includes? output "[map {name: _.name}]")
+        "Output should contain the map step label")
+    (is (= [{:name "Alice"}] result)
+        "Final result should be unaffected by autotap!")))
 
 (deftest autotap-bang-output-format-is-function-label-on-first-line-sample-on-second
-  (testing "stub -- not yet implemented"))
-;; autotap! output format requires autotap! implementation.
+  (let [{:keys [output]}
+        (capture-eval-dt-last
+          "data is [{x: 1 y: 10} {x: -1 y: 20}]"
+          "data |> autotap! |> filter _.x > 0 |> map _.y")]
+    (is (re-find #"(?s)\[filter _.x > 0\].*\n" output)
+        "Filter step label should appear in output")
+    (is (re-find #"(?s)\[map _.y\].*\n" output)
+        "Map step label should appear in output")))
 
 (deftest autotap-bang-is-equivalent-to-inserting-tap-bang-before-each-step
-  (testing "stub -- not yet implemented"))
-;; autotap! macro-like transformation is not yet implemented.
+  (let [setup "data is [{active: true name: \"A\"} {active: false name: \"B\"}]"
+        {:keys [result output]}
+        (capture-eval-dt-last
+          setup
+          "data |> autotap! |> filter _.active |> map _.name")
+        result-plain
+        (silent-eval-dt-last
+          setup
+          "data |> filter _.active |> map _.name")]
+    (is (not (clojure.string/blank? output))
+        "autotap! must produce tap! output")
+    (is (= result-plain result)
+        "Final result must be the same as without autotap!")))
 
 ;; --- REPL micro-sampling ---
 
