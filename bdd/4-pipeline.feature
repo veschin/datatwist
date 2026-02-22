@@ -376,6 +376,41 @@ Feature: Pipeline operator (|>)
       """
     Then the result is 20
 
+  Scenario: median returns the middle value of a sorted odd-length collection
+    Given the expression:
+      """
+      median [3 1 2]
+      """
+    Then the result is 2
+
+  Scenario: median returns the average of the two middle values for even-length collection
+    Given the expression:
+      """
+      median [3 1 4 2]
+      """
+    Then the result is 2.5
+
+  Scenario: median of a single-element collection returns that element
+    Given the expression:
+      """
+      median [42]
+      """
+    Then the result is 42
+
+  Scenario: median of an empty collection returns nil
+    Given the expression:
+      """
+      median []
+      """
+    Then the result is nil
+
+  Scenario: median works in a pipeline
+    Given the expression:
+      """
+      [1 2 3 4 5] |> median
+      """
+    Then the result is 3
+
   Scenario: distinct removes duplicate elements
     Given the expression:
       """

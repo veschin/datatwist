@@ -9,7 +9,8 @@
             [instaparse.core :as insta]
             [datatwist.parser :as parser]
             [datatwist.evaluator :as evaluator]
-            [datatwist.stdlib :as stdlib]))
+            [datatwist.stdlib :as stdlib]
+            [datatwist.error-renderer :as renderer]))
 
 ;; ---------------------------------------------------------------------------
 ;; ANSI color constants
@@ -290,23 +291,7 @@
   (println (str "      " GREEN "→ " (format-dt-value value) RESET)))
 
 (defn- print-error [^Exception e]
-  (println (str "      " DIM RED "✗  " (.getMessage e) RESET))
-  (when-let [data (and (instance? clojure.lang.ExceptionInfo e) (ex-data e))]
-    (when-let [code (:code data)]
-      (println (str "         " DIM YELLOW "code: " (str code) RESET)))
-    (when-let [hint (:hint data)]
-      (let [words  (str/split hint #"\s+")
-            hlines (reduce (fn [acc word]
-                             (let [cur (last acc)]
-                               (if (> (+ (count cur) (count word) 1) 55)
-                                 (conj acc word)
-                                 (conj (pop acc) (if (empty? cur) word (str cur " " word))))))
-                           [""]
-                           words)]
-        (doseq [[i ln] (map-indexed vector hlines)]
-          (if (zero? i)
-            (println (str "         " DIM YELLOW "hint: " ln RESET))
-            (println (str "               " DIM ln RESET))))))))
+  (println (renderer/render-exception e)))
 
 (defn- print-expect-status [status expected actual-str]
   (if (= status :pass)
