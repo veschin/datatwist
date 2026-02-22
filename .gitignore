@@ -16,9 +16,14 @@ classes/
 # Linting
 .clj-kondo/
 
+# nREPL
+.nrepl-port
+.nrepl-history
+
 # IDE
 .vscode/
 .idea/
+*.iml
 *.swp
 *.swo
 *~
@@ -38,3 +43,6 @@ test-results.log
 
 # Dependencies
 node_modules/
+
+# Claude Code local settings
+.claude/settings.local.json

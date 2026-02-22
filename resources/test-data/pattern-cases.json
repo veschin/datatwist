@@ -1,0 +1,134 @@
+[
+  ["alice@example.com",           "{user}@{domain}",                            {"user": "alice", "domain": "example.com"}],
+  ["bob+tag@sub.mail.org",        "{user}@{domain}",                            {"user": "bob+tag", "domain": "sub.mail.org"}],
+  ["@broken.com",                 "{user}@{domain}",                            {"user": "", "domain": "broken.com"}],
+
+  ["192.168.1.1",                 "{a}.{b}.{c}.{d}",                            {"a": "192", "b": "168", "c": "1", "d": "1"}],
+  ["10.0.0.255",                  "{a}.{b}.{c}.{d}",                            {"a": "10", "b": "0", "c": "0", "d": "255"}],
+  ["0.0.0.0",                     "{a}.{b}.{c}.{d}",                            {"a": "0", "b": "0", "c": "0", "d": "0"}],
+
+  ["https://example.com/path",    "{proto}://{host}/{path}",                    {"proto": "https", "host": "example.com", "path": "path"}],
+  ["http://localhost:8080/api/v1", "{proto}://{host}:{port}/{path}",             {"proto": "http", "host": "localhost", "port": "8080", "path": "api/v1"}],
+  ["ftp://files.srv/pub/data.gz", "{proto}://{host}/{path}",                    {"proto": "ftp", "host": "files.srv", "path": "pub/data.gz"}],
+  ["https://a.b.c.d/",           "{proto}://{host}/",                           {"proto": "https", "host": "a.b.c.d"}],
+  ["ssh://git@github.com:22",    "{proto}://{user}@{host}:{port}",             {"proto": "ssh", "user": "git", "host": "github.com", "port": "22"}],
+
+  ["2024-01-15",                  "{y}-{m}-{d}",                                {"y": "2024", "m": "01", "d": "15"}],
+  ["15/01/2024",                  "{d}/{m}/{y}",                                {"d": "15", "m": "01", "y": "2024"}],
+  ["2024-01-15T13:45:30",        "{date}T{time}",                              {"date": "2024-01-15", "time": "13:45:30"}],
+  ["2024-01-15 13:45:30.123",    "{date} {time}",                              {"date": "2024-01-15", "time": "13:45:30.123"}],
+  ["Jan 15 2024",                "{month} {day} {year}",                        {"month": "Jan", "day": "15", "year": "2024"}],
+
+  ["127.0.0.1 - frank [10/Oct/2000:13:55:36 -0700] \"GET /apache_pb.gif HTTP/1.0\" 200 2326",
+   "{ip} - {user} [{time}] \"{method} {url} HTTP/{ver}\" {status} {bytes}",
+   {"ip": "127.0.0.1", "user": "frank", "time": "10/Oct/2000:13:55:36 -0700", "method": "GET", "url": "/apache_pb.gif", "ver": "1.0", "status": "200", "bytes": "2326"}],
+
+  ["10.0.0.5 - - [01/Jan/2025:00:00:00 +0000] \"POST /api/login HTTP/2\" 401 0",
+   "{ip} - {_} [{time}] \"{method} {url} HTTP/{ver}\" {status} {bytes}",
+   {"ip": "10.0.0.5", "time": "01/Jan/2025:00:00:00 +0000", "method": "POST", "url": "/api/login", "ver": "2", "status": "401", "bytes": "0"}],
+
+  ["ERROR [2024-01-15 13:45:30] db.pool - Connection refused: host=db.prod port=5432",
+   "{level} [{timestamp}] {logger} - {message}",
+   {"level": "ERROR", "timestamp": "2024-01-15 13:45:30", "logger": "db.pool", "message": "Connection refused: host=db.prod port=5432"}],
+
+  ["WARN  [main] o.a.c.Config - Deprecated key found",
+   "{level}  [{thread}] {logger} - {message}",
+   {"level": "WARN", "thread": "main", "logger": "o.a.c.Config", "message": "Deprecated key found"}],
+
+  ["<134>Jan 15 13:45:30 web01 nginx: 200 GET /index.html",
+   "<{pri}>{timestamp} {host} {app}: {message}",
+   {"pri": "134", "timestamp": "Jan 15 13:45:30", "host": "web01", "app": "nginx", "message": "200 GET /index.html"}],
+
+  ["1.22.0",                     "{major}.{minor}.{patch}",                     {"major": "1", "minor": "22", "patch": "0"}],
+  ["3.0.0-beta.1",              "{major}.{minor}.{patch}-{pre}",               {"major": "3", "minor": "0", "patch": "0", "pre": "beta.1"}],
+  ["2.1.0-rc.3+build.456",      "{major}.{minor}.{patch}-{pre}+{meta}",       {"major": "2", "minor": "1", "patch": "0", "pre": "rc.3", "meta": "build.456"}],
+
+  ["/home/alice/documents/report.pdf",   "/{_}/{user}/{_}/{file}",              {"user": "alice", "file": "report.pdf"}],
+  ["/var/log/syslog",                     "/var/log/{file}",                     {"file": "syslog"}],
+  ["/usr/local/bin/datatwist",            "/usr/local/bin/{bin}",                {"bin": "datatwist"}],
+  ["C:\\Users\\bob\\Desktop\\file.txt",   "C:\\Users\\{user}\\{_}\\{file}",     {"user": "bob", "file": "file.txt"}],
+
+  ["name=Alice",                   "{key}={value}",                              {"key": "name", "value": "Alice"}],
+  ["Content-Type: application/json", "{header}: {value}",                        {"header": "Content-Type", "value": "application/json"}],
+  ["X-Request-Id: abc-123-def",    "X-Request-Id: {id}",                        {"id": "abc-123-def"}],
+  ["Authorization: Bearer eyJ0eX", "Authorization: Bearer {token}",             {"token": "eyJ0eX"}],
+  ["Set-Cookie: sid=abc; Path=/",  "Set-Cookie: {name}={value}; Path={path}",   {"name": "sid", "value": "abc", "path": "/"}],
+
+  ["+7 (999) 123-45-67",         "+{cc} ({area}) {num}",                        {"cc": "7", "area": "999", "num": "123-45-67"}],
+  ["1-800-555-0199",             "{cc}-{area}-{a}-{b}",                         {"cc": "1", "area": "800", "a": "555", "b": "0199"}],
+
+  ["SELECT * FROM users WHERE id = 42",
+   "SELECT {cols} FROM {table} WHERE {cond}",
+   {"cols": "*", "table": "users", "cond": "id = 42"}],
+
+  ["INSERT INTO logs (msg, ts) VALUES ('err', now())",
+   "INSERT INTO {table} ({cols}) VALUES ({vals})",
+   {"table": "logs", "cols": "msg, ts", "vals": "'err', now()"}],
+
+  ["git commit -m \"fix: resolve null pointer\"",
+   "git {cmd} -m \"{msg}\"",
+   {"cmd": "commit", "msg": "fix: resolve null pointer"}],
+
+  ["git push origin feat/auth --force",
+   "git push {remote} {branch} --{flag}",
+   {"remote": "origin", "branch": "feat/auth", "flag": "force"}],
+
+  ["docker run -p 8080:80 nginx:latest",
+   "docker run -p {host-port}:{container-port} {image}:{tag}",
+   {"host-port": "8080", "container-port": "80", "image": "nginx", "tag": "latest"}],
+
+  ["npm ERR! 404 Not Found - GET https://registry.npmjs.org/foobarbaz",
+   "npm ERR! {code} {reason} - {method} {url}",
+   {"code": "404", "reason": "Not Found", "method": "GET", "url": "https://registry.npmjs.org/foobarbaz"}],
+
+  ["{{escaped}} braces {real}",  "{{{{escaped}}}} braces {real}",              {"real": "{escaped} braces {real}"}],
+
+  ["name: Alice, age: 30",         "name: {name}, age: {age}",                  {"name": "Alice", "age": "30"}],
+  ["[OK] 42ms - /api/health",      "[{status}] {time}ms - {path}",              {"status": "OK", "time": "42", "path": "/api/health"}],
+  ["[FAIL] 1502ms - /api/query",   "[{status}] {time}ms - {path}",              {"status": "FAIL", "time": "1502", "path": "/api/query"}],
+
+  ["todo(alice): fix the auth bug",       "{type}({who}): {msg}",               {"type": "todo", "who": "alice", "msg": "fix the auth bug"}],
+  ["fix(api): handle null response",      "{type}({scope}): {msg}",             {"type": "fix", "scope": "api", "msg": "handle null response"}],
+  ["feat(ui)!: redesign dashboard",       "{type}({scope})!: {msg}",            {"type": "feat", "scope": "ui", "msg": "redesign dashboard"}],
+
+  ["alice:x:1000:1000:Alice:/home/alice:/bin/bash",
+   "{user}:x:{uid}:{gid}:{gecos}:{home}:{shell}",
+   {"user": "alice", "uid": "1000", "gid": "1000", "gecos": "Alice", "home": "/home/alice", "shell": "/bin/bash"}],
+
+  ["cpu  12345 678 9012 345678 0 0 0 0 0 0",
+   "cpu  {user} {nice} {system} {idle} {_} {_} {_} {_} {_} {_}",
+   {"user": "12345", "nice": "678", "system": "9012", "idle": "345678"}],
+
+  ["MemTotal:       16384000 kB",          "MemTotal:{_}{value} kB",             {"value": "16384000"}],
+  ["MemFree:         2048000 kB",          "MemFree:{_}{value} kB",              {"value": "2048000"}],
+
+  ["PING google.com (142.250.74.78): 56 data bytes",
+   "PING {host} ({ip}): {size} data bytes",
+   {"host": "google.com", "ip": "142.250.74.78", "size": "56"}],
+
+  ["64 bytes from 142.250.74.78: icmp_seq=1 ttl=117 time=12.3 ms",
+   "{bytes} bytes from {ip}: icmp_seq={seq} ttl={ttl} time={time} ms",
+   {"bytes": "64", "ip": "142.250.74.78", "seq": "1", "ttl": "117", "time": "12.3"}],
+
+  ["user.signup.success",        "{domain}.{action}.{result}",                  {"domain": "user", "action": "signup", "result": "success"}],
+  ["order.payment.failed.retry", "{domain}.{event}",                            {"domain": "order", "event": "payment.failed.retry"}],
+
+  ["$12.99",                     "${price}",                                     {"price": "12.99"}],
+  ["USD 1,234.56",               "{currency} {amount}",                          {"currency": "USD", "amount": "1,234.56"}],
+
+  ["Ref: #4521 — merge feat/auth into main",
+   "Ref: #{issue} — merge {branch} into {target}",
+   {"issue": "4521", "branch": "feat/auth", "target": "main"}],
+
+  ["[2024-01-15T13:45:30Z] [pid=1234] [req=abc-def] 200 OK (42ms)",
+   "[{ts}] [pid={pid}] [req={req}] {status} {reason} ({time}ms)",
+   {"ts": "2024-01-15T13:45:30Z", "pid": "1234", "req": "abc-def", "status": "200", "reason": "OK", "time": "42"}],
+
+  ["",                            "",                                            {}],
+  ["hello",                       "hello",                                       {}],
+  ["hello",                       "world",                                       null],
+  ["",                            "{x}",                                         {"x": ""}],
+  ["abc",                         "{whole}",                                     {"whole": "abc"}],
+  ["no-match-here",               "{a}@{b}",                                     null],
+  ["missing-slash",               "{a}/{b}",                                     null]
+]
