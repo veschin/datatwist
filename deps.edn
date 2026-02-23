@@ -1,2 +1,9 @@
-{:deps {instaparse/instaparse {:mvn/version "1.5.0"}}
- :paths ["src" "test" "resources"]}
+{:deps {instaparse/instaparse {:mvn/version "1.5.0"}
+        org.clojure/tools.cli {:mvn/version "1.1.230"}}
+ :paths ["src" "test" "resources"]
+ :aliases
+ {:build
+  {:deps {io.github.clojure/tools.build {:mvn/version "0.10.5"}}
+   :ns-default build}
+  :native
+  {:extra-deps {com.github.clj-easy/graal-build-time {:mvn/version "1.0.5"}}}}}
