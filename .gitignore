@@ -4,6 +4,12 @@
 *.war
 *.ear
 target/
+
+# Build artifacts
+graal-agent-output/
+
+# Native binary
+datatwist
 lib/
 classes/
 *.clj~

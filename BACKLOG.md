@@ -12,16 +12,17 @@ Status legend: `🔬 research` `📝 bdd/tests` `🚧 in progress` `⏳ waiting`
 
 Build DataTwist as a standalone native binary via GraalVM `native-image`. Critical for distribution.
 
-- [ ] Create CLI entry point (`-main` with `:gen-class`)
-- [ ] defparser macro for AOT grammar compilation
-- [ ] Add GraalVM native-image build config (reflection config, resource config)
+- [x] Create CLI entry point (`-main` with `:gen-class`)
+- [x] defparser macro for AOT grammar compilation
+- [x] Add GraalVM native-image build config (reflection config, resource config)
 - [ ] Add `graal-build-time` dependency
-- [ ] `build.clj` with tools.build
-- [ ] Add `make native` and `make uberjar` build targets
+- [x] `build.clj` with tools.build
+- [x] Add `make native` and `make uberjar` build targets
 - [ ] CI pipeline for building linux/macos binaries
 - [ ] Investigate startup time — target <50ms
 - [ ] Ship uberjar as fallback
 - [ ] Handle Java interop scope for native mode
+- [ ] **BLOCKED**: Upgrade GraalVM to 23.x+ (current 22.3.1/Java 19 incompatible with Clojure 1.12.3/Java 21+)
 
 ---
 
