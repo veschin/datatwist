@@ -21,14 +21,16 @@ uberjar:  ## Build standalone uberjar
 	@echo "=== Building uberjar ==="
 	clj -T:build uber
 
-# Build native binary (requires GraalVM native-image)
+# Build native binary (requires GraalVM 21+ with native-image)
+GRAALVM_HOME ?= /usr/lib/jvm/java-21-graalvm-ee
 native: uberjar  ## Build native binary via GraalVM
 	@echo "=== Building native image ==="
-	native-image \
+	$(GRAALVM_HOME)/bin/native-image \
 		-jar target/datatwist-0.1.0-standalone.jar \
 		--no-fallback \
 		--report-unsupported-elements-at-runtime \
 		-H:+ReportExceptionStackTraces \
+		--features=clj_easy.graal_build_time.InitClojureClasses \
 		-o datatwist
 
 # Clean build artifacts

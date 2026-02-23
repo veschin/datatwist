@@ -1,8 +1,189 @@
 {
-  "resources": {
-    "includes": [
-      {"pattern": "datatwist\\.grammar"},
-      {"pattern": "datatwist\\.grammar$"}
-    ]
-  }
+  "resources":{
+  "includes":[{
+    "pattern":"\\QMETA-INF/services/java.lang.System$LoggerFinder\\E"
+  }, {
+    "pattern":"\\QMETA-INF/services/java.time.zone.ZoneRulesProvider\\E"
+  }, {
+    "pattern":"\\Qclojure/core.clj\\E"
+  }, {
+    "pattern":"\\Qclojure/core/protocols.clj\\E"
+  }, {
+    "pattern":"\\Qclojure/core/protocols__init.class\\E"
+  }, {
+    "pattern":"\\Qclojure/core/server.clj\\E"
+  }, {
+    "pattern":"\\Qclojure/core/server__init.class\\E"
+  }, {
+    "pattern":"\\Qclojure/core__init.class\\E"
+  }, {
+    "pattern":"\\Qclojure/core_deftype.clj\\E"
+  }, {
+    "pattern":"\\Qclojure/core_deftype__init.class\\E"
+  }, {
+    "pattern":"\\Qclojure/core_print.clj\\E"
+  }, {
+    "pattern":"\\Qclojure/core_print__init.class\\E"
+  }, {
+    "pattern":"\\Qclojure/core_proxy.clj\\E"
+  }, {
+    "pattern":"\\Qclojure/core_proxy__init.class\\E"
+  }, {
+    "pattern":"\\Qclojure/edn.clj\\E"
+  }, {
+    "pattern":"\\Qclojure/edn__init.class\\E"
+  }, {
+    "pattern":"\\Qclojure/genclass.clj\\E"
+  }, {
+    "pattern":"\\Qclojure/genclass__init.class\\E"
+  }, {
+    "pattern":"\\Qclojure/gvec.clj\\E"
+  }, {
+    "pattern":"\\Qclojure/gvec__init.class\\E"
+  }, {
+    "pattern":"\\Qclojure/instant.clj\\E"
+  }, {
+    "pattern":"\\Qclojure/instant__init.class\\E"
+  }, {
+    "pattern":"\\Qclojure/java/io.clj\\E"
+  }, {
+    "pattern":"\\Qclojure/java/io__init.class\\E"
+  }, {
+    "pattern":"\\Qclojure/main.clj\\E"
+  }, {
+    "pattern":"\\Qclojure/main__init.class\\E"
+  }, {
+    "pattern":"\\Qclojure/spec/alpha.clj\\E"
+  }, {
+    "pattern":"\\Qclojure/spec/alpha__init.class\\E"
+  }, {
+    "pattern":"\\Qclojure/spec/gen/alpha.clj\\E"
+  }, {
+    "pattern":"\\Qclojure/spec/gen/alpha__init.class\\E"
+  }, {
+    "pattern":"\\Qclojure/string.clj\\E"
+  }, {
+    "pattern":"\\Qclojure/string__init.class\\E"
+  }, {
+    "pattern":"\\Qclojure/tools/cli.clj\\E"
+  }, {
+    "pattern":"\\Qclojure/tools/cli.cljc\\E"
+  }, {
+    "pattern":"\\Qclojure/tools/cli__init.class\\E"
+  }, {
+    "pattern":"\\Qclojure/uuid.clj\\E"
+  }, {
+    "pattern":"\\Qclojure/uuid__init.class\\E"
+  }, {
+    "pattern":"\\Qclojure/version.properties\\E"
+  }, {
+    "pattern":"\\Qclojure/walk.clj\\E"
+  }, {
+    "pattern":"\\Qclojure/walk__init.class\\E"
+  }, {
+    "pattern":"\\Qdata_readers.clj\\E"
+  }, {
+    "pattern":"\\Qdata_readers.cljc\\E"
+  }, {
+    "pattern":"\\Qdatatwist.grammar\\E"
+  }, {
+    "pattern":"\\Qdatatwist/config.clj\\E"
+  }, {
+    "pattern":"\\Qdatatwist/config__init.class\\E"
+  }, {
+    "pattern":"\\Qdatatwist/env.clj\\E"
+  }, {
+    "pattern":"\\Qdatatwist/env__init.class\\E"
+  }, {
+    "pattern":"\\Qdatatwist/error_renderer.clj\\E"
+  }, {
+    "pattern":"\\Qdatatwist/error_renderer__init.class\\E"
+  }, {
+    "pattern":"\\Qdatatwist/errors.clj\\E"
+  }, {
+    "pattern":"\\Qdatatwist/errors__init.class\\E"
+  }, {
+    "pattern":"\\Qdatatwist/evaluator.clj\\E"
+  }, {
+    "pattern":"\\Qdatatwist/evaluator__init.class\\E"
+  }, {
+    "pattern":"\\Qdatatwist/main.clj\\E"
+  }, {
+    "pattern":"\\Qdatatwist/main__init.class\\E"
+  }, {
+    "pattern":"\\Qdatatwist/parser.clj\\E"
+  }, {
+    "pattern":"\\Qdatatwist/parser__init.class\\E"
+  }, {
+    "pattern":"\\Qdatatwist/pattern_compiler.clj\\E"
+  }, {
+    "pattern":"\\Qdatatwist/pattern_compiler__init.class\\E"
+  }, {
+    "pattern":"\\Qdatatwist/stdlib.clj\\E"
+  }, {
+    "pattern":"\\Qdatatwist/stdlib__init.class\\E"
+  }, {
+    "pattern":"\\Qinstaparse/abnf.clj\\E"
+  }, {
+    "pattern":"\\Qinstaparse/abnf__init.class\\E"
+  }, {
+    "pattern":"\\Qinstaparse/auto_flatten_seq.clj\\E"
+  }, {
+    "pattern":"\\Qinstaparse/auto_flatten_seq__init.class\\E"
+  }, {
+    "pattern":"\\Qinstaparse/cfg.clj\\E"
+  }, {
+    "pattern":"\\Qinstaparse/cfg__init.class\\E"
+  }, {
+    "pattern":"\\Qinstaparse/combinators_source.clj\\E"
+  }, {
+    "pattern":"\\Qinstaparse/combinators_source__init.class\\E"
+  }, {
+    "pattern":"\\Qinstaparse/core.clj\\E"
+  }, {
+    "pattern":"\\Qinstaparse/core__init.class\\E"
+  }, {
+    "pattern":"\\Qinstaparse/failure.clj\\E"
+  }, {
+    "pattern":"\\Qinstaparse/failure__init.class\\E"
+  }, {
+    "pattern":"\\Qinstaparse/gll.clj\\E"
+  }, {
+    "pattern":"\\Qinstaparse/gll__init.class\\E"
+  }, {
+    "pattern":"\\Qinstaparse/line_col.clj\\E"
+  }, {
+    "pattern":"\\Qinstaparse/line_col__init.class\\E"
+  }, {
+    "pattern":"\\Qinstaparse/macros.clj\\E"
+  }, {
+    "pattern":"\\Qinstaparse/macros__init.class\\E"
+  }, {
+    "pattern":"\\Qinstaparse/print.clj\\E"
+  }, {
+    "pattern":"\\Qinstaparse/print__init.class\\E"
+  }, {
+    "pattern":"\\Qinstaparse/reduction.clj\\E"
+  }, {
+    "pattern":"\\Qinstaparse/reduction__init.class\\E"
+  }, {
+    "pattern":"\\Qinstaparse/repeat.clj\\E"
+  }, {
+    "pattern":"\\Qinstaparse/repeat__init.class\\E"
+  }, {
+    "pattern":"\\Qinstaparse/transform.clj\\E"
+  }, {
+    "pattern":"\\Qinstaparse/transform__init.class\\E"
+  }, {
+    "pattern":"\\Qinstaparse/util.clj\\E"
+  }, {
+    "pattern":"\\Qinstaparse/util__init.class\\E"
+  }, {
+    "pattern":"\\Qinstaparse/viz.clj\\E"
+  }, {
+    "pattern":"\\Qinstaparse/viz__init.class\\E"
+  }, {
+    "pattern":"\\Quser.clj\\E"
+  }]},
+  "bundles":[]
 }

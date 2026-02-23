@@ -9,7 +9,7 @@ target/
 graal-agent-output/
 
 # Native binary
-datatwist
+/datatwist
 lib/
 classes/
 *.clj~
