@@ -1,4 +1,4 @@
-# DataTwist
+![DataTwist](https://raw.githubusercontent.com/veschin/datatwist/main/datatwist.png)
 
 A functional data processing language on Clojure/JVM.
 
