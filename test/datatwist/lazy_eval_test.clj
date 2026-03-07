@@ -195,18 +195,21 @@
     (is (= [0 1 2 3 4] result)
         "range 5 must produce [0 1 2 3 4]")))
 
-(deftest range-with-no-upper-bound-produces-an-infinite-lazy-sequence
-  (testing "stub -- BDD conflict, needs user clarification"))
-;; BDD conflict: the "range with no upper bound" scenario says "range 1" produces
-;; an infinite lazy sequence starting at 1, giving [1 2 3 4] when take 4 is applied.
-;; However, the adjacent "range with one argument" scenario says "range 5" produces
-;; [0 1 2 3 4] — finite range from zero (same 1-arg form, contradictory semantics).
-;; These two BDD scenarios cannot both be true with the same stdlib range arity.
-;; Resolution options (needs user decision):
-;;   A) 1-arg range = finite 0..n (current), and remove the infinite-range scenario.
-;;   B) 1-arg range = infinite from n, and change "range 5 |> force!" to a 2-arg form.
-;;   C) Add a separate "range-from" function for infinite sequences from a start value.
-;; Until the BDD conflict is resolved this test remains a stub.
+(deftest range-with-no-args-produces-an-infinite-lazy-sequence-from-zero
+  ;; BDD: range with no arguments produces an infinite lazy sequence from zero.
+  ;; 0-arg range uses range() syntax since the grammar requires parens for 0-arg calls.
+  ;; naturals is range() binds an infinite lazy seq; take 5 |> force! materializes first 5.
+  (let [result (eval-dt-last
+                "naturals is range()"
+                "naturals |> take 5 |> force!")]
+    (is (= [0 1 2 3 4] result)
+        "range() |> take 5 must produce [0 1 2 3 4]"))
+  ;; Also verify take/drop composition on infinite sequences
+  (let [result (eval-dt-last
+                "naturals is range()"
+                "naturals |> drop 3 |> take 3 |> force!")]
+    (is (= [3 4 5] result)
+        "range() |> drop 3 |> take 3 must produce [3 4 5]")))
 
 (deftest repeat-with-count-produces-a-bounded-lazy-sequence
   (let [result (eval-dt-last
@@ -359,8 +362,8 @@
 (deftest autotap-bang-placed-at-start-instruments-every-subsequent-step
   (let [{:keys [result output]}
         (capture-eval-dt-last
-          "users is [{name: \"Alice\" active: true} {name: \"Bob\" active: false}]"
-          "users |> autotap! |> filter _.active |> map {name: _.name}")]
+         "users is [{name: \"Alice\" active: true} {name: \"Bob\" active: false}]"
+         "users |> autotap! |> filter _.active |> map {name: _.name}")]
     (is (clojure.string/includes? output "[filter _.active]")
         "Output should contain the filter step label")
     (is (clojure.string/includes? output "[map {name: _.name}]")
@@ -371,8 +374,8 @@
 (deftest autotap-bang-output-format-is-function-label-on-first-line-sample-on-second
   (let [{:keys [output]}
         (capture-eval-dt-last
-          "data is [{x: 1 y: 10} {x: -1 y: 20}]"
-          "data |> autotap! |> filter _.x > 0 |> map _.y")]
+         "data is [{x: 1 y: 10} {x: -1 y: 20}]"
+         "data |> autotap! |> filter _.x > 0 |> map _.y")]
     (is (re-find #"(?s)\[filter _.x > 0\].*\n" output)
         "Filter step label should appear in output")
     (is (re-find #"(?s)\[map _.y\].*\n" output)
@@ -382,12 +385,12 @@
   (let [setup "data is [{active: true name: \"A\"} {active: false name: \"B\"}]"
         {:keys [result output]}
         (capture-eval-dt-last
-          setup
-          "data |> autotap! |> filter _.active |> map _.name")
+         setup
+         "data |> autotap! |> filter _.active |> map _.name")
         result-plain
         (silent-eval-dt-last
-          setup
-          "data |> filter _.active |> map _.name")]
+         setup
+         "data |> filter _.active |> map _.name")]
     (is (not (clojure.string/blank? output))
         "autotap! must produce tap! output")
     (is (= result-plain result)
