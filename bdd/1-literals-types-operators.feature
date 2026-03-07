@@ -387,12 +387,11 @@ Feature: Literals, Types & Operators
     # Uppercase sorts before lowercase in Unicode/ASCII ordering.
     # This matches Clojure `compare` behavior.
 
-  Scenario: Comparison with nil - any ordering comparison returns false
+  Scenario: Comparison with nil - ordering comparison returns nil (three-valued logic)
     Given the expression "5 > nil"
-    Then it evaluates to false
-    # DECIDED: Comparison with nil returns false.
-    # nil is not greater/less than anything.
-    # In a filter context, false excludes records where the field is nil. Correct behavior.
+    Then it evaluates to nil
+    # DECIDED: Comparison with nil returns nil (three-valued logic, nil means "unknown").
+    # In a filter context, nil is falsy, so the record is excluded. Correct behavior.
 
   Scenario: nil > nil
     Given the expression "nil > nil"
@@ -487,7 +486,7 @@ Feature: Literals, Types & Operators
 
   Scenario: Logical or returns actual values, not just booleans
     Given the expression "nil or 0 or false or 42"
-    Then it evaluates to 42
+    Then it evaluates to 0
     # (or nil 0 false 42) -- 0 is truthy in Clojure! So this returns 0.
     # WAIT: In Clojure, only nil and false are falsy. 0 is truthy.
     # So `nil or 0 or false or 42` => 0 (the first truthy value).
@@ -735,14 +734,9 @@ Feature: Literals, Types & Operators
 
   Scenario: Chained comparisons are NOT supported
     Given the expression "1 < 2 < 3"
-    Then it evaluates to true
-    # DECISION: Chained comparisons like Python's `1 < 2 < 3`?
-    # Option A: Parse as `(1 < 2) < 3` => `true < 3` => type error
-    # Option B: Desugar to `1 < 2 and 2 < 3` => true (Python style)
-    #
-    # RECOMMENDATION: Option A -- standard left-to-right evaluation.
-    # Chained comparisons are nice but complex to implement and rare.
-    # If `(1 < 2) < 3` happens, it is a type error (boolean < integer).
+    Then it is a parse error
+    # DECIDED: Chained comparisons are not valid syntax.
+    # The grammar does not allow comparison operators to chain.
     # Users should write `1 < 2 and 2 < 3` explicitly.
 
   Scenario: Whitespace around operators is required
@@ -833,6 +827,34 @@ Feature: Literals, Types & Operators
   Scenario: Parenthesized expression assigned
     Given the binding "x is (2 + 3) * (4 + 5)"
     Then x evaluates to 45
+
+  # ===========================================================================
+  # SECTION 18: Regex Literals
+  # ===========================================================================
+
+  Scenario: Regex literal compiles to java.util.regex.Pattern
+    Given the expression '#","'
+    Then the Clojure type is java.util.regex.Pattern
+
+  Scenario: Regex literal - simple comma pattern
+    Given the expression '#","'
+    Then it evaluates to a regex with pattern ","
+
+  Scenario: Regex literal - empty pattern
+    Given the expression '#""'
+    Then it evaluates to a regex with pattern ""
+
+  Scenario: Regex literal - digit pattern
+    Given the expression '#"\d+"'
+    Then it evaluates to a regex with pattern "\d+"
+
+  Scenario: Regex literal - dot-star pattern
+    Given the expression '#".*"'
+    Then it evaluates to a regex with pattern ".*"
+
+  Scenario: Regex literal assigned with is
+    Given the binding 'sep is #","'
+    Then sep evaluates to a regex of type java.util.regex.Pattern
 
 
 # =============================================================================
