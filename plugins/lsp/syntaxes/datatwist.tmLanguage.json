@@ -1,0 +1,194 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "DataTwist",
+  "scopeName": "source.datatwist",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#string-interpolation" },
+    { "include": "#regex" },
+    { "include": "#pattern-literal" },
+    { "include": "#string" },
+    { "include": "#constant-language" },
+    { "include": "#number" },
+    { "include": "#keyword-control" },
+    { "include": "#keyword-operator" },
+    { "include": "#operator" },
+    { "include": "#side-effect-function" },
+    { "include": "#predicate-function" },
+    { "include": "#stdlib-function" },
+    { "include": "#keyword-literal" },
+    { "include": "#object-key" },
+    { "include": "#wildcard" },
+    { "include": "#identifier" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "comment": {
+      "name": "comment.line.double-slash.datatwist",
+      "match": "//.*$"
+    },
+    "string": {
+      "name": "string.quoted.double.datatwist",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.datatwist",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "string-interpolation": {
+      "name": "string.interpolated.datatwist",
+      "begin": "#s\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.datatwist",
+          "match": "\\\\."
+        },
+        {
+          "name": "variable.other.interpolation.datatwist",
+          "match": "\\$\\{[^}]*\\}"
+        }
+      ]
+    },
+    "regex": {
+      "name": "string.regexp.datatwist",
+      "begin": "#\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.datatwist",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "pattern-literal": {
+      "name": "string.regexp.pattern.datatwist",
+      "begin": "#p\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.datatwist",
+          "match": "\\\\."
+        },
+        {
+          "name": "variable.other.pattern-capture.datatwist",
+          "match": "\\{[^}]*\\}"
+        }
+      ]
+    },
+    "constant-language": {
+      "name": "constant.language.datatwist",
+      "match": "\\b(true|false|nil)\\b"
+    },
+    "number": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.datatwist",
+          "match": "\\b[0-9]+\\.[0-9]+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.datatwist",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "keyword-control": {
+      "name": "keyword.control.datatwist",
+      "match": "\\b(is|and|or|not|in|when|try|catch|finally|recur|require|as)\\b"
+    },
+    "keyword-operator": {
+      "patterns": [
+        {
+          "name": "keyword.operator.pipe.datatwist",
+          "match": "\\|>"
+        },
+        {
+          "name": "keyword.operator.arrow.datatwist",
+          "match": "->"
+        },
+        {
+          "name": "keyword.operator.compose.datatwist",
+          "match": ">>|<<"
+        },
+        {
+          "name": "keyword.operator.guard.datatwist",
+          "match": "(?<=^|\\s)\\|(?=\\s)"
+        },
+        {
+          "name": "keyword.operator.nil-coalesce.datatwist",
+          "match": "\\?\\?"
+        }
+      ]
+    },
+    "operator": {
+      "patterns": [
+        {
+          "name": "keyword.operator.comparison.datatwist",
+          "match": ">=|<=|!=|>|<|="
+        },
+        {
+          "name": "keyword.operator.arithmetic.datatwist",
+          "match": "(?<=\\s)[+\\-](?=\\s)|[*/%]"
+        }
+      ]
+    },
+    "keyword-literal": {
+      "name": "constant.other.keyword.datatwist",
+      "match": ":[a-zA-Z][a-zA-Z0-9_\\-]*"
+    },
+    "side-effect-function": {
+      "name": "entity.name.function.side-effect.datatwist",
+      "match": "\\b[a-zA-Z][a-zA-Z0-9_\\-]*!\\b"
+    },
+    "predicate-function": {
+      "name": "entity.name.function.predicate.datatwist",
+      "match": "\\b[a-zA-Z][a-zA-Z0-9_\\-]*\\?\\b"
+    },
+    "stdlib-function": {
+      "name": "entity.name.function.datatwist",
+      "match": "\\b(map|filter|reduce|each|sort|sort-by|group-by|count|first|last|nth|rest|keys|vals|values|get|merge|assoc|dissoc|conj|concat|into|select-keys|update|append|prepend|length|size|take|drop|sum|average|avg|flatten|distinct|reverse|fill-nil|skip-nil|replace|split|format|upper-case|lower-case|trim|str|int|double|print|println|partial|comp|identity|constantly|atom|deref|inc|dec|max|min|abs|sqrt|round|ceil|floor|pow|to-string|to-int|to-float|range|apply|zip|partition|frequencies|join|substring|repeat|iterate|cycle|describe|schema|sample|freq|histogram|explain|read-csv|connect|extract|type|type-of|not=)\\b"
+    },
+    "object-key": {
+      "match": "([a-zA-Z][a-zA-Z0-9_\\-]*)(:)\\s*",
+      "captures": {
+        "1": { "name": "entity.name.tag.key.datatwist" },
+        "2": { "name": "punctuation.separator.key-value.datatwist" }
+      }
+    },
+    "wildcard": {
+      "name": "variable.language.wildcard.datatwist",
+      "match": "\\b_\\b"
+    },
+    "identifier": {
+      "name": "variable.other.datatwist",
+      "match": "\\b[a-zA-Z][a-zA-Z0-9_\\-]*[?!]?\\b"
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.definition.bracket.square.datatwist",
+          "match": "[\\[\\]]"
+        },
+        {
+          "name": "punctuation.definition.bracket.curly.datatwist",
+          "match": "[{}]"
+        },
+        {
+          "name": "punctuation.definition.parenthesis.datatwist",
+          "match": "[()]"
+        },
+        {
+          "name": "punctuation.accessor.dot.datatwist",
+          "match": "\\."
+        },
+        {
+          "name": "punctuation.separator.rest.datatwist",
+          "match": "&"
+        }
+      ]
+    }
+  }
+}

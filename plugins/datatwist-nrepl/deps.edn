@@ -1,0 +1,10 @@
+{:paths ["src"]
+ :deps {org.clojure/clojure    {:mvn/version "1.12.0"}
+        nrepl/nrepl            {:mvn/version "1.3.0"}
+        io.github.datatwist/datatwist {:local/root "../.."}}
+ :aliases
+ {:dev {:extra-deps {nrepl/bencode {:mvn/version "1.2.0"}}
+        :extra-paths ["test"]}
+  :nrepl {:main-opts ["-m" "nrepl.cmdline"
+                      "--middleware"
+                      "[datatwist.nrepl.middleware/wrap-datatwist-eval]"]}}}
