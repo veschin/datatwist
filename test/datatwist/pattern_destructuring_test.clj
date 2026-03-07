@@ -9,7 +9,8 @@
 ;; Every deftest maps 1:1 to a BDD Scenario.
 ;;
 ;; Phase 1 implements: Sections 1, 4, 5, 6, 7, and selected Section 9 tests.
-;; Sections 2, 3, 8, and remaining Section 9 tests are stubs for Phase 2+.
+;; Section 2 (Tier 2 type hints) is also implemented with real assertions.
+;; Sections 3, 8, and remaining Section 9 tests are stubs for Phase 2+.
 ;;
 ;; Note on syntax: BDD uses `value | pattern -> result` shorthand.
 ;; In tests we use `value |> (| pattern -> result | _ -> nil)` which pipes
@@ -289,13 +290,12 @@
             "extract \"hello\" email-pat")))))
 
 (deftest pipeline-map-with-extract-over-list-of-strings
-  (testing "Pipeline: map extract over list of strings"
-    (is (= [{:user "alice" :domain "example.com"}
-            {:user "bob" :domain "test.org"}]
+  (testing "Pipeline: map extract over list of strings, extract years from dates"
+    (is (= ["2024" "2024" "2024"]
            (eval-dt-last
-            "email-pat is #p\"{user}@{domain}\""
-            "emails is [\"alice@example.com\" \"bob@test.org\"]"
-            "emails |> map [s -> extract s email-pat]")))))
+            "date-fmt is #p\"{y:4d}-{m:2d}-{d:2d}\""
+            "dates is [\"2024-01-15\" \"2024-02-28\" \"2024-12-01\"]"
+            "dates |> map [s -> extract s date-fmt] |> map [r -> r.y]")))))
 
 (deftest pipeline-filter-with-match-keeps-only-matching-strings
   (testing "Pipeline: filter with match? keeps only matching strings"
@@ -375,19 +375,19 @@
   (testing "stub — not yet implemented (Phase 2: requires type hints)"))
 
 (deftest all-captured-values-are-strings-explicit-conversion-needed-for-arithmetic
-  (testing "All captured values are strings — explicit conversion needed"
-    ;; Captures are always strings; to-int converts to numeric
-    (is (= 2024
-           (eval-dt-last
-            "date-pat is #p\"{y}-{m}-{d}\""
-            "to-int (extract \"2024-01-15\" date-pat).y")))))
+  (testing "All captured values are strings — explicit conversion needed for arithmetic"
+    ;; Captures are always strings; to-int converts each before adding
+    (is (= 2040
+           (eval-dt
+            "\"2024-01-15\" |> (| #p\"{y:4d}-{m:2d}-{d:2d}\" -> to-int y + to-int m + to-int d | _ -> nil)")))))
 
 (deftest wildcard-capture-matches-but-does-not-bind
-  (testing "Wildcard {_} captures but does not bind to env"
-    ;; {_} is consumed in the regex but not bound; other captures still work
-    (is (= "world"
-           (eval-dt
-            "\"hello world\" |> (| #p\"{_} {tail}\" -> tail | _ -> nil)")))))
+  (testing "Wildcard {_} matches but does not bind — used in filter over list"
+    ;; {_}@{_} matches email-shaped strings; {_} captures are discarded
+    (is (= ["alice@example.com" "bob@test.org"]
+           (eval-dt-last
+            "inputs is [\"alice@example.com\" \"bob@test.org\" \"not-an-email\"]"
+            "inputs |> filter [s -> match? s #p\"{_}@{_}\"]")))))
 
 (deftest pattern-destructuring-via-is-binds-all-captures-in-scope
   (testing "stub — not yet implemented (Phase 1 extension: Pattern on LHS of is)"))
