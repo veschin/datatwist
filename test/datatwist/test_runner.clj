@@ -12,7 +12,9 @@
             [datatwist.lazy-eval-test]
             [datatwist.demo-runner-test]
             [datatwist.pattern-destructuring-test]
-            [datatwist.main-test]))
+            [datatwist.main-test]
+            [datatwist.lsp-editor-test]
+            [datatwist.nrepl-integration-test]))
 
 (defn -main [& _args]
   (let [result (run-tests
@@ -28,7 +30,9 @@
                 'datatwist.lazy-eval-test
                 'datatwist.demo-runner-test
                 'datatwist.pattern-destructuring-test
-                'datatwist.main-test)]
+                'datatwist.main-test
+                'datatwist.lsp-editor-test
+                'datatwist.nrepl-integration-test)]
     (System/exit (if (and (zero? (:fail result))
                           (zero? (:error result)))
                    0
