@@ -1,0 +1,5 @@
+feature: error-reporting
+files:
+  - path: showcase.dt
+    type: fixture
+    description: "Language examples"

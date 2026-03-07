@@ -1,0 +1,5 @@
+feature: binding-destructuring
+files:
+  - path: showcase.dt
+    type: fixture
+    description: "Language examples"

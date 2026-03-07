@@ -1,0 +1,346 @@
+features:
+  binding-destructuring:
+    stage: impl
+    hashes:
+      bdd: 0c345c73ef3d9305243d8ffa9786bcc5c97c479e5064a96ed8b93cf46e6cea8d
+      prd: 0aab9b4182ab4dde0f0b1db1017c0fd1e9fa8034a4cbee22a6b21458dcd84cb0
+      seed: f5750731a4952655f21abbbc4d9e6261316928c4a62514783810e3179ae733a7
+      test: 22c6e03c0d6edec0af710bd09386bf925fcce6c0f940b4fb9abc206295bf0429
+      test_results: passed:1 failed:0
+      test_status: passing
+    scores:
+      bdd:
+        score: 8
+        at: "2026-03-07T20:29:36.774525117+03:00"
+      impl:
+        score: 8
+        at: "2026-03-07T20:29:36.775984887+03:00"
+      prd:
+        score: 8
+        at: "2026-03-07T20:29:36.77304072+03:00"
+      seed:
+        score: 8
+        at: "2026-03-07T20:29:36.773787803+03:00"
+      tests:
+        score: 8
+        at: "2026-03-07T20:29:36.775257642+03:00"
+    tests:
+      - .ptsd/bdd/binding-destructuring.feature::test/datatwist/binding_test.clj
+  data-structures:
+    stage: impl
+    hashes:
+      bdd: 9daa72add09bec47474bf10c9cd2d8d90e9d636ee36225750b4511fe48aae9c0
+      prd: 0aab9b4182ab4dde0f0b1db1017c0fd1e9fa8034a4cbee22a6b21458dcd84cb0
+      seed: 33197aa33d9b7172afe334bba598ccc6ba79695aef9fa219958ab6e3d35f2d35
+      test: f7fb3122967a94cce2216172785d97072593538c89c7b411eb353aa695c764b4
+      test_results: passed:1 failed:0
+      test_status: passing
+    scores:
+      bdd:
+        score: 8
+        at: "2026-03-07T20:29:36.763579051+03:00"
+      impl:
+        score: 8
+        at: "2026-03-07T20:29:36.765172255+03:00"
+      prd:
+        score: 8
+        at: "2026-03-07T20:29:36.761888201+03:00"
+      seed:
+        score: 8
+        at: "2026-03-07T20:29:36.762629553+03:00"
+      tests:
+        score: 8
+        at: "2026-03-07T20:29:36.764401527+03:00"
+    tests:
+      - .ptsd/bdd/data-structures.feature::test/datatwist/data_structures_test.clj
+  demo-runner:
+    stage: impl
+    hashes:
+      bdd: 3d72ae4c3919a8886de42d27fb753cbf81bd1e3a4005fdd28ec61ada93ed34d5
+      prd: 0aab9b4182ab4dde0f0b1db1017c0fd1e9fa8034a4cbee22a6b21458dcd84cb0
+      seed: bbd15fa67bdfefd73a461c28c373ac492c758afd51ba7063be3bbcc212bd0710
+      test: a3b2d95cca380032257c71b5589af6a720f59af49b5e7089c8aec7f23906f421
+      test_results: passed:1 failed:0
+      test_status: passing
+    scores:
+      bdd:
+        score: 8
+        at: "2026-03-07T20:29:36.789569829+03:00"
+      impl:
+        score: 8
+        at: "2026-03-07T20:29:36.79102974+03:00"
+      prd:
+        score: 8
+        at: "2026-03-07T20:29:36.7880897+03:00"
+      seed:
+        score: 8
+        at: "2026-03-07T20:29:36.788831373+03:00"
+      tests:
+        score: 8
+        at: "2026-03-07T20:29:36.790308937+03:00"
+    tests:
+      - .ptsd/bdd/demo-runner.feature::test/datatwist/demo_runner_test.clj
+  error-reporting:
+    stage: impl
+    hashes:
+      bdd: 637f3d01ffc0528589eeb8d0941e432293ee2401240457c845ac55cdef78b83c
+      prd: 0aab9b4182ab4dde0f0b1db1017c0fd1e9fa8034a4cbee22a6b21458dcd84cb0
+      seed: de1a08d92e0828d76e0bba97cec39abdfcdf0c571e32550f7eca66488f74998b
+      test: be3671b9d632f7a7e0bf876fde0fc05fac3979eb9dde26b5df25c228eaca597d
+      test_results: passed:1 failed:0
+      test_status: passing
+    scores:
+      bdd:
+        score: 8
+        at: "2026-03-07T21:19:36.41388517+03:00"
+      impl:
+        score: 9
+        at: "2026-03-07T21:20:46.267698869+03:00"
+      prd:
+        score: 8
+        at: "2026-03-07T20:29:36.784324219+03:00"
+      seed:
+        score: 8
+        at: "2026-03-07T20:29:36.785111228+03:00"
+      tests:
+        score: 9
+        at: "2026-03-07T21:20:46.266892206+03:00"
+    tests:
+      - .ptsd/bdd/error-reporting.feature::test/datatwist/error_reporting_test.clj
+  functions-closures:
+    stage: impl
+    hashes:
+      bdd: 1a9f10a8e4b88702035cabe4bc8d66f8eaf4d9fcbb7c1850bef2e1478e158f4e
+      prd: 0aab9b4182ab4dde0f0b1db1017c0fd1e9fa8034a4cbee22a6b21458dcd84cb0
+      seed: 2df4de39602c0654305f9eca56b35c6e224e75ba922db0862f4e3df83d0c15e8
+      test: 860855aa6242a716daa3135c023198543c5b2a710f4f8508cb062b97e9d891cc
+      test_results: passed:1 failed:0
+      test_status: passing
+    scores:
+      bdd:
+        score: 8
+        at: "2026-03-07T20:29:36.767320727+03:00"
+      impl:
+        score: 8
+        at: "2026-03-07T20:29:36.768717858+03:00"
+      prd:
+        score: 8
+        at: "2026-03-07T20:29:36.765901264+03:00"
+      seed:
+        score: 8
+        at: "2026-03-07T20:29:36.766588863+03:00"
+      tests:
+        score: 8
+        at: "2026-03-07T20:29:36.768035318+03:00"
+    tests:
+      - .ptsd/bdd/functions-closures.feature::test/datatwist/functions_test.clj
+  interop-misc:
+    stage: impl
+    hashes:
+      bdd: b1701f7b6224d27eb867cda92a3a53601ea80153b073f0872076227be3dab7bc
+      prd: 0aab9b4182ab4dde0f0b1db1017c0fd1e9fa8034a4cbee22a6b21458dcd84cb0
+      seed: b7bc9d8883f4634b0fab7978cf64abe013709dc6bb21a5a7cd00419fc42d4495
+      test: a871857b1102a526dd20c50f4482b0f2b5aa3f606c818f1c88330d4df318ac69
+      test_results: passed:1 failed:0
+      test_status: passing
+    scores:
+      bdd:
+        score: 8
+        at: "2026-03-07T20:29:36.781999542+03:00"
+      impl:
+        score: 8
+        at: "2026-03-07T20:29:36.783570884+03:00"
+      prd:
+        score: 8
+        at: "2026-03-07T20:29:36.780426306+03:00"
+      seed:
+        score: 8
+        at: "2026-03-07T20:29:36.781199138+03:00"
+      tests:
+        score: 8
+        at: "2026-03-07T20:29:36.782804876+03:00"
+    tests:
+      - .ptsd/bdd/interop-misc.feature::test/datatwist/interop_test.clj
+  lazy-eval:
+    stage: impl
+    hashes:
+      bdd: 824bae3bf69d65d86a364c5c363748d7b652814ebde26c9af4e26b7c0e211445
+      prd: 0aab9b4182ab4dde0f0b1db1017c0fd1e9fa8034a4cbee22a6b21458dcd84cb0
+      seed: e2bca2607d7ba7f972805fdd00d7cebe61e722f669ac4b1b68a2525fe5efce98
+      test: 59aacd484b9171380ffe70cb30ba9367b55d1e582360b92df2e32aaae3bce093
+      test_results: passed:1 failed:0
+      test_status: passing
+    scores:
+      bdd:
+        score: 8
+        at: "2026-03-07T21:20:46.268434164+03:00"
+      impl:
+        score: 8
+        at: "2026-03-07T21:40:09.694160619+03:00"
+      prd:
+        score: 8
+        at: "2026-03-07T20:29:42.824627749+03:00"
+      seed:
+        score: 8
+        at: "2026-03-07T20:29:42.825569813+03:00"
+      tests:
+        score: 8
+        at: "2026-03-07T21:40:09.693442385+03:00"
+    tests:
+      - .ptsd/bdd/lazy-eval.feature::test/datatwist/lazy_eval_test.clj
+  literals-types-operators:
+    stage: impl
+    hashes:
+      bdd: ecfff7136f6cacd02f1768dabbb3a9817fee76efa26768be5a1fe5c0b208e84f
+      prd: 0aab9b4182ab4dde0f0b1db1017c0fd1e9fa8034a4cbee22a6b21458dcd84cb0
+      seed: 5573fa2f8b3a3a5269579fd71e32412c107c5fd6cac172f8b186cd02773921c8
+      test: de123b20eccba1dcc703b08bae194b014f3e7e680906a1eb7df5fce413683e8d
+      test_results: passed:1 failed:0
+      test_status: passing
+    scores:
+      bdd:
+        score: 8
+        at: "2026-03-07T20:48:20.1915976+03:00"
+      impl:
+        score: 8
+        at: "2026-03-07T20:48:20.193415645+03:00"
+      prd:
+        score: 8
+        at: "2026-03-07T20:29:36.758069518+03:00"
+      seed:
+        score: 8
+        at: "2026-03-07T20:29:36.758924887+03:00"
+      tests:
+        score: 8
+        at: "2026-03-07T20:48:20.192549329+03:00"
+    tests:
+      - .ptsd/bdd/literals-types-operators.feature::test/datatwist/literals_test.clj
+  lsp-editor:
+    stage: tests
+    hashes:
+      bdd: fcd68960a84bb7fe0ee260ed1e679e2739dea5a00b4a5515e02f3b333fcb71be
+      prd: 0aab9b4182ab4dde0f0b1db1017c0fd1e9fa8034a4cbee22a6b21458dcd84cb0
+      seed: 349baf6b7357a5218d483427897390e6af1819258aa7f4321b7a59823de8a8ed
+      test: 504b7887ddb1f40e8a38e8e513c2a1385ff0953960c96e1d76dc2149991b1a7a
+      test_results: passed:1 failed:0
+      test_status: passing
+    scores:
+      bdd:
+        score: 8
+        at: "2026-03-07T21:19:36.417374331+03:00"
+      prd:
+        score: 8
+        at: "2026-03-07T20:29:42.832827214+03:00"
+      seed:
+        score: 8
+        at: "2026-03-07T20:39:50.828647456+03:00"
+      tests:
+        score: 7
+        at: "2026-03-07T21:39:27.093848399+03:00"
+    tests:
+      - .ptsd/bdd/lsp-editor.feature::test/datatwist/lsp_editor_test.clj
+  nrepl-integration:
+    stage: tests
+    hashes:
+      bdd: 1aab91c421d62ba2a002aff6e6b4599babc905153f7845a83197a8c61b2986d0
+      prd: 0aab9b4182ab4dde0f0b1db1017c0fd1e9fa8034a4cbee22a6b21458dcd84cb0
+      seed: 9e84dd3b6e7400000e556d060c161e37e0c2f3762f9741c94e9c6b70be500c22
+      test: 0b5b7c07437083c2b0ca262ffa3af7fa160acdcd63033a5dd548e11525f377de
+      test_results: passed:1 failed:0
+      test_status: passing
+    scores:
+      bdd:
+        score: 8
+        at: "2026-03-07T21:19:36.418191435+03:00"
+      prd:
+        score: 8
+        at: "2026-03-07T20:29:42.833595147+03:00"
+      seed:
+        score: 8
+        at: "2026-03-07T20:39:50.830455891+03:00"
+      tests:
+        score: 7
+        at: "2026-03-07T21:39:27.094753262+03:00"
+    tests:
+      - .ptsd/bdd/nrepl-integration.feature::test/datatwist/nrepl_integration_test.clj
+  pattern-destructuring:
+    stage: impl
+    hashes:
+      bdd: c752bf1fdf8647ca9c7413cbb1142bdb75ad973383f06611b5b0ee349a57c61f
+      prd: 0aab9b4182ab4dde0f0b1db1017c0fd1e9fa8034a4cbee22a6b21458dcd84cb0
+      seed: 89f6a77425f4dffa39dba751bffb23d3fa6ab03c7a1d6889595c5c5ca7738f6f
+      test: c9cd73cde3527883ab2e060dc40e2c450ff51cfef48de29c61881b986b4030be
+      test_results: passed:1 failed:0
+      test_status: passing
+    scores:
+      bdd:
+        score: 8
+        at: "2026-03-07T20:29:42.830423016+03:00"
+      impl:
+        score: 8
+        at: "2026-03-07T20:48:20.196936834+03:00"
+      prd:
+        score: 8
+        at: "2026-03-07T20:29:42.828861312+03:00"
+      seed:
+        score: 8
+        at: "2026-03-07T20:29:42.829692124+03:00"
+      tests:
+        score: 8
+        at: "2026-03-07T20:48:20.196062233+03:00"
+    tests:
+      - .ptsd/bdd/pattern-destructuring.feature::test/datatwist/pattern_destructuring_test.clj
+  pattern-matching:
+    stage: impl
+    hashes:
+      bdd: eb0bc16e7fc196625e0b5b99a681e72e1f6e1a82da298b29bd83b7524984b578
+      prd: 0aab9b4182ab4dde0f0b1db1017c0fd1e9fa8034a4cbee22a6b21458dcd84cb0
+      seed: 0bb814520c06ea484c114724f4ddebf705ec0d680efbddd5a8295d8f2f9c5e77
+      test: 1ccc3b09cd968948108c844be1f24034b1613e618541e3c56348d0454622a93e
+      test_results: passed:1 failed:0
+      test_status: passing
+    scores:
+      bdd:
+        score: 8
+        at: "2026-03-07T20:29:36.778226316+03:00"
+      impl:
+        score: 8
+        at: "2026-03-07T20:29:36.779661459+03:00"
+      prd:
+        score: 8
+        at: "2026-03-07T20:29:36.776738162+03:00"
+      seed:
+        score: 8
+        at: "2026-03-07T20:29:36.77752481+03:00"
+      tests:
+        score: 8
+        at: "2026-03-07T20:29:36.778926139+03:00"
+    tests:
+      - .ptsd/bdd/pattern-matching.feature::test/datatwist/pattern_matching_test.clj
+  pipeline:
+    stage: impl
+    hashes:
+      bdd: 39df2707bd89769066230cfc2603bf2b4118e65d48a58cd78c3435a6ea5c44c9
+      prd: 0aab9b4182ab4dde0f0b1db1017c0fd1e9fa8034a4cbee22a6b21458dcd84cb0
+      seed: 4665de67d34eeac3b497f57f602f078c94155a5677ec12dedb1422ecbe50b87f
+      test: c9d235cfeed4013c9126e86dec587d5cfcfbb1f4a11743d22bc85eddaf71b553
+      test_results: passed:1 failed:0
+      test_status: passing
+    scores:
+      bdd:
+        score: 8
+        at: "2026-03-07T20:29:36.77093519+03:00"
+      impl:
+        score: 8
+        at: "2026-03-07T20:29:36.772363601+03:00"
+      prd:
+        score: 8
+        at: "2026-03-07T20:29:36.769452557+03:00"
+      seed:
+        score: 8
+        at: "2026-03-07T20:29:36.770231751+03:00"
+      tests:
+        score: 8
+        at: "2026-03-07T20:29:36.771663287+03:00"
+    tests:
+      - .ptsd/bdd/pipeline.feature::test/datatwist/pipeline_test.clj

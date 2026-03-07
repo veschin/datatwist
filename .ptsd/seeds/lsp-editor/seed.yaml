@@ -1,0 +1,8 @@
+feature: lsp-editor
+files:
+  - path: lsp-tree-sitter-design.md
+    type: data
+    description: "LSP Tree-sitter design doc"
+  - path: README.md
+    type: data
+    description: "LSP plugin README"

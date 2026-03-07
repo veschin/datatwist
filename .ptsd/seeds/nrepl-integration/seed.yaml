@@ -1,0 +1,5 @@
+feature: nrepl-integration
+files:
+  - path: README.md
+    type: data
+    description: "nREPL plugin README"

@@ -1,0 +1,176 @@
+// DataTwist Showcase
+// A demonstration of the language features through a data processing script
+
+// ============================================================
+// 1. Literals, Types & Operators
+// ============================================================
+
+// Numbers
+max-score is 100
+passing-grade is 60.0
+penalty is -5
+
+// Strings
+greeting is "Hello, DataTwist!"
+template is "Score: %d out of %d"
+
+// Booleans and nil
+debug-mode is false
+missing-value is nil
+
+// Arithmetic
+bonus is 3 * 5 + 10
+percentage is 75.0 / 100.0 * 100
+
+// Comparison and logic
+passing? is bonus >= 20 and debug-mode = false
+
+// Nil coalescing
+effective-value is missing-value ?? 42
+
+// ============================================================
+// 2. Data Structures
+// ============================================================
+
+// Objects (maps with postfix-colon keys)
+alice is {name: "Alice" age: 25 department: "Engineering" active: true}
+bob is {name: "Bob" age: 17 department: "Intern" active: true}
+carol is {name: "Carol" age: 32 department: "Marketing" active: false}
+dave is {name: "Dave" age: 22 department: "Engineering" active: true}
+
+// Nested objects
+company is {
+  name: "DataTech"
+  hq: {city: "San Francisco" country: "US"}
+  headcount: 4
+}
+
+// Lists (vectors)
+scores is [95 82 67 91 55 78 88]
+tags is ["functional" "pipeline" "data"]
+
+// Field access (nil-tolerant)
+alice-name is alice.name
+alice-city is alice.address.city    // nil - field does not exist, no error
+
+// ============================================================
+// 3. Functions & Closures
+// ============================================================
+
+// Basic functions
+double is [x -> x * 2]
+add is [a b -> a + b]
+greet is [name -> format "Hello, %s!" name]
+
+// Predicate functions (by convention, name ends with ?)
+even? is [n -> n % 2 = 0]
+adult? is [person -> person.age >= 18]
+active-adult? is [person -> person.active and person.age >= 18]
+
+// Closure: function captures outer variable
+base-salary is 50000
+make-raise is [pct -> [emp -> emp + base-salary * pct / 100]]
+give-10pct-raise is make-raise 10
+
+// Higher-order functions
+apply-twice is [f x -> f (f x)]
+
+// Multi-arity (overloaded by parameter count)
+greet-full is
+  [-> "Hello, World!"]
+  [name -> format "Hello, %s!" name]
+  [first last -> format "Hello, %s %s!" first last]
+
+// ============================================================
+// 4. Pipeline (|>)
+// ============================================================
+
+// Basic pipeline: left-to-right data flow
+top-scores is scores |> filter _ > 80 |> sort |> reverse
+
+// Pipeline with _ as current element
+above-average is scores |> filter _ > 75
+
+// Map transformation
+doubled-scores is scores |> map _ * 2
+
+// Chained operations
+passing-scores is scores
+  |> filter _ >= passing-grade
+  |> sort
+  |> distinct
+
+// Reduce (accumulate)
+total-score is scores |> reduce [acc x -> acc + x] 0
+score-count is scores |> count
+mean-score is scores |> average
+
+// ============================================================
+// 5. Binding & Destructuring
+// ============================================================
+
+// Simple binding
+result is scores |> filter _ > 80 |> count
+
+// Object destructuring
+{name age} is alice
+{name: emp-name department: dept} is dave
+
+// List destructuring
+[first second & rest-scores] is scores
+[head & tail] is tags
+
+// ============================================================
+// 6. Pattern Matching (Guards)
+// ============================================================
+
+// Guard-based dispatch
+grade is [score ->
+  | score >= 90 -> "A"
+  | score >= 80 -> "B"
+  | score >= 70 -> "C"
+  | score >= 60 -> "D"
+  | _ -> "F"
+]
+
+// Recursive with guards
+factorial is [n ->
+  | n <= 1 -> 1
+  | _ -> n * factorial (n - 1)
+]
+
+// Pattern match on value
+describe-list is [xs ->
+  | count xs = 0 -> "empty"
+  | count xs = 1 -> "singleton"
+  | _ -> "many"
+]
+
+// ============================================================
+// 7. Realistic Data Processing Pipeline
+// ============================================================
+
+employees is [
+  {name: "Alice" age: 25 department: "Engineering" active: true  salary: 95000}
+  {name: "Bob"   age: 17 department: "Intern"      active: true  salary: 15000}
+  {name: "Carol" age: 32 department: "Marketing"   active: false salary: 85000}
+  {name: "Dave"  age: 22 department: "Engineering" active: true  salary: 78000}
+  {name: "Eve"   age: 28 department: "Engineering" active: true  salary: 91000}
+]
+
+// Find active adult engineers sorted by salary
+engineering-team is employees
+  |> filter _.active
+  |> filter _.age >= 18
+  |> filter _.department = "Engineering"
+  |> sort-by _.salary
+  |> reverse
+
+// Extract just names
+engineer-names is engineering-team |> map _.name
+
+// Average engineering salary
+avg-eng-salary is engineering-team |> map _.salary |> average
+
+// Count by department
+active-employees is employees |> filter _.active |> filter _.age >= 18

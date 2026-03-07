@@ -1,0 +1,5 @@
+feature: data-structures
+files:
+  - path: showcase.dt
+    type: fixture
+    description: "Language examples"

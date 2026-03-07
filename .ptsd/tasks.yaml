@@ -1,0 +1,111 @@
+tasks:
+  - id: T-1
+    feature: lazy-eval
+    title: redo impl for lazy-eval
+    status: WIP
+    priority: A
+  - id: T-2
+    feature: lazy-eval
+    title: Complete DTPipeline reified pipeline implementation
+    status: WIP
+    priority: B
+  - id: T-3
+    feature: lazy-eval
+    title: Implement streaming pipelines with backpressure
+    status: TODO
+    priority: B
+  - id: T-4
+    feature: lazy-eval
+    title: Implement take/drop on infinite sequences
+    status: DONE
+    priority: B
+  - id: T-5
+    feature: lsp-editor
+    title: Create seed data for LSP feature
+    status: DONE
+    priority: B
+  - id: T-6
+    feature: lsp-editor
+    title: Write BDD scenarios review and refinement
+    status: DONE
+    priority: B
+  - id: T-7
+    feature: lsp-editor
+    title: Create Tree-sitter grammar from Instaparse EBNF
+    status: TODO
+    priority: B
+  - id: T-8
+    feature: lsp-editor
+    title: Implement TextMate grammar for syntax highlighting
+    status: DONE
+    priority: B
+  - id: T-9
+    feature: nrepl-integration
+    title: Create seed data for nREPL feature
+    status: DONE
+    priority: B
+  - id: T-10
+    feature: nrepl-integration
+    title: Write BDD scenarios review and refinement
+    status: DONE
+    priority: B
+  - id: T-11
+    feature: nrepl-integration
+    title: Implement nREPL middleware for DataTwist eval
+    status: WIP
+    priority: B
+  - id: T-12
+    feature: literals-types-operators
+    title: "\"\\"\\\"\\\\"\\\\\"\\\\\\"\\\\\\\"\\\\\\\\"\\\\\\\\\"\\\\\\\\\\"\\\\\\\\\\\"\\\\\\\\\\\\"\\\\\\\\\\\\\"\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Fix BDD: nil comparison returns nil not false, logical or says 42 should be 0, chained comparisons parse error\\\\\\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\"\\\\\\\\\\\\\"\\\\\\\\\\\\"\\\\\\\\\\\"\\\\\\\\\\"\\\\\\\\\"\\\\\\\\"\\\\\\\"\\\\\\"\\\\\"\\\\"\\\"\\"\""
+    status: DONE
+    priority: B
+  - id: T-13
+    feature: literals-types-operators
+    title: Add BDD scenarios for regex-literals (test exists without BDD)
+    status: DONE
+    priority: B
+  - id: T-14
+    feature: error-reporting
+    title: "\"\\"\\\"\\\\"\\\\\"\\\\\\"\\\\\\\"\\\\\\\\"\\\\\\\\\"\\\\\\\\\\"\\\\\\\\\\\"\\\\\\\\\\\\"\\\\\\\\\\\\\"\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\\\\"Strengthen tests: add DT-T/DT-R/DT-C error code assertions per BDD\\\\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\"\\\\\\\\\\\\\"\\\\\\\\\\\\"\\\\\\\\\\\"\\\\\\\\\\"\\\\\\\\\"\\\\\\\\"\\\\\\\"\\\\\\"\\\\\"\\\\"\\\"\\"\""
+    status: DONE
+    priority: B
+  - id: T-15
+    feature: error-reporting
+    title: Implement data-aware warnings (DT-D codes) in evaluator
+    status: DONE
+    priority: B
+  - id: T-16
+    feature: pattern-destructuring
+    title: "\"\\"\\\"\\\\"\\\\\"\\\\\\"\\\\\\\"\\\\\\\\"\\\\\\\\\"\\\\\\\\\\"\\\\\\\\\\\"\\\\\\\\\\\\"\\\\\\\\\\\\\"\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\\"Fix 3 semantic deviations: pipeline-map, wildcard, arithmetic tests\\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\"\\\\\\\\\\\\\"\\\\\\\\\\\\"\\\\\\\\\\\"\\\\\\\\\\"\\\\\\\\\"\\\\\\\\"\\\\\\\"\\\\\\"\\\\\"\\\\"\\\"\\"\""
+    status: DONE
+    priority: B
+  - id: T-17
+    feature: pattern-destructuring
+    title: "\"\\"\\\"\\\\"\\\\\"\\\\\\"\\\\\\\"\\\\\\\\"\\\\\\\\\"\\\\\\\\\\"\\\\\\\\\\\"\\\\\\\\\\\\"\\\\\\\\\\\\\"\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\\"Update stale header comment: Section 2 Tier 2 is implemented\\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\"\\\\\\\\\\\\\"\\\\\\\\\\\\"\\\\\\\\\\\"\\\\\\\\\\"\\\\\\\\\"\\\\\\\\"\\\\\\\"\\\\\\"\\\\\"\\\\"\\\"\\"\""
+    status: DONE
+    priority: B
+  - id: T-18
+    feature: lazy-eval
+    title: "\"\\"\\\"\\\\"\\\\\"\\\\\\"\\\\\\\"\\\\\\\\"\\\\\\\\\"\\\\\\\\\\"\\\\\\\\\\\"\\\\\\\\\\\\"\\\\\\\\\\\\\"\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\\"Resolve BDD conflict: range 1-arg semantics (finite vs infinite)\\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\"\\\\\\\\\\\\\"\\\\\\\\\\\\"\\\\\\\\\\\"\\\\\\\\\\"\\\\\\\\\"\\\\\\\\"\\\\\\\"\\\\\\"\\\\\"\\\\"\\\"\\"\""
+    status: DONE
+    priority: B
+  - id: T-19
+    feature: lsp-editor
+    title: Decouple BDD sections 6-7 (Eval-at-Point, Inspector) to nREPL feature
+    status: DONE
+    priority: B
+  - id: T-20
+    feature: lsp-editor
+    title: Add BDD scenario for signatureHelp and inspect-pipeline-step
+    status: DONE
+    priority: B
+  - id: T-21
+    feature: nrepl-integration
+    title: Add BDD scenarios for inspect-pipeline-step, info/lookup ops, stdout forwarding
+    status: DONE
+    priority: B
+  - id: T-22
+    feature: nrepl-integration
+    title: Write standalone nREPL design doc
+    status: DONE
+    priority: B

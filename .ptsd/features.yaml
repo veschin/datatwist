@@ -1,0 +1,40 @@
+features:
+  - id: literals-types-operators
+    title: "Literals, Types & Operators"
+    status: implemented
+  - id: data-structures
+    title: "Data Structures"
+    status: implemented
+  - id: functions-closures
+    title: "Functions & Closures"
+    status: implemented
+  - id: pipeline
+    title: "Pipeline operator"
+    status: implemented
+  - id: binding-destructuring
+    title: "Binding & Destructuring"
+    status: implemented
+  - id: pattern-matching
+    title: "Pattern Matching & Guards"
+    status: implemented
+  - id: interop-misc
+    title: "Clojure Interop & Misc"
+    status: implemented
+  - id: lazy-eval
+    title: "Lazy Evaluation & Data Sources"
+    status: in-progress
+  - id: error-reporting
+    title: "Error Reporting"
+    status: implemented
+  - id: demo-runner
+    title: "Demo Runner"
+    status: implemented
+  - id: lsp-editor
+    title: "LSP Editor Support"
+    status: planned
+  - id: nrepl-integration
+    title: "nREPL Integration"
+    status: planned
+  - id: pattern-destructuring
+    title: "String Pattern Destructuring"
+    status: implemented

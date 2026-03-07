@@ -1,0 +1,5 @@
+feature: literals-types-operators
+files:
+  - path: showcase.dt
+    type: fixture
+    description: "Language examples"

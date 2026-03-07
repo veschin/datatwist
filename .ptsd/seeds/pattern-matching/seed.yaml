@@ -1,0 +1,5 @@
+feature: pattern-matching
+files:
+  - path: showcase.dt
+    type: fixture
+    description: "Language examples"
