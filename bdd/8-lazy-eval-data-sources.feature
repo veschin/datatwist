@@ -235,14 +235,14 @@ Feature: Lazy Evaluation, Data Sources & Pipeline Introspection
       """
     Then result is [0 1 2 3 4]
 
-  Scenario: range with no upper bound produces an infinite lazy sequence
+  Scenario: range with no arguments produces an infinite lazy sequence from zero
     Given the source code:
       """
-      naturals is range 1
-      result is naturals |> take 4 |> force!
+      naturals is range
+      result is naturals |> take 5 |> force!
       """
-    Then naturals is an infinite lazy sequence starting at 1
-    And result is [1 2 3 4]
+    Then naturals is an infinite lazy sequence starting at 0
+    And result is [0 1 2 3 4]
 
   Scenario: repeat with count produces a bounded lazy sequence
     Given the source code:
