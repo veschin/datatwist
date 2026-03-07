@@ -237,3 +237,108 @@ Feature: nREPL Integration
     When the client sends eval op with code "bad parse ==="
     And the client sends eval op with code "x"
     Then the final response contains :value "5"
+
+  # ===========================================================================
+  # SECTION 8: Eval-at-Point (Emacs + nREPL)
+  # ===========================================================================
+
+  Scenario: Eval-at-point on a binding evaluates the right-hand side
+    Given the buffer contains "greeting is \"hello\""
+    And a live nREPL session is connected
+    When the user invokes eval-at-point with cursor inside the binding
+    Then the nREPL evaluates "greeting is \"hello\""
+    And an inline overlay appears showing "=> \"hello\""
+
+  Scenario: Eval-at-point on a pipeline evaluates the full pipeline
+    Given the buffer contains "users |> filter _.active |> count"
+    And a live nREPL session is connected
+    And "users" is bound to a list in the current session
+    When the user invokes eval-at-point with cursor anywhere in the pipeline
+    Then the nREPL evaluates the pipeline expression
+    And an inline overlay appears showing the numeric result
+
+  Scenario: Eval-at-point on a literal evaluates to that literal
+    Given the buffer contains "42"
+    And a live nREPL session is connected
+    When the user invokes eval-at-point on "42"
+    Then an inline overlay appears showing "=> 42"
+
+  Scenario: Inline overlay disappears after the configured timeout
+    Given an inline result overlay is visible showing "=> 42"
+    When the configured display duration elapses
+    Then the overlay is removed and the buffer text is unchanged
+
+  # ===========================================================================
+  # SECTION 9: Data Inspector (Editor UI)
+  # ===========================================================================
+
+  Scenario: Inspecting a map shows its keys and values
+    Given the last evaluation result is {name: "Alice" age: 25}
+    When the user invokes inspect-last-result
+    Then an inspector buffer opens
+    And the inspector shows "name: \"Alice\""
+    And the inspector shows "age: 25"
+
+  Scenario: Drilling into a nested map in the inspector
+    Given the inspector is showing {profile: {city: "Moscow"}}
+    When the user selects "profile:" in the inspector
+    Then the inspector navigates into the nested object
+    And the inspector shows "city: \"Moscow\""
+
+  Scenario: Navigating back in the inspector returns to the parent
+    Given the inspector has drilled into a nested structure
+    When the user invokes inspector-pop
+    Then the inspector returns to the parent value
+    And the parent's keys are visible again
+
+  Scenario: Inspecting a list shows indexed elements
+    Given the last evaluation result is ["Alice" "Bob" "Carol"]
+    When the user invokes inspect-last-result
+    Then the inspector shows "0: \"Alice\""
+    And the inspector shows "1: \"Bob\""
+    And the inspector shows "2: \"Carol\""
+
+  Scenario: Object keys in the inspector use DataTwist postfix colon syntax
+    Given the last evaluation result is a map with a key :name
+    When the user inspects the result
+    Then the inspector displays the key as "name:" not as ":name"
+
+  # ===========================================================================
+  # SECTION 10: Pipeline Step Inspection
+  # ===========================================================================
+
+  Scenario: inspect-pipeline-step returns sample data for a specific step
+    Given an nREPL session is open
+    And the client has evaluated:
+      """
+      pipeline is [1 2 3 4 5] |> filter [x -> x > 2] |> map [x -> x * 10]
+      """
+    When the client sends inspect-pipeline-step op for "pipeline" at step 1
+    Then the response contains sample data showing [3 4 5]
+
+  Scenario: inspect-pipeline-step evaluates an un-evaluated pipeline first
+    Given an nREPL session is open
+    And the client has evaluated "nums is [10 20 30]"
+    When the client sends inspect-pipeline-step op with code "nums |> filter [x -> x > 15]" at step 1
+    Then the pipeline is evaluated
+    And the response contains sample data showing [20 30]
+
+  # ===========================================================================
+  # SECTION 11: Info / Lookup
+  # ===========================================================================
+
+  Scenario: info op returns signature and description for a stdlib function
+    Given an nREPL session is open
+    When the client sends info op with symbol "map"
+    Then the response contains :arglists "([f collection])"
+    And the response contains :doc with a description of what map does
+
+  # ===========================================================================
+  # SECTION 12: Stdout Forwarding
+  # ===========================================================================
+
+  Scenario: tap! output appears in the :out transport during nREPL eval
+    Given an nREPL session is open
+    When the client sends eval op with code "42 |> tap!"
+    Then the response contains :out with the tap output showing "42"
+    And the response contains :value "42"

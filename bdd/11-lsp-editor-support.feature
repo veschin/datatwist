@@ -207,66 +207,27 @@ Feature: LSP Editor Support
     Then the diagnostic on line 1 is removed
 
   # ===========================================================================
-  # SECTION 6: Eval-at-Point (Emacs + nREPL)
+  # SECTION 6: Signature Help
   # ===========================================================================
 
-  Scenario: Eval-at-point on a binding evaluates the right-hand side
-    Given the buffer contains "greeting is \"hello\""
-    And a live nREPL session is connected
-    When the user invokes eval-at-point with cursor inside the binding
-    Then the nREPL evaluates "greeting is \"hello\""
-    And an inline overlay appears showing "=> \"hello\""
-
-  Scenario: Eval-at-point on a pipeline evaluates the full pipeline
-    Given the buffer contains "users |> filter _.active |> count"
-    And a live nREPL session is connected
-    And "users" is bound to a list in the current session
-    When the user invokes eval-at-point with cursor anywhere in the pipeline
-    Then the nREPL evaluates the pipeline expression
-    And an inline overlay appears showing the numeric result
-
-  Scenario: Eval-at-point on a literal evaluates to that literal
-    Given the buffer contains "42"
-    And a live nREPL session is connected
-    When the user invokes eval-at-point on "42"
-    Then an inline overlay appears showing "=> 42"
-
-  Scenario: Inline overlay disappears after the configured timeout
-    Given an inline result overlay is visible showing "=> 42"
-    When the configured display duration elapses
-    Then the overlay is removed and the buffer text is unchanged
+  Scenario: Signature help shows parameter hints inside a function call
+    Given the file contains "filter "
+    And the cursor is positioned after "filter "
+    When the editor requests textDocument/signatureHelp
+    Then the response shows signature "filter [predicate collection]"
+    And "predicate" is marked as the active parameter
+    And each parameter has a tab-stop annotation
 
   # ===========================================================================
-  # SECTION 7: Data Inspector
+  # SECTION 7: Pipeline Step Inspection via Hover
   # ===========================================================================
 
-  Scenario: Inspecting a map shows its keys and values
-    Given the last evaluation result is {name: "Alice" age: 25}
-    When the user invokes inspect-last-result
-    Then an inspector buffer opens
-    And the inspector shows "name: \"Alice\""
-    And the inspector shows "age: 25"
-
-  Scenario: Drilling into a nested map in the inspector
-    Given the inspector is showing {profile: {city: "Moscow"}}
-    When the user selects "profile:" in the inspector
-    Then the inspector navigates into the nested object
-    And the inspector shows "city: \"Moscow\""
-
-  Scenario: Navigating back in the inspector returns to the parent
-    Given the inspector has drilled into a nested structure
-    When the user invokes inspector-pop
-    Then the inspector returns to the parent value
-    And the parent's keys are visible again
-
-  Scenario: Inspecting a list shows indexed elements
-    Given the last evaluation result is ["Alice" "Bob" "Carol"]
-    When the user invokes inspect-last-result
-    Then the inspector shows "0: \"Alice\""
-    And the inspector shows "1: \"Bob\""
-    And the inspector shows "2: \"Carol\""
-
-  Scenario: Object keys in the inspector use DataTwist postfix colon syntax
-    Given the last evaluation result is a map with a key :name
-    When the user inspects the result
-    Then the inspector displays the key as "name:" not as ":name"
+  Scenario: Hovering a pipeline step shows sample data for that step
+    Given the file contains:
+      """
+      users is [{name: "Alice" active: true} {name: "Bob" active: false}]
+      users |> filter _.active |> map _.name
+      """
+    When the user hovers over "filter" in the pipeline
+    Then the hover popup shows sample data after applying "filter _.active"
+    And the sample data is formatted in DataTwist syntax
