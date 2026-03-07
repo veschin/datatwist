@@ -168,7 +168,7 @@
   false)
 
 (defn dt-warning
-  "Create a DataTwist warning map. Does NOT throw. Returns the map.
+  "Create a DataTwist warning map. Prints to stderr. Returns the map.
    When *warnings-as-errors* is true, throws via dt-error instead."
   [{:keys [code] :as data}]
   (let [registry-entry (get error-registry code {})
@@ -177,7 +177,11 @@
     (if *warnings-as-errors*
       (throw (ex-info (str (:message data "Warning treated as error in strict mode"))
                       (merge warning-map {:level :error})))
-      warning-map)))
+      (do
+        (binding [*out* *err*]
+          (println (str "[" code "] " (or category "WARNING") ": "
+                        (:message data) (when-let [h (:hint data)] (str " | Hint: " h)))))
+        warning-map))))
 
 ;; ---------------------------------------------------------------------------
 ;; Common mistake detector

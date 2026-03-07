@@ -152,9 +152,17 @@
 
 (defn- dt-sort-by
   "Sort a collection by a key function. Data-first: (coll, f)
-   Nil-tolerant: nil keys sort last; when both keys are nil, falls back to comparing elements."
+   Nil-tolerant: nil keys sort last; when both keys are nil, falls back to comparing elements.
+   Emits DT-D002 warning when nil sort keys are encountered."
   [coll f]
-  (let [entries (mapv (fn [x] [x (f x)]) coll)]
+  (let [entries  (mapv (fn [x] [x (f x)]) coll)
+        nil-keys (count (filter (fn [[_ k]] (nil? k)) entries))]
+    (when (pos? nil-keys)
+      (errors/dt-warning {:code    "DT-D002"
+                          :message (str "Nil sort keys encountered — "
+                                        nil-keys " of " (count entries)
+                                        " rows had nil sort key.")
+                          :hint    "Rows with nil sort keys were sorted to the end. Use `fill-nil` or `skip-nil` to handle nil values."}))
     (vec (map first
               (sort (fn [[ax ak] [bx bk]]
                       (cond
@@ -188,16 +196,28 @@
   "Map a function over a collection. Data-first: (coll, f)
    When coll is a map (e.g. from group-by), iterates over entries as {:key k :value v}
    and emits DT-D001 warning (or throws in strict mode) when any result is nil.
-   When coll is a sequential, returns a lazy seq — no nil scan (preserves laziness).
+   When coll is a sequential, eagerly maps, checks for nils, and emits DT-D001 if any found.
    Throws for non-collection inputs."
   [coll f]
   (cond
     (nil? coll)        []
     (map? coll)        (let [results (mapv (fn [[k v]] (f {:key k :value v})) coll)]
                          (when (some nil? results)
-                           (errors/dt-warning {:code    "DT-D001"
-                                               :message "Nil values encountered in map step — some rows had nil at the accessed path."
-                                               :hint    "Some rows had nil at the accessed path. Results may contain nil."}))
+                           (let [nil-count (count (filter nil? results))]
+                             (errors/dt-warning {:code    "DT-D001"
+                                                 :message (str "Nil values encountered in map step — "
+                                                               nil-count " of " (count results)
+                                                               " rows had nil at the accessed path.")
+                                                 :hint    "Use `fill-nil` to provide defaults or `skip-nil` to exclude nil values."})))
+                         results)
+    (vector? coll)     (let [results (mapv f coll)]
+                         (when (some nil? results)
+                           (let [nil-count (count (filter nil? results))]
+                             (errors/dt-warning {:code    "DT-D001"
+                                                 :message (str "Nil values encountered in map step — "
+                                                               nil-count " of " (count results)
+                                                               " rows had nil at the accessed path.")
+                                                 :hint    "Use `fill-nil` to provide defaults or `skip-nil` to exclude nil values."})))
                          results)
     (sequential? coll) (map f coll)
     :else (throw (ex-info (str "Cannot map over " (dt-type-of coll) ": expected a list or object")
@@ -212,9 +232,17 @@
 
 (defn- dt-group-by
   "Group a collection by a key function. Data-first: (coll, f).
-   Returns a Clojure map with string keys."
+   Returns a Clojure map with string keys.
+   Emits DT-D003 warning when nil group keys are encountered."
   [coll f]
-  (let [grouped (group-by f coll)]
+  (let [grouped  (group-by f coll)
+        nil-keys (count (filter (fn [x] (nil? (f x))) coll))]
+    (when (pos? nil-keys)
+      (errors/dt-warning {:code    "DT-D003"
+                          :message (str "Nil group keys encountered — "
+                                        nil-keys " of " (count coll)
+                                        " rows had nil group key.")
+                          :hint    "Rows with nil group keys were grouped under nil. Use `fill-nil` or `skip-nil` to handle nil values."}))
     ;; Convert keys to strings for DataTwist compatibility
     (into {} (map (fn [[k v]] [(if (keyword? k) (name k) (str k)) (vec v)]) grouped))))
 
@@ -609,6 +637,7 @@
    "to-float"    #(if (string? %) (Double/parseDouble %) (double %))
    ;; Collection extras
    "range"       (fn
+                   ([] (clojure.core/range))
                    ([n] (clojure.core/range n))
                    ([start end] (clojure.core/range start end))
                    ([start end step] (clojure.core/range start end step)))

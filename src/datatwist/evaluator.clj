@@ -1800,3 +1800,42 @@
                               {:dt/error true :code "DT-R020" :category "NIL ERROR"
                                :hint "A nil propagated through an operation that requires a non-nil value."
                                :source input})))))))))
+
+(defn evaluate-with-env
+  "Parse and evaluate DataTwist source, using the given environment.
+   Returns {:value result :env new-env}.
+   Throws structured DT errors on parse or runtime failure.
+   On error, the caller should keep the old env (no partial updates)."
+  [input env]
+  (if (comment-or-whitespace-only? input)
+    {:value nil :env env}
+    (let [ast (parser/parse input)]
+      (if (insta/failure? ast)
+        (throw (errors/parse-failure->dt-error ast input))
+        (binding [*source* input]
+          (try
+            (let [[value new-env] (eval-expr ast env)]
+              {:value value :env new-env})
+            (catch clojure.lang.ExceptionInfo e
+              (throw e))
+            (catch ArithmeticException e
+              (throw (ex-info (str "Type error: " (.getMessage e))
+                              {:dt/error true :code "DT-T003" :category "ARITHMETIC ERROR"
+                               :message (.getMessage e) :hint "Check for division by zero"
+                               :source input})))
+            (catch IllegalArgumentException e
+              (throw (ex-info (str "Collection operation applied to non-collection value")
+                              {:dt/error true :code "DT-R010" :category "TYPE MISMATCH"
+                               :hint "filter and map expect a list. Check the type of the value being piped."
+                               :source input})))
+            (catch ClassCastException e
+              (throw (ex-info "Type mismatch: incompatible types in operation"
+                              {:dt/error true :code "DT-T001" :category "TYPE MISMATCH"
+                               :hint "Check that the operands have compatible types."
+                               :source input})))
+            (catch NullPointerException e
+              (throw (ex-info "Nil value where a value was required"
+                              {:dt/error true :code "DT-R020" :category "NIL ERROR"
+                               :hint "A nil propagated through an operation that requires a non-nil value."
+                               :source input})))))))))
+
