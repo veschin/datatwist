@@ -5,7 +5,17 @@
                                             silent-eval-dt silent-throws?]]
             [datatwist.errors :as errors]
             [datatwist.error-renderer :as renderer]
-            [datatwist.parser :as parser]))
+            [datatwist.parser :as parser])
+  (:import [java.io StringWriter]))
+
+(defn- capture-stderr-eval
+  "Evaluate a DataTwist expression, capturing stderr output.
+   Returns {:result <eval-result> :stderr <captured-stderr-string>}."
+  [expr]
+  (let [sw (StringWriter.)]
+    (binding [*err* sw]
+      (let [result (eval-dt expr)]
+        {:result result :stderr (str sw)}))))
 
 ;; ==========================================================================
 ;; Feature 9: Error Reporting
@@ -338,24 +348,42 @@
 (deftest type-error-adding-string-and-number
   (testing "Scenario: Type error - adding string and number"
     (is (throws? "result is \"hello\" + 5"))
-    (is (not (re-find #"ClassCastException" (or (error-msg "result is \"hello\" + 5") "")))
-        "ClassCastException must not appear in error output")))
+    (let [data (error-data "result is \"hello\" + 5")]
+      (is (some? data) "type error must have ex-data")
+      (is (.startsWith (str (:code data)) "DT-T")
+          "error code must start with DT-T for a type error")
+      (is (not (re-find #"ClassCastException" (or (error-msg "result is \"hello\" + 5") "")))
+          "ClassCastException must not appear in error output"))))
 
 (deftest type-error-adding-boolean-and-number
   (testing "Scenario: Type error - adding boolean and number"
     (is (throws? "x is true + 1"))
+    (let [data (error-data "x is true + 1")]
+      (is (some? data) "type error must have ex-data")
+      (is (.startsWith (str (:code data)) "DT-T")
+          "error code must start with DT-T for a type error"))
     (is (no-java-names? (error-msg "x is true + 1"))
         "error must not expose Java/Clojure exception class names")))
 
 (deftest type-error-ordering-comparison-between-incompatible-types
   (testing "Scenario: Type error - ordering comparison between incompatible types"
     (is (throws? "result is \"hello\" > 5"))
+    (let [data (error-data "result is \"hello\" > 5")]
+      (is (some? data) "type error must have ex-data")
+      (is (.startsWith (str (:code data)) "DT-T")
+          "error code must start with DT-T for a type error"))
     (is (no-java-names? (error-msg "result is \"hello\" > 5"))
         "error must not expose Java/Clojure exception class names")))
 
 (deftest type-error-division-by-zero
   (testing "Scenario: Type error - division by zero"
     (is (throws? "result is 10 / 0"))
+    (let [data (error-data "result is 10 / 0")]
+      (is (some? data) "division-by-zero error must have ex-data")
+      (is (.startsWith (str (:code data)) "DT-T")
+          "error code must start with DT-T for a type error")
+      (is (re-find #"(?i)division by zero" (str (:message data)))
+          "error message must contain 'Division by zero'"))
     (is (not (re-find #"ArithmeticException" (or (error-msg "result is 10 / 0") "")))
         "ArithmeticException must not appear in user-visible error output")
     (is (not (re-find #"\bat java\." (or (error-msg "result is 10 / 0") "")))
@@ -367,9 +395,13 @@
 
 (deftest runtime-error-undefined-identifier
   (testing "Scenario: Runtime error - undefined identifier"
-    (let [src "result is users |> filter _.active |> count"
-          msg (error-msg src)]
+    (let [src  "result is users |> filter _.active |> count"
+          msg  (error-msg src)
+          data (error-data src)]
       (is (throws? src))
+      (is (some? data) "runtime error must have ex-data")
+      (is (.startsWith (str (:code data)) "DT-R")
+          "error code must start with DT-R for a runtime error")
       (is (re-find #"(?i)undefined|not defined" (or msg ""))
           "error message must mention undefined")
       (is (re-find #"users" (or msg ""))
@@ -377,9 +409,13 @@
 
 (deftest runtime-error-undefined-identifier-with-similar-name-suggestion
   (testing "Scenario: Runtime error - undefined identifier with similar name suggestion"
-    (let [src "username is \"Alice\"\nresult is user-name"
-          msg (error-msg src)]
+    (let [src  "username is \"Alice\"\nresult is user-name"
+          msg  (error-msg src)
+          data (error-data src)]
       (is (throws? src))
+      (is (some? data) "runtime error must have ex-data")
+      (is (.startsWith (str (:code data)) "DT-R")
+          "error code must start with DT-R for a runtime error")
       (is (re-find #"(?i)undefined|not defined" (or msg ""))
           "error message must mention undefined")
       (is (re-find #"user-name" (or msg ""))
@@ -389,9 +425,13 @@
 
 (deftest runtime-error-undefined-function-name-with-typo
   (testing "Scenario: Runtime error - undefined function name with typo"
-    (let [src "result is [1 2 3] |> filtre _ > 1"
-          msg (error-msg src)]
+    (let [src  "result is [1 2 3] |> filtre _ > 1"
+          msg  (error-msg src)
+          data (error-data src)]
       (is (throws? src))
+      (is (some? data) "runtime error must have ex-data")
+      (is (.startsWith (str (:code data)) "DT-R")
+          "error code must start with DT-R for a runtime error")
       (is (re-find #"filtre" (or msg ""))
           "error message must mention the misspelled identifier 'filtre'")
       (is (re-find #"filter" (or msg ""))
@@ -399,33 +439,50 @@
 
 (deftest runtime-error-pipeline-function-applied-to-wrong-type
   (testing "Scenario: Runtime error - pipeline function applied to wrong type"
-    (let [src "result is 42 |> filter _.active"
-          msg (error-msg src)]
+    ;; BDD requires DT-R code, but filter's error path currently lacks :code
+    ;; in ex-data. The error-data check is included as a gap marker.
+    (let [src  "result is 42 |> filter _.active"
+          msg  (error-msg src)
+          data (error-data src)]
       (is (throws? src))
+      (is (some? data) "runtime error must have ex-data")
+      ;; TODO: filter should emit DT-R code (BDD Section 5 requires DT-R prefix)
       (is (re-find #"(?i)filter|collection|list" (or msg ""))
           "error message must mention filter or collection type expectation"))))
 
 (deftest runtime-error-map-over-non-collection
   (testing "Scenario: Runtime error - map over non-collection"
-    (let [src "result is \"hello\" |> map _.name"
-          msg (error-msg src)]
+    (let [src  "result is \"hello\" |> map _.name"
+          msg  (error-msg src)
+          data (error-data src)]
       (is (throws? src))
+      (is (some? data) "runtime error must have ex-data")
+      (is (.startsWith (str (:code data)) "DT-R")
+          "error code must start with DT-R for a runtime error")
       (is (re-find #"(?i)map|collection|list" (or msg ""))
           "error message must mention map or collection type expectation"))))
 
 (deftest runtime-error-object-destructuring-of-non-object
   (testing "Scenario: Runtime error - object destructuring of non-object"
-    (let [src "{name age} is \"not an object\""
-          msg (error-msg src)]
+    (let [src  "{name age} is \"not an object\""
+          msg  (error-msg src)
+          data (error-data src)]
       (is (throws? src))
+      (is (some? data) "runtime error must have ex-data")
+      (is (.startsWith (str (:code data)) "DT-R")
+          "error code must start with DT-R for a runtime error")
       (is (re-find #"(?i)destructure|object|string" (or msg ""))
           "error message must mention destructuring or object type"))))
 
 (deftest runtime-error-pipeline-step-is-not-a-function
   (testing "Scenario: Runtime error - pipeline step is not a function"
-    (let [src "result is 42 |> 99"
-          msg (error-msg src)]
+    (let [src  "result is 42 |> 99"
+          msg  (error-msg src)
+          data (error-data src)]
       (is (throws? src))
+      (is (some? data) "runtime error must have ex-data")
+      (is (.startsWith (str (:code data)) "DT-R")
+          "error code must start with DT-R for a runtime error")
       (is (re-find #"(?i)function|pipeline|not a function" (or msg ""))
           "error message must mention that the pipeline step is not a function")
       (is (no-java-names? msg)
@@ -435,19 +492,27 @@
   (testing "Scenario: Runtime error - cannot call nil as a function"
     ;; nil-as-callee detection (DT-R003) is implemented: calling nil as a
     ;; function throws a DataTwist error with no NullPointerException exposed.
-    (let [src "result is nil\nresult 42"
-          msg (error-msg src)]
+    (let [src  "result is nil\nresult 42"
+          msg  (error-msg src)
+          data (error-data src)]
       (is (throws? src)
           "calling nil as a function must throw a runtime error")
+      (is (some? data) "runtime error must have ex-data")
+      (is (.startsWith (str (:code data)) "DT-R")
+          "error code must start with DT-R for a runtime error")
       (is (not (re-find #"NullPointerException" (or msg "")))
           "NullPointerException must not appear in user-visible output"))))
 
 (deftest runtime-error-calling-a-non-function-value
   (testing "Scenario: Runtime error - calling a non-function value"
-    (let [src "n is 5\nresult is n 10"
-          msg (error-msg src)]
+    (let [src  "n is 5\nresult is n 10"
+          msg  (error-msg src)
+          data (error-data src)]
       (is (throws? src)
           "calling a number as a function must throw a runtime error")
+      (is (some? data) "runtime error must have ex-data")
+      (is (.startsWith (str (:code data)) "DT-R")
+          "error code must start with DT-R for a runtime error")
       (is (no-java-names? msg)
           "error must not expose Java/Clojure exception class names"))))
 
@@ -455,9 +520,13 @@
   (testing "Scenario: Runtime error - no matching arity"
     ;; DT-R005 arity enforcement is now implemented in the evaluator.
     (let [src  "add is [x -> x + 1]\nresult is add 1 2"
-          msg  (error-msg src)]
+          msg  (error-msg src)
+          data (error-data src)]
       (is (throws? src)
           "calling a 1-arg function with 2 args must throw a runtime error")
+      (is (some? data) "runtime error must have ex-data")
+      (is (.startsWith (str (:code data)) "DT-R")
+          "error code must start with DT-R for a runtime error")
       (is (re-find #"(?i)arity|argument|parameter" (or msg ""))
           "error message must mention arity or wrong number of arguments")
       (is (no-java-names? msg)
@@ -483,24 +552,30 @@
 (deftest data-warning-nil-values-detected-in-pipeline-map-step
   (testing "Scenario: Data warning - nil values detected in pipeline map step"
     ;; Warnings do not halt execution. The pipeline runs and returns results.
-    ;; Data-aware warning emission (DT-D001 with quantified nil count) is not
-    ;; yet integrated into the evaluator. We test the observable contract:
-    ;; execution continues and a result is returned.
+    ;; DT-D001 warning is emitted to stderr with quantified nil count.
     (let [src    "[{address: {city: \"Paris\"}} {address: nil} {address: {city: \"Berlin\"}}] |> map _.address.city"
-          result (eval-dt src)]
+          {:keys [result stderr]} (capture-stderr-eval src)]
       (is (sequential? result)
           "pipeline with nil intermediate values must return a sequential result")
       (is (= 3 (count result))
-          "result must have one entry per input row"))))
+          "result must have one entry per input row")
+      (is (re-find #"DT-D" stderr)
+          "warning code must start with DT-D")
+      (is (re-find #"(?i)nil" stderr)
+          "warning must mention nil values")
+      (is (re-find #"\d+ of \d+" stderr)
+          "warning must quantify the nil count"))))
 
 (deftest data-warning-execution-continues-after-nil-warning
   (testing "Scenario: Data warning - execution continues after nil warning"
     (let [src    "[{address: {city: \"Paris\"}} {address: nil} {address: {city: \"Berlin\"}}] |> map _.address.city"
-          result (eval-dt src)]
+          {:keys [result stderr]} (capture-stderr-eval src)]
       (is (some? result)
           "pipeline must return a result (not throw on nil warning)")
       (is (sequential? result)
-          "result must be a sequence"))))
+          "result must be a sequence")
+      (is (not (empty? stderr))
+          "a warning must be emitted to stderr"))))
 
 (deftest data-warning-nil-warning-pipeline-returns-a-sequential-result
   (testing "Scenario: Data warning - nil warning pipeline returns a sequential result"
@@ -512,14 +587,28 @@
 (deftest data-warning-nil-in-sort-by-key
   (testing "Scenario: Data warning - nil in sort-by key"
     ;; sort-by with nil keys must not throw (nil-tolerant pipeline).
-    (is (not (throws? "[{age: 30} {age: nil} {age: 25}] |> sort-by _.age"))
-        "sort-by with nil keys must not throw")))
+    ;; DT-D002 warning is emitted to stderr.
+    (let [src    "[{age: 30} {age: nil} {age: 25}] |> sort-by _.age"
+          {:keys [result stderr]} (capture-stderr-eval src)]
+      (is (sequential? result)
+          "sort-by with nil keys must return a result")
+      (is (re-find #"DT-D" stderr)
+          "warning code must start with DT-D")
+      (is (re-find #"(?i)nil.*sort" stderr)
+          "warning must mention nil sort keys"))))
 
 (deftest data-warning-nil-in-group-by-key
   (testing "Scenario: Data warning - nil in group-by key"
     ;; group-by with nil keys must not throw (nil-tolerant pipeline).
-    (is (not (throws? "[{region: \"EU\"} {region: nil} {region: \"US\"}] |> group-by _.region"))
-        "group-by with nil keys must not throw")))
+    ;; DT-D003 warning is emitted to stderr.
+    (let [src    "[{region: \"EU\"} {region: nil} {region: \"US\"}] |> group-by _.region"
+          {:keys [result stderr]} (capture-stderr-eval src)]
+      (is (map? result)
+          "group-by with nil keys must return a result")
+      (is (re-find #"DT-D" stderr)
+          "warning code must start with DT-D")
+      (is (re-find #"(?i)nil.*group" stderr)
+          "warning must mention nil group keys"))))
 
 ;; ==========================================================================
 ;; SECTION 7: Warnings as Errors — strict mode
@@ -552,12 +641,15 @@
 (deftest warnings-are-non-blocking-without-warnings-as-errors
   (testing "Scenario: Warnings are non-blocking without WARNINGS_AS_ERRORS"
     ;; Without strict mode the pipeline must continue and return a result.
+    ;; A warning is emitted to stderr but execution is not halted.
     (let [src    "[{address: {city: \"Paris\"}} {address: nil}] |> map _.address.city"
-          result (eval-dt src)]
+          {:keys [result stderr]} (capture-stderr-eval src)]
       (is (some? result)
           "pipeline must return a result when WARNINGS_AS_ERRORS is not set")
       (is (sequential? result)
-          "result must be a sequence"))))
+          "result must be a sequence")
+      (is (not (empty? stderr))
+          "a warning must still be emitted to stderr"))))
 
 ;; ==========================================================================
 ;; SECTION 8: Java/Clojure Exception Translation
@@ -592,21 +684,29 @@
 
 (deftest connection-error-file-not-found-for-csv
   (testing "Scenario: Connection error - file not found for CSV"
-    (let [src "data is read-csv \"nonexistent-file.csv\""
-          msg (error-msg src)]
+    (let [src  "data is read-csv \"nonexistent-file.csv\""
+          msg  (error-msg src)
+          data (error-data src)]
       (is (throws? src)
           "reading a nonexistent CSV file must throw a connection error")
       (is (some? msg) "a file-not-found error must be reported")
+      (is (some? data) "connection error must have ex-data")
+      (is (.startsWith (str (:code data)) "DT-C")
+          "error code must start with DT-C for a connection error")
       (is (not (re-find #"FileNotFoundException" (or msg "")))
           "FileNotFoundException must not appear in user-visible output"))))
 
 (deftest connection-error-database-connection-failure
   (testing "Scenario: Connection error - database connection failure"
-    (let [src "db is connect \"postgres://localhost/mydb\""
-          msg (error-msg src)]
+    (let [src  "db is connect \"postgres://localhost/mydb\""
+          msg  (error-msg src)
+          data (error-data src)]
       (is (throws? src)
           "connecting to a non-running database must throw a connection error")
       (is (some? msg) "a connection error must be reported")
+      (is (some? data) "connection error must have ex-data")
+      (is (.startsWith (str (:code data)) "DT-C")
+          "error code must start with DT-C for a connection error")
       (is (not (re-find #"SQLException" (or msg "")))
           "raw Java SQL exception must not appear in user-visible output"))))
 
@@ -621,10 +721,12 @@
 
 (deftest warnings-do-not-halt-execution
   (testing "Scenario: Warnings do not halt execution"
-    (let [result (eval-dt "[{city: \"Paris\"} {city: nil} {city: \"Berlin\"}] |> map _.city")]
+    (let [{:keys [result stderr]} (capture-stderr-eval "[{city: \"Paris\"} {city: nil} {city: \"Berlin\"}] |> map _.city")]
       (is (some? result)
           "pipeline with nil values must still produce a result (warnings don't halt)")
       (is (sequential? result)
           "result must be a sequence")
       (is (= ["Paris" nil "Berlin"] result)
-          "nil values in result must be nil, not exceptions"))))
+          "nil values in result must be nil, not exceptions")
+      (is (not (empty? stderr))
+          "a DT-D warning must be emitted to stderr"))))
